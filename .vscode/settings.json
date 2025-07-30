@@ -1,0 +1,52 @@
+{
+  "dotnet.defaultSolution": "SteelEstimation-CloudDev.sln",
+  "editor.formatOnSave": true,
+  "editor.formatOnPaste": true,
+  "files.exclude": {
+    "**/bin": true,
+    "**/obj": true,
+    "**/.vs": true
+  },
+  "files.associations": {
+    "*.cshtml": "html",
+    "*.razor": "html"
+  },
+  "terminal.integrated.env.windows": {
+    "AZURE_SUBSCRIPTION_ID": "8b10df28-e826-4de8-b929-4d5698853b5d",
+    "AZURE_CLIENT_ID": "7e7da08a-c540-4e2c-97d5-ab954970484f"
+  },
+  "github.copilot.advanced": {
+    "debug.overrideProxyUrl": "http://localhost:3000",
+    "debug.useNodeFetcher": true
+  },
+  "github.copilot.enable": {
+    "*": true,
+    "yaml": true,
+    "plaintext": true,
+    "markdown": true,
+    "scminput": false
+  },
+  "mcp.enabled": true,
+  "mcp.servers": {
+    "playwright": {
+      "enabled": true,
+      "autoStart": true
+    },
+    "azure": {
+      "enabled": true,
+      "autoStart": true
+    },
+    "sql-server": {
+      "enabled": true,
+      "autoStart": true
+    },
+    "github": {
+      "enabled": true,
+      "autoStart": true
+    },
+    "filesystem": {
+      "enabled": true,
+      "autoStart": true
+    }
+  }
+}

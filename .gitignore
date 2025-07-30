@@ -592,3 +592,6 @@ appsettings.*.json
 
 # ABR Web Services GUID (keep it secret)
 abr-guid.txt
+
+# MCP sensitive files
+set-mcp-env.ps1

@@ -1,0 +1,9 @@
+{
+  "subscriptionId": "8b10df28-e826-4de8-b929-4d5698853b5d",
+  "tenantId": "0dc6b780-5b9e-4809-afb6-6bc499280f23",
+  "clientId": "7e7da08a-c540-4e2c-97d5-ab954970484f",
+  "clientSecret": "zqR8Q~3fnNUgSKk1o8vTU9ToFvrVa9jyk~c5Lc2s",
+  "auth": {
+    "type": "servicePrincipal"
+  }
+}

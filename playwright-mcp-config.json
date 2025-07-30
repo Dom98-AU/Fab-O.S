@@ -1,0 +1,21 @@
+{
+  "browser": {
+    "browserName": "chromium",
+    "launchOptions": {
+      "headless": false,
+      "args": ["--no-sandbox", "--disable-setuid-sandbox"]
+    },
+    "contextOptions": {
+      "viewport": { "width": 1280, "height": 1024 },
+      "ignoreHTTPSErrors": true
+    }
+  },
+  "capabilities": ["tabs", "pdf", "vision"],
+  "outputDir": "./playwright-output",
+  "network": {
+    "allowedOrigins": [
+      "http://localhost:8080",
+      "https://localhost:5001"
+    ]
+  }
+}
