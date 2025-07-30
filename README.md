@@ -59,8 +59,8 @@ SteelEstimation/
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/[your-username]/steel-estimation-docker.git
-   cd steel-estimation-docker
+   git clone https://github.com/Dom98-AU/Fab-O.S.git
+   cd Fab-O.S
    ```
 
 2. **Start the containers**
