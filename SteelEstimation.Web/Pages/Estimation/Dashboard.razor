@@ -1,0 +1,797 @@
+@page "/estimation/{EstimationId:int}/dashboard"
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@using SteelEstimation.Core.Services
+@using SteelEstimation.Core.Interfaces
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@inject ITimeTrackingService TimeTrackingService
+@inject IMaterialTypeService MaterialTypeService
+@inject IAuthenticationService AuthService
+@inject IEfficiencyRateService EfficiencyRateService
+
+<PageTitle>Estimation Dashboard - @estimation?.ProjectName</PageTitle>
+
+@if (estimation == null)
+{
+    <div class="text-center">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+}
+else
+{
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/estimation">Estimations</a></li>
+            <li class="breadcrumb-item"><a href="/estimation/@EstimationId">@estimation.ProjectName</a></li>
+            <li class="breadcrumb-item active">Dashboard</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex align-items-center gap-3">
+            <h2>@estimation.ProjectName - Dashboard</h2>
+            <TimeTracker EstimationId="@EstimationId" PageName="Dashboard" OnStoppedChanged="OnTimerStoppedChanged" />
+        </div>
+        <button class="btn btn-primary" @onclick="RefreshData">
+            <i class="fas fa-sync-alt @(_isRefreshing ? "fa-spin" : "")"></i> Refresh
+        </button>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Total Tonnage</h5>
+                    <h2 class="mb-0">@totalTonnage.ToString("N2") t</h2>
+                    <small>Across all packages</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Total Items</h5>
+                    <h2 class="mb-0">@totalItems.ToString("N0")</h2>
+                    <small>Processing & Welding</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Labor Hours</h5>
+                    @if (_showEfficiencyMode)
+                    {
+                        var adjustedTotal = GetAdjustedTotalProcessingHours() + GetAdjustedTotalWeldingHours();
+                        <h2 class="mb-0">@adjustedTotal.ToString("N1") hrs</h2>
+                        <small>@GetEfficiencyDisplayText()</small>
+                    }
+                    else
+                    {
+                        <h2 class="mb-0">@totalLaborHours.ToString("N1") hrs</h2>
+                        <small>Estimated total</small>
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Tonne Rate</h5>
+                    @if (_showEfficiencyMode)
+                    {
+                        var adjustedTonneRate = totalTonnage > 0 ? GetAdjustedTotalLaborCost() / totalTonnage : 0;
+                        <h2 class="mb-0">$@adjustedTonneRate.ToString("N2")/t</h2>
+                        <small>@GetEfficiencyDisplayText()</small>
+                    }
+                    else
+                    {
+                        <h2 class="mb-0">$@tonneRate.ToString("N2")/t</h2>
+                        <small>Average handling cost</small>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Package Breakdown -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Package Breakdown</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Package</th>
+                                    <th>Status</th>
+                                    <th>Items</th>
+                                    <th>Tonnage</th>
+                                    <th>
+                                        Processing Hours
+                                        <button class="btn btn-sm btn-outline-secondary ms-2" @onclick="ToggleEfficiencyMode" title="@(_showEfficiencyMode ? "Show actual hours" : "Show efficiency-adjusted hours")">
+                                            <i class="fas @(_showEfficiencyMode ? "fa-percentage" : "fa-clock")"></i>
+                                        </button>
+                                        @if (_showEfficiencyMode)
+                                        {
+                                            <select class="form-select form-select-sm d-inline-block w-auto ms-2" @onchange="OnEfficiencyRateChanged">
+                                                <option value="">-- Custom --</option>
+                                                @foreach (var rate in availableEfficiencyRates)
+                                                {
+                                                    <option value="@rate.Id" selected="@(_selectedEfficiencyRateId == rate.Id)">
+                                                        @rate.Name (@rate.EfficiencyPercentage%)
+                                                    </option>
+                                                }
+                                            </select>
+                                            @if (!_selectedEfficiencyRateId.HasValue)
+                                            {
+                                                <input type="number" class="form-control form-control-sm d-inline-block ms-2" style="width: 80px" 
+                                                       value="@_globalEfficiency" @onchange="OnCustomEfficiencyChanged" 
+                                                       min="10" max="200" step="5" />
+                                                <span class="ms-1">%</span>
+                                            }
+                                        }
+                                    </th>
+                                    <th>
+                                        Welding Hours
+                                        @if (_showEfficiencyMode)
+                                        {
+                                            <small class="text-muted d-block">(@_globalEfficiency% eff.)</small>
+                                        }
+                                    </th>
+                                    <th>
+                                        Total Hours
+                                        @if (_showEfficiencyMode)
+                                        {
+                                            <small class="text-muted d-block">(@_globalEfficiency% eff.)</small>
+                                        }
+                                    </th>
+                                    <th>
+                                        Labor Cost
+                                        @if (_showEfficiencyMode)
+                                        {
+                                            <small class="text-muted d-block">(@_globalEfficiency% eff.)</small>
+                                        }
+                                    </th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var package in packages)
+                                {
+                                    <tr>
+                                        <td>
+                                            <strong>@package.PackageNumber</strong><br />
+                                            <small class="text-muted">@package.PackageName</small>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-@GetStatusColor(package.Status)">@package.Status</span>
+                                        </td>
+                                        <td>@packageMetrics[package.Id].ItemCount</td>
+                                        <td>@packageMetrics[package.Id].Tonnage.ToString("N2") t</td>
+                                        <td>
+                                            @if (_showEfficiencyMode)
+                                            {
+                                                var adjustedHours = packageMetrics[package.Id].ProcessingHours * (_globalEfficiency / 100m);
+                                                <span title="@_globalEfficiency% efficiency">
+                                                    @adjustedHours.ToString("N1")
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                @packageMetrics[package.Id].ProcessingHours.ToString("N1")
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (_showEfficiencyMode)
+                                            {
+                                                var adjustedWeldingHours = packageMetrics[package.Id].WeldingHours * (_globalEfficiency / 100m);
+                                                <span title="@_globalEfficiency% efficiency">
+                                                    @adjustedWeldingHours.ToString("N1")
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                @packageMetrics[package.Id].WeldingHours.ToString("N1")
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (_showEfficiencyMode)
+                                            {
+                                                var adjustedProcessingHours = packageMetrics[package.Id].ProcessingHours * (_globalEfficiency / 100m);
+                                                var adjustedWeldingHours = packageMetrics[package.Id].WeldingHours * (_globalEfficiency / 100m);
+                                                var adjustedTotalHours = adjustedProcessingHours + adjustedWeldingHours;
+                                                <strong title="@_globalEfficiency% efficiency">@adjustedTotalHours.ToString("N1")</strong>
+                                            }
+                                            else
+                                            {
+                                                <strong>@packageMetrics[package.Id].TotalHours.ToString("N1")</strong>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (_showEfficiencyMode)
+                                            {
+                                                var adjustedProcessingHours = packageMetrics[package.Id].ProcessingHours * (_globalEfficiency / 100m);
+                                                var adjustedWeldingHours = packageMetrics[package.Id].WeldingHours * (_globalEfficiency / 100m);
+                                                var adjustedTotalHours = adjustedProcessingHours + adjustedWeldingHours;
+                                                var adjustedLaborCost = adjustedTotalHours * package.LaborRatePerHour;
+                                                <span title="@_globalEfficiency% efficiency">$@adjustedLaborCost.ToString("N2")</span>
+                                            }
+                                            else
+                                            {
+                                                <span>$@packageMetrics[package.Id].LaborCost.ToString("N2")</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <a href="/estimation/@EstimationId/package/@package.Id" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-edit"></i> Open
+                                            </a>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot class="table-light fw-bold">
+                                <tr>
+                                    <td colspan="2">Total</td>
+                                    <td>@totalItems</td>
+                                    <td>@totalTonnage.ToString("N2") t</td>
+                                    <td>
+                                        @if (_showEfficiencyMode)
+                                        {
+                                            @GetAdjustedTotalProcessingHours().ToString("N1")
+                                        }
+                                        else
+                                        {
+                                            @totalProcessingHours.ToString("N1")
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (_showEfficiencyMode)
+                                        {
+                                            @GetAdjustedTotalWeldingHours().ToString("N1")
+                                        }
+                                        else
+                                        {
+                                            @totalWeldingHours.ToString("N1")
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (_showEfficiencyMode)
+                                        {
+                                            @((GetAdjustedTotalProcessingHours() + GetAdjustedTotalWeldingHours()).ToString("N1"))
+                                        }
+                                        else
+                                        {
+                                            @totalLaborHours.ToString("N1")
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (_showEfficiencyMode)
+                                        {
+                                            <span>$@GetAdjustedTotalLaborCost().ToString("N2")</span>
+                                        }
+                                        else
+                                        {
+                                            <span>$@totalLaborCost.ToString("N2")</span>
+                                        }
+                                    </td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Material Type Breakdown -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Material Type Distribution</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="materialChart" width="400" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Labor Hours by Type</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="laborChart" width="400" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Processing Time Breakdown -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Processing Time Breakdown</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="processingChart" width="800" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Welding Time Dashboard -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <WeldingTimeDashboard EstimationId="@EstimationId" 
+                                  PackageIds="@packages.Select(p => p.Id).ToList()"
+                                  EfficiencyPercentage="@(_showEfficiencyMode ? _globalEfficiency : null)" />
+        </div>
+    </div>
+
+    <!-- Time Tracking Statistics -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Time Tracking Statistics</h5>
+                </div>
+                <div class="card-body">
+                    @if (timeTrackingStats.Any())
+                    {
+                        <div class="row">
+                            <div class="col-md-4">
+                                <h6>Total Time Spent</h6>
+                                <h3 class="text-primary">@FormatTimeSpan(totalTimeSpent)</h3>
+                            </div>
+                            <div class="col-md-8">
+                                <h6>Time by User</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>User</th>
+                                                <th>Time Spent</th>
+                                                <th>Percentage</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var stat in timeTrackingStats.OrderByDescending(s => s.Value))
+                                            {
+                                                <tr>
+                                                    <td>@GetUserName(stat.Key)</td>
+                                                    <td>@FormatTimeSpan(stat.Value)</td>
+                                                    <td>
+                                                        <div class="progress" style="height: 20px;">
+                                                            <div class="progress-bar" role="progressbar" 
+                                                                 style="width: @((stat.Value.TotalSeconds / totalTimeSpent.TotalSeconds * 100).ToString("F1"))%">
+                                                                @((stat.Value.TotalSeconds / totalTimeSpent.TotalSeconds * 100).ToString("F1"))%
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted mb-0">No time tracking data available yet.</p>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int EstimationId { get; set; }
+    
+    private Project? estimation;
+    private List<Package> packages = new();
+    private Dictionary<int, PackageMetrics> packageMetrics = new();
+    
+    private decimal totalTonnage;
+    private int totalItems;
+    private decimal totalLaborHours;
+    private decimal totalProcessingHours;
+    private decimal totalWeldingHours;
+    private decimal totalLaborCost;
+    private decimal tonneRate;
+    
+    private Dictionary<string, decimal> handlingBreakdown = new();
+    private Dictionary<string, int> materialBreakdown = new();
+    
+    private bool _isRefreshing = false;
+    private bool _showEfficiencyMode = false;
+    private decimal _globalEfficiency = 100m;
+    private int? _selectedEfficiencyRateId;
+    
+    private Dictionary<int, TimeSpan> timeTrackingStats = new();
+    private TimeSpan totalTimeSpent;
+    private Dictionary<int, string> userNames = new();
+    
+    private List<EfficiencyRate> availableEfficiencyRates = new();
+    private int? currentCompanyId;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        currentCompanyId = await AuthService.GetUserCompanyIdAsync();
+        if (currentCompanyId.HasValue)
+        {
+            availableEfficiencyRates = await EfficiencyRateService.GetActiveAsync(currentCompanyId.Value);
+            var defaultRate = availableEfficiencyRates.FirstOrDefault(r => r.IsDefault);
+            if (defaultRate != null)
+            {
+                _selectedEfficiencyRateId = defaultRate.Id;
+                _globalEfficiency = defaultRate.EfficiencyPercentage;
+            }
+        }
+        
+        await LoadData();
+    }
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await DrawCharts();
+        }
+    }
+    
+    private async Task LoadData()
+    {
+        using var context = await DbContextFactory.CreateDbContextAsync();
+        
+        estimation = await context.Projects
+            .FirstOrDefaultAsync(p => p.Id == EstimationId && !p.IsDeleted);
+            
+        if (estimation == null)
+        {
+            Navigation.NavigateTo("/estimation");
+            return;
+        }
+        
+        packages = await context.Packages
+            .Include(p => p.Worksheets)
+            .Where(p => p.ProjectId == EstimationId && !p.IsDeleted)
+            .OrderBy(p => p.PackageNumber)
+            .ToListAsync();
+            
+        await CalculateMetrics();
+    }
+    
+    private async Task CalculateMetrics()
+    {
+        using var context = await DbContextFactory.CreateDbContextAsync();
+        
+        packageMetrics.Clear();
+        totalTonnage = 0;
+        totalItems = 0;
+        totalProcessingHours = 0;
+        totalWeldingHours = 0;
+        totalLaborCost = 0;
+        
+        handlingBreakdown = new Dictionary<string, decimal>
+        {
+            { "Unload Time", 0 },
+            { "Mark/Measure/Cut", 0 },
+            { "Quality Check/Clean", 0 },
+            { "Move to Assembly", 0 },
+            { "Move After Weld", 0 },
+            { "Loading Time", 0 }
+        };
+        
+        materialBreakdown = new Dictionary<string, int>
+        {
+            { "Beams", 0 },
+            { "Plates", 0 },
+            { "Purlins", 0 },
+            { "Other", 0 }
+        };
+        
+        foreach (var package in packages)
+        {
+            var metrics = new PackageMetrics();
+            
+            // Get processing items
+            var processingItems = await context.ProcessingItems
+                .Include(p => p.PackageWorksheet)
+                .Where(p => p.PackageWorksheet != null && p.PackageWorksheet.PackageId == package.Id)
+                .ToListAsync();
+                
+            // Get welding items
+            var weldingItems = await context.WeldingItems
+                .Include(w => w.PackageWorksheet)
+                .Where(w => w.PackageWorksheet != null && w.PackageWorksheet.PackageId == package.Id)
+                .ToListAsync();
+                
+            // Calculate metrics
+            metrics.ItemCount = processingItems.Count + weldingItems.Count;
+            metrics.Tonnage = processingItems.Sum(p => p.TotalWeight) / 1000m; // Convert kg to tonnes
+            metrics.ProcessingHours = processingItems.Sum(p => p.TotalProcessingMinutes) / 60m;
+            metrics.WeldingHours = weldingItems.Sum(w => w.TotalWeldingMinutes) / 60m;
+            metrics.TotalHours = metrics.ProcessingHours + metrics.WeldingHours;
+            metrics.LaborCost = metrics.TotalHours * package.LaborRatePerHour;
+            
+            // Update handling breakdown
+            var unbundledItems = processingItems.Where(p => p.DeliveryBundleId == null || p.IsParentInBundle);
+            handlingBreakdown["Unload Time"] += unbundledItems.Sum(p => p.UnloadTimePerBundle) / 60m;
+            handlingBreakdown["Mark/Measure/Cut"] += processingItems.Sum(p => p.MarkMeasureCut * p.Quantity) / 60m;
+            handlingBreakdown["Quality Check/Clean"] += processingItems.Sum(p => p.QualityCheckClean * p.Quantity) / 60m;
+            var packBundledItems = processingItems.Where(p => p.PackBundleId == null || p.IsParentInPackBundle);
+            handlingBreakdown["Move to Assembly"] += packBundledItems.Sum(p => p.MoveToAssembly) / 60m;
+            handlingBreakdown["Move After Weld"] += packBundledItems.Sum(p => p.MoveAfterWeld) / 60m;
+            handlingBreakdown["Loading Time"] += unbundledItems.Sum(p => p.LoadingTimePerBundle) / 60m;
+            
+            // Update material breakdown
+            foreach (var item in processingItems.Where(p => p.Quantity > 0))
+            {
+                if (IsBeamMaterial(item.MaterialId))
+                    materialBreakdown["Beams"]++;
+                else if (IsPlateMaterial(item.MaterialId))
+                    materialBreakdown["Plates"]++;
+                else if (IsPurlinMaterial(item.MaterialId))
+                    materialBreakdown["Purlins"]++;
+                else
+                    materialBreakdown["Other"]++;
+            }
+            
+            packageMetrics[package.Id] = metrics;
+            
+            totalTonnage += metrics.Tonnage;
+            totalItems += metrics.ItemCount;
+            totalProcessingHours += metrics.ProcessingHours;
+            totalWeldingHours += metrics.WeldingHours;
+            totalLaborCost += metrics.LaborCost;
+        }
+        
+        totalLaborHours = totalProcessingHours + totalWeldingHours;
+        tonneRate = totalTonnage > 0 ? totalLaborCost / totalTonnage : 0;
+        
+        // Load time tracking statistics
+        await LoadTimeTrackingData();
+    }
+    
+    private async Task LoadTimeTrackingData()
+    {
+        timeTrackingStats = await TimeTrackingService.GetTimeByUserAsync(EstimationId);
+        totalTimeSpent = await TimeTrackingService.GetTotalTimeAsync(EstimationId);
+        
+        // Load user names
+        if (timeTrackingStats.Any())
+        {
+            using var context = await DbContextFactory.CreateDbContextAsync();
+            var userIds = timeTrackingStats.Keys.ToList();
+            var users = await context.Users
+                .Where(u => userIds.Contains(u.Id))
+                .ToListAsync();
+            
+            userNames = users.ToDictionary(u => u.Id, u => u.FullName ?? u.Email);
+        }
+    }
+    
+    private async Task RefreshData()
+    {
+        _isRefreshing = true;
+        await LoadData();
+        await DrawCharts();
+        _isRefreshing = false;
+    }
+    
+    private async Task DrawCharts()
+    {
+        // Draw material distribution chart
+        await DrawMaterialChart();
+        
+        // Draw labor hours chart
+        await DrawLaborChart();
+        
+        // Draw processing time breakdown chart
+        await DrawProcessingChart();
+    }
+    
+    private async Task DrawMaterialChart()
+    {
+        var labels = materialBreakdown.Where(m => m.Value > 0).Select(m => m.Key).ToArray();
+        var data = materialBreakdown.Where(m => m.Value > 0).Select(m => m.Value).ToArray();
+        
+        if (labels.Any())
+        {
+            await JSRuntime.InvokeVoidAsync("dashboardCharts.drawMaterialChart", labels, data, null);
+        }
+    }
+    
+    private async Task DrawLaborChart()
+    {
+        await JSRuntime.InvokeVoidAsync("dashboardCharts.drawLaborChart", totalProcessingHours, totalWeldingHours);
+    }
+    
+    private async Task DrawProcessingChart()
+    {
+        var labels = handlingBreakdown.Where(h => h.Value > 0).Select(h => h.Key).ToArray();
+        var data = handlingBreakdown.Where(h => h.Value > 0).Select(h => h.Value).ToArray();
+        
+        if (labels.Any())
+        {
+            await JSRuntime.InvokeVoidAsync("dashboardCharts.drawProcessingChart", labels, data);
+        }
+    }
+    
+    private string GetStatusColor(string status)
+    {
+        return status switch
+        {
+            "Draft" => "secondary",
+            "InProgress" => "primary",
+            "Completed" => "success",
+            "Approved" => "info",
+            _ => "secondary"
+        };
+    }
+    
+    private void ToggleEfficiencyMode()
+    {
+        _showEfficiencyMode = !_showEfficiencyMode;
+        StateHasChanged();
+    }
+    
+    private void OnEfficiencyRateChanged(ChangeEventArgs e)
+    {
+        if (string.IsNullOrEmpty(e.Value?.ToString()))
+        {
+            _selectedEfficiencyRateId = null;
+            _globalEfficiency = 100m;
+        }
+        else if (int.TryParse(e.Value.ToString(), out var rateId))
+        {
+            _selectedEfficiencyRateId = rateId;
+            var selectedRate = availableEfficiencyRates.FirstOrDefault(r => r.Id == rateId);
+            if (selectedRate != null)
+            {
+                _globalEfficiency = selectedRate.EfficiencyPercentage;
+            }
+        }
+        StateHasChanged();
+    }
+    
+    private void OnCustomEfficiencyChanged(ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out var efficiency))
+        {
+            _globalEfficiency = efficiency;
+            StateHasChanged();
+        }
+    }
+    
+    private decimal GetAdjustedTotalProcessingHours()
+    {
+        decimal adjustedTotal = 0;
+        foreach (var package in packages)
+        {
+            var originalHours = packageMetrics.ContainsKey(package.Id) ? packageMetrics[package.Id].ProcessingHours : 0;
+            adjustedTotal += originalHours * (_globalEfficiency / 100m);
+        }
+        return adjustedTotal;
+    }
+    
+    private decimal GetAdjustedTotalWeldingHours()
+    {
+        decimal adjustedTotal = 0;
+        foreach (var package in packages)
+        {
+            var originalHours = packageMetrics.ContainsKey(package.Id) ? packageMetrics[package.Id].WeldingHours : 0;
+            adjustedTotal += originalHours * (_globalEfficiency / 100m);
+        }
+        return adjustedTotal;
+    }
+    
+    private decimal GetAdjustedTotalLaborCost()
+    {
+        decimal adjustedTotal = 0;
+        foreach (var package in packages)
+        {
+            if (packageMetrics.ContainsKey(package.Id))
+            {
+                var metrics = packageMetrics[package.Id];
+                var adjustedProcessingHours = metrics.ProcessingHours * (_globalEfficiency / 100m);
+                var adjustedWeldingHours = metrics.WeldingHours * (_globalEfficiency / 100m);
+                var adjustedTotalHours = adjustedProcessingHours + adjustedWeldingHours;
+                adjustedTotal += adjustedTotalHours * package.LaborRatePerHour;
+            }
+        }
+        return adjustedTotal;
+    }
+    
+    private bool IsBeamMaterial(string? materialId)
+    {
+        if (string.IsNullOrEmpty(materialId)) return false;
+        var upper = materialId.ToUpper();
+        return upper.Contains("BEAM") || upper.Contains("UB") || upper.Contains("UC") || 
+               upper.Contains("PFC") || upper.Contains("RSJ");
+    }
+    
+    private bool IsPlateMaterial(string? materialId)
+    {
+        if (string.IsNullOrEmpty(materialId)) return false;
+        var upper = materialId.ToUpper();
+        return upper.Contains("PLATE") || upper.Contains("FL") || upper.Contains("PL");
+    }
+    
+    private bool IsPurlinMaterial(string? materialId)
+    {
+        if (string.IsNullOrEmpty(materialId)) return false;
+        var upper = materialId.ToUpper();
+        return upper.Contains("PURLIN") || upper.Contains("C15") || upper.Contains("C20") || 
+               upper.Contains("C25") || upper.Contains("Z15") || upper.Contains("Z20");
+    }
+    
+    private class PackageMetrics
+    {
+        public int ItemCount { get; set; }
+        public decimal Tonnage { get; set; }
+        public decimal ProcessingHours { get; set; }
+        public decimal WeldingHours { get; set; }
+        public decimal TotalHours { get; set; }
+        public decimal LaborCost { get; set; }
+    }
+    
+    private string FormatTimeSpan(TimeSpan time)
+    {
+        if (time.TotalDays >= 1)
+        {
+            return $"{(int)time.TotalDays}d {time.Hours}h {time.Minutes}m";
+        }
+        else if (time.TotalHours >= 1)
+        {
+            return $"{(int)time.TotalHours}h {time.Minutes}m";
+        }
+        else
+        {
+            return $"{time.Minutes}m {time.Seconds}s";
+        }
+    }
+    
+    private string GetUserName(int userId)
+    {
+        return userNames.TryGetValue(userId, out var name) ? name : $"User {userId}";
+    }
+    
+    private void OnTimerStoppedChanged(bool stopped)
+    {
+        // Handle timer stopped event - could refresh data or show notification
+        if (stopped)
+        {
+            // Timer was stopped - optionally refresh time tracking data
+            InvokeAsync(LoadTimeTrackingData);
+        }
+    }
+    
+    private string GetEfficiencyDisplayText()
+    {
+        if (_selectedEfficiencyRateId.HasValue)
+        {
+            var rate = availableEfficiencyRates.FirstOrDefault(r => r.Id == _selectedEfficiencyRateId.Value);
+            if (rate != null)
+            {
+                return $"{rate.Name} ({rate.EfficiencyPercentage}%)";
+            }
+        }
+        return $"{_globalEfficiency}% efficiency";
+    }
+}

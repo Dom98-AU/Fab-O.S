@@ -1,0 +1,212 @@
+@if (ShowDebugConsole)
+{
+    <div class="debug-console-container">
+        <div class="debug-console-header">
+            <span class="debug-console-title">
+                <i class="fas fa-terminal"></i> Debug Console
+            </span>
+            <div class="debug-console-controls">
+                <button class="btn btn-sm btn-outline-light" @onclick="ClearMessages" title="Clear">
+                    <i class="fas fa-trash"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-light" @onclick="ToggleMinimize" title="@(_isMinimized ? "Expand" : "Minimize")">
+                    <i class="fas fa-@(_isMinimized ? "expand" : "compress")"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-light" @onclick="() => ShowDebugConsole = false" title="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        
+        @if (!_isMinimized)
+        {
+            <div class="debug-console-body">
+                @if (_messages.Any())
+                {
+                    @foreach (var message in _messages)
+                    {
+                        <div class="debug-message @message.Level">
+                            <span class="debug-timestamp">[@message.Timestamp:HH:mm:ss.fff]</span>
+                            <span class="debug-text">@message.Text</span>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="debug-message info">
+                        <span class="debug-text">No debug messages captured yet...</span>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+<style>
+    .debug-console-container {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 600px;
+        max-width: 90vw;
+        background: #1e1e1e;
+        border: 1px solid #444;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        z-index: 10000;
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 12px;
+    }
+    
+    .debug-console-header {
+        background: #2d2d2d;
+        padding: 8px 12px;
+        border-radius: 8px 8px 0 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: move;
+    }
+    
+    .debug-console-title {
+        color: #fff;
+        font-weight: 600;
+    }
+    
+    .debug-console-controls {
+        display: flex;
+        gap: 4px;
+    }
+    
+    .debug-console-controls button {
+        padding: 2px 8px;
+        font-size: 11px;
+    }
+    
+    .debug-console-body {
+        max-height: 400px;
+        overflow-y: auto;
+        padding: 8px;
+        background: #1e1e1e;
+        border-radius: 0 0 8px 8px;
+    }
+    
+    .debug-message {
+        padding: 4px 8px;
+        margin-bottom: 2px;
+        border-radius: 3px;
+        word-wrap: break-word;
+    }
+    
+    .debug-message.error {
+        background: rgba(255, 0, 0, 0.1);
+        color: #ff6b6b;
+    }
+    
+    .debug-message.warning {
+        background: rgba(255, 193, 7, 0.1);
+        color: #ffc107;
+    }
+    
+    .debug-message.info {
+        background: rgba(0, 123, 255, 0.1);
+        color: #69b7ff;
+    }
+    
+    .debug-message.success {
+        background: rgba(40, 167, 69, 0.1);
+        color: #51cf66;
+    }
+    
+    .debug-timestamp {
+        color: #888;
+        margin-right: 8px;
+    }
+    
+    .debug-text {
+        color: #e0e0e0;
+    }
+    
+    /* Scrollbar styling */
+    .debug-console-body::-webkit-scrollbar {
+        width: 8px;
+    }
+    
+    .debug-console-body::-webkit-scrollbar-track {
+        background: #2d2d2d;
+    }
+    
+    .debug-console-body::-webkit-scrollbar-thumb {
+        background: #555;
+        border-radius: 4px;
+    }
+    
+    .debug-console-body::-webkit-scrollbar-thumb:hover {
+        background: #666;
+    }
+</style>
+
+@code {
+    [Parameter] public bool ShowDebugConsole { get; set; }
+    [Parameter] public EventCallback<bool> ShowDebugConsoleChanged { get; set; }
+    
+    private bool _isMinimized = false;
+    private List<DebugMessage> _messages = new List<DebugMessage>();
+    private int _maxMessages = 500;
+    
+    public class DebugMessage
+    {
+        public DateTime Timestamp { get; set; }
+        public string Text { get; set; } = "";
+        public string Level { get; set; } = "info";
+    }
+    
+    protected override async Task OnInitializedAsync()
+    {
+        // Hook into console output
+        await CaptureConsoleOutput();
+    }
+    
+    private Task CaptureConsoleOutput()
+    {
+        try
+        {
+            // This would need JavaScript interop to capture console.log messages
+            return Task.CompletedTask;
+            // For now, we'll provide a method that can be called directly
+        }
+        catch (Exception ex)
+        {
+            AddMessage($"Failed to initialize console capture: {ex.Message}", "error");
+            return Task.CompletedTask;
+        }
+    }
+    
+    public void AddMessage(string message, string level = "info")
+    {
+        _messages.Add(new DebugMessage
+        {
+            Timestamp = DateTime.Now,
+            Text = message,
+            Level = level
+        });
+        
+        // Keep only the last N messages
+        if (_messages.Count > _maxMessages)
+        {
+            _messages.RemoveAt(0);
+        }
+        
+        InvokeAsync(StateHasChanged);
+    }
+    
+    private void ClearMessages()
+    {
+        _messages.Clear();
+    }
+    
+    private void ToggleMinimize()
+    {
+        _isMinimized = !_isMinimized;
+    }
+}

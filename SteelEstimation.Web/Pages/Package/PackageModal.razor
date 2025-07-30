@@ -1,0 +1,228 @@
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+
+<div class="modal @(IsVisible ? "show d-block" : "")" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">@(IsEdit ? "Edit Package" : "Create New Package")</h5>
+                <button type="button" class="btn-close" @onclick="Cancel"></button>
+            </div>
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger">@errorMessage</div>
+                }
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Package Number <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" @bind="packageNumber" placeholder="e.g., PKG-001" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Package Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" @bind="packageName" placeholder="e.g., Main Structure Package" />
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-control" @bind="description" rows="3" placeholder="Package description..."></textarea>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Start Date</label>
+                        <input type="date" class="form-control" @bind="startDate" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">End Date</label>
+                        <input type="date" class="form-control" @bind="endDate" />
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Status</label>
+                    <select class="form-control" @bind="status">
+                        <option value="Draft">Draft</option>
+                        <option value="Active">Active</option>
+                        <option value="Completed">Completed</option>
+                        <option value="On Hold">On Hold</option>
+                    </select>
+                </div>
+                
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+                <button type="button" class="btn btn-primary" @onclick="Save">
+                    @(IsEdit ? "Update Package" : "Create Package")
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (IsVisible)
+{
+    <div class="modal-backdrop fade show"></div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public bool IsEdit { get; set; }
+    [Parameter] public Package? EditPackage { get; set; }
+    [Parameter] public int ProjectId { get; set; }
+    [Parameter] public EventCallback<Package> OnSave { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+    
+    private string packageNumber = string.Empty;
+    private string packageName = string.Empty;
+    private string? description;
+    private DateTime? startDate;
+    private DateTime? endDate;
+    private string status = "Draft";
+    private string? errorMessage;
+    
+    protected override void OnParametersSet()
+    {
+        if (IsEdit && EditPackage != null)
+        {
+            packageNumber = EditPackage.PackageNumber;
+            packageName = EditPackage.PackageName;
+            description = EditPackage.Description;
+            startDate = EditPackage.StartDate;
+            endDate = EditPackage.EndDate;
+            status = EditPackage.Status;
+        }
+        else
+        {
+            // Reset form for new package
+            packageNumber = string.Empty;
+            packageName = string.Empty;
+            description = null;
+            startDate = null;
+            endDate = null;
+            status = "Draft";
+        }
+        errorMessage = null;
+    }
+    
+    private async Task Save()
+    {
+        errorMessage = null;
+        
+        // Validation
+        if (string.IsNullOrWhiteSpace(packageNumber))
+        {
+            errorMessage = "Package Number is required";
+            return;
+        }
+        
+        if (string.IsNullOrWhiteSpace(packageName))
+        {
+            errorMessage = "Package Name is required";
+            return;
+        }
+        
+        try
+        {
+            Package package;
+            
+            if (IsEdit && EditPackage != null)
+            {
+                var foundPackage = await DbContext.Packages
+                    .Include(p => p.Worksheets)
+                    .FirstOrDefaultAsync(p => p.Id == EditPackage.Id);
+                    
+                if (foundPackage == null)
+                {
+                    errorMessage = "Package not found";
+                    return;
+                }
+                
+                package = foundPackage;
+                package.PackageNumber = packageNumber;
+                package.PackageName = packageName;
+                package.Description = description;
+                package.StartDate = startDate;
+                package.EndDate = endDate;
+                package.Status = status;
+                package.LastModified = DateTime.UtcNow;
+                
+                // For existing packages, we don't remove worksheets - all packages must have all 3 worksheets
+            }
+            else
+            {
+                package = new Package
+                {
+                    ProjectId = ProjectId,
+                    PackageNumber = packageNumber,
+                    PackageName = packageName,
+                    Description = description,
+                    StartDate = startDate,
+                    EndDate = endDate,
+                    Status = status,
+                    CreatedDate = DateTime.UtcNow,
+                    LastModified = DateTime.UtcNow,
+                    IsDeleted = false
+                };
+                
+                DbContext.Packages.Add(package);
+                await DbContext.SaveChangesAsync(); // Save to get the ID
+            }
+            
+            // Ensure all 3 worksheets exist for the package
+            var existingTypes = package.Worksheets?.Select(w => w.WorksheetType).ToList() ?? new List<string>();
+            
+            if (!existingTypes.Contains(WorksheetTypes.Processing))
+            {
+                DbContext.PackageWorksheets.Add(new PackageWorksheet
+                {
+                    PackageId = package.Id,
+                    WorksheetType = WorksheetTypes.Processing,
+                    Name = "Processing & Handling",
+                    Description = "Processing and material handling activities",
+                    DisplayOrder = 1
+                });
+            }
+            
+            if (!existingTypes.Contains(WorksheetTypes.Welding))
+            {
+                DbContext.PackageWorksheets.Add(new PackageWorksheet
+                {
+                    PackageId = package.Id,
+                    WorksheetType = WorksheetTypes.Welding,
+                    Name = "Welding",
+                    Description = "Welding and fabrication activities",
+                    DisplayOrder = 2
+                });
+            }
+            
+            if (!existingTypes.Contains(WorksheetTypes.Fabrication))
+            {
+                DbContext.PackageWorksheets.Add(new PackageWorksheet
+                {
+                    PackageId = package.Id,
+                    WorksheetType = WorksheetTypes.Fabrication,
+                    Name = "Fabrication",
+                    Description = "Additional fabrication activities",
+                    DisplayOrder = 3
+                });
+            }
+            
+            await DbContext.SaveChangesAsync();
+            await OnSave.InvokeAsync(package);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error saving package: {ex.Message}";
+        }
+    }
+    
+    private async Task Cancel()
+    {
+        await OnCancel.InvokeAsync();
+    }
+}

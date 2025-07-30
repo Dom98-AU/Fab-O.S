@@ -1,0 +1,759 @@
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Core.DTOs
+@using Microsoft.AspNetCore.Components.Forms
+@using SteelEstimation.Core.Services
+
+<!-- Import Modal -->
+<div class="modal fade @(ShowImportModal ? "show d-block" : "")" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Import Items</h5>
+                <button type="button" class="btn-close" @onclick="CloseImportModal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Paste your data from Excel below. The columns should match the worksheet fields.</p>
+                <textarea class="form-control" rows="10" @bind="importData" 
+                         placeholder="Paste Excel data here..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="CloseImportModal">Cancel</button>
+                <button type="button" class="btn btn-primary" @onclick="ImportData">
+                    <i class="fas fa-file-import"></i> Import
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Split Row Modal -->
+<div class="modal fade @(ShowSplitModal ? "show d-block" : "")" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Split Row</h5>
+                <button type="button" class="btn-close" @onclick="CloseSplitModal"></button>
+            </div>
+            <div class="modal-body">
+                @if (splitTargetItem != null)
+                {
+                    <p>Splitting item: <strong>@splitTargetItem.DrawingNumber - @splitTargetItem.Description</strong></p>
+                    <p>Current quantity: <strong>@splitTargetItem.Quantity</strong></p>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Split Quantity</label>
+                        <input type="number" class="form-control" @bind="splitQuantity" 
+                               min="1" max="@(splitTargetItem.Quantity - 1)" />
+                        <small class="text-muted">
+                            This will create a new row with @splitQuantity items, 
+                            leaving @(splitTargetItem.Quantity - splitQuantity) in the original row.
+                        </small>
+                    </div>
+                    
+                    <!-- Preview -->
+                    <div class="alert alert-info">
+                        <h6>Preview:</h6>
+                        <ul class="mb-0">
+                            <li>Original row: @(splitTargetItem.Quantity - splitQuantity) items</li>
+                            <li>New row: @splitQuantity items</li>
+                        </ul>
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="CloseSplitModal">Cancel</button>
+                <button type="button" class="btn btn-primary" @onclick="ConfirmSplit" 
+                        disabled="@(splitQuantity <= 0 || splitQuantity >= splitTargetItem?.Quantity)">
+                    <i class="fas fa-cut"></i> Split
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Split Modal -->
+<div class="modal fade @(ShowBulkSplitModal ? "show d-block" : "")" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Bulk Split Rows</h5>
+                <button type="button" class="btn-close" @onclick="CloseBulkSplitModal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Split @selectedItems.Count selected items into individual rows (quantity = 1 each).</p>
+                
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Drawing #</th>
+                                <th>Description</th>
+                                <th>Current Qty</th>
+                                <th>Rows After Split</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var itemId in selectedItems.Take(10))
+                            {
+                                var item = processingItems.FirstOrDefault(p => p.Id == itemId);
+                                if (item != null && item.Quantity > 1)
+                                {
+                                    <tr>
+                                        <td>@item.DrawingNumber</td>
+                                        <td>@item.Description</td>
+                                        <td>@item.Quantity</td>
+                                        <td>@item.Quantity rows (1 each)</td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                    @if (selectedItems.Count > 10)
+                    {
+                        <p class="text-muted">...and @(selectedItems.Count - 10) more items</p>
+                    }
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="CloseBulkSplitModal">Cancel</button>
+                <button type="button" class="btn btn-primary" @onclick="ConfirmBulkSplit">
+                    <i class="fas fa-cut"></i> Split All
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delivery Bundle Creation Modal -->
+<div class="modal fade @(ShowCreateDeliveryBundleModal ? "show d-block" : "")" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create Delivery Bundle</h5>
+                <button type="button" class="btn-close" @onclick="CloseCreateDeliveryBundleModal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Bundle Name</label>
+                    <input type="text" class="form-control" @bind="newBundleName" 
+                           placeholder="Enter bundle name" />
+                </div>
+                
+                <p>Selected items: <strong>@selectedItems.Count</strong></p>
+                <p>Total weight: <strong>@GetSelectedItemsWeight().ToString("N2") kg</strong></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="CloseCreateDeliveryBundleModal">Cancel</button>
+                <button type="button" class="btn btn-primary" @onclick="CreateDeliveryBundle" 
+                        disabled="@(string.IsNullOrWhiteSpace(newBundleName))">
+                    <i class="fas fa-box"></i> Create Bundle
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Pack Bundle Creation Modal -->
+<div class="modal fade @(ShowCreatePackBundleModal ? "show d-block" : "")" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create Pack Bundle</h5>
+                <button type="button" class="btn-close" @onclick="CloseCreatePackBundleModal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Bundle Name</label>
+                    <input type="text" class="form-control" @bind="newPackBundleName" 
+                           placeholder="Enter pack bundle name" />
+                </div>
+                
+                <p>Selected items: <strong>@selectedItems.Count</strong></p>
+                <p class="text-info">
+                    <i class="fas fa-info-circle"></i>
+                    Only the parent item in pack bundles will have handling time applied.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="CloseCreatePackBundleModal">Cancel</button>
+                <button type="button" class="btn btn-primary" @onclick="CreatePackBundle" 
+                        disabled="@(string.IsNullOrWhiteSpace(newPackBundleName))">
+                    <i class="fas fa-boxes"></i> Create Pack Bundle
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Auto Delivery Bundle Modal -->
+<div class="modal fade @(ShowAutoDeliveryBundleModal ? "show d-block" : "")" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Auto Create Delivery Bundles</h5>
+                <button type="button" class="btn-close" @onclick="CloseAutoDeliveryBundleModal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Bundle Criteria</label>
+                    <select class="form-select" @bind="autoBundleCriteria">
+                        <option value="material">By Material Type</option>
+                        <option value="weight">By Weight Limit</option>
+                        <option value="drawing">By Drawing Number Pattern</option>
+                    </select>
+                </div>
+                
+                @if (autoBundleCriteria == "weight")
+                {
+                    <div class="mb-3">
+                        <label class="form-label">Maximum Bundle Weight (kg)</label>
+                        <input type="number" class="form-control" @bind="maxBundleWeight" 
+                               min="100" step="100" />
+                    </div>
+                }
+                else if (autoBundleCriteria == "drawing")
+                {
+                    <div class="mb-3">
+                        <label class="form-label">Drawing Pattern</label>
+                        <input type="text" class="form-control" @bind="drawingPattern" 
+                               placeholder="e.g., COL-* for columns" />
+                    </div>
+                }
+                
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    This will create bundles for all unbundled items based on the selected criteria.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="CloseAutoDeliveryBundleModal">Cancel</button>
+                <button type="button" class="btn btn-primary" @onclick="CreateAutoDeliveryBundles">
+                    <i class="fas fa-magic"></i> Create Bundles
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bundle Management Modal -->
+<div class="modal fade @(ShowBundleManagementModal ? "show d-block" : "")" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Bundle Management</h5>
+                <button type="button" class="btn-close" @onclick="CloseBundleManagementModal"></button>
+            </div>
+            <div class="modal-body">
+                <ul class="nav nav-tabs mb-3">
+                    <li class="nav-item">
+                        <a class="nav-link @(bundleManagementTab == "delivery" ? "active" : "")" 
+                           href="#" @onclick="@(() => bundleManagementTab = "delivery")">
+                            Delivery Bundles
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link @(bundleManagementTab == "pack" ? "active" : "")" 
+                           href="#" @onclick="@(() => bundleManagementTab = "pack")">
+                            Pack Bundles
+                        </a>
+                    </li>
+                </ul>
+                
+                @if (bundleManagementTab == "delivery")
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Bundle Name</th>
+                                    <th>Items</th>
+                                    <th>Total Weight</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var bundle in deliveryBundles)
+                                {
+                                    <tr>
+                                        <td>
+                                            <input type="text" class="form-control form-control-sm" 
+                                                   value="@bundle.BundleName"
+                                                   @onchange="@(e => UpdateBundleName(bundle, e.Value?.ToString()))" />
+                                        </td>
+                                        <td>@GetBundleItemCount(bundle.Id, false)</td>
+                                        <td>@GetBundleWeight(bundle.Id, false).ToString("N2") kg</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-danger" 
+                                                    @onclick="() => DeleteBundle(bundle.Id, false)">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Bundle Name</th>
+                                    <th>Items</th>
+                                    <th>Handling Time</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var bundle in packBundles)
+                                {
+                                    <tr>
+                                        <td>
+                                            <input type="text" class="form-control form-control-sm" 
+                                                   value="@bundle.BundleName"
+                                                   @onchange="@(e => UpdatePackBundleName(bundle, e.Value?.ToString()))" />
+                                        </td>
+                                        <td>@GetBundleItemCount(bundle.Id, true)</td>
+                                        <td>@GetPackBundleHandlingTime(bundle.Id).ToString("N2") h</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-danger" 
+                                                    @onclick="() => DeleteBundle(bundle.Id, true)">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="CloseBundleManagementModal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Column Management Modal -->
+<div class="modal fade @(ShowColumnManagementModal ? "show d-block" : "")" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Manage Columns</h5>
+                <button type="button" class="btn-close" @onclick="CloseColumnManagementModal"></button>
+            </div>
+            <div class="modal-body">
+                @if (activeWorksheet?.WorksheetType == "Processing")
+                {
+                    <h6>Processing Worksheet Columns</h6>
+                    @foreach (var col in columnVisibility)
+                    {
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" 
+                                   checked="@col.Value"
+                                   @onchange="@(e => ToggleColumnVisibility(col.Key, (bool)e.Value!))" />
+                            <label class="form-check-label">
+                                @GetColumnDisplayName(col.Key)
+                            </label>
+                        </div>
+                    }
+                }
+                else if (activeWorksheet?.WorksheetType == "Welding")
+                {
+                    <h6>Welding Worksheet Columns</h6>
+                    @foreach (var col in weldingColumnVisibility)
+                    {
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" 
+                                   checked="@col.Value"
+                                   @onchange="@(e => ToggleWeldingColumnVisibility(col.Key, (bool)e.Value!))" />
+                            <label class="form-check-label">
+                                @GetColumnDisplayName(col.Key)
+                            </label>
+                        </div>
+                    }
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="CloseColumnManagementModal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Material Mapping Modal -->
+<div class="modal fade @(ShowMaterialMappingModal ? "show d-block" : "")" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Material Type Mapping</h5>
+                <button type="button" class="btn-close" @onclick="CloseMaterialMappingModal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Map material IDs to material types for better categorization.</p>
+                
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Material ID</th>
+                                <th>Current Type</th>
+                                <th>Map To</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var materialId in materialIds.Distinct().Take(20))
+                            {
+                                <tr>
+                                    <td>@materialId</td>
+                                    <td>
+                                        <span class="badge bg-@GetMaterialTypeColor(DetermineMaterialType(materialId))">
+                                            @DetermineMaterialType(materialId)
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <select class="form-select form-select-sm" 
+                                                value="@DetermineMaterialType(materialId)"
+                                                @onchange="@(e => UpdateMaterialMapping(materialId, e.Value?.ToString()))">
+                                            <option value="Beam">Beam</option>
+                                            <option value="Plate">Plate</option>
+                                            <option value="Purlin">Purlin</option>
+                                            <option value="Misc">Misc</option>
+                                        </select>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="CloseMaterialMappingModal">Close</button>
+                <button type="button" class="btn btn-primary" @onclick="SaveMaterialMappings">
+                    <i class="fas fa-save"></i> Save Mappings
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Image Upload Modal -->
+<div class="modal fade @(ShowImageUploadModal ? "show d-block" : "")" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Upload Images</h5>
+                <button type="button" class="btn-close" @onclick="CloseImageUploadModal"></button>
+            </div>
+            <div class="modal-body">
+                @if (imageUploadTarget != null)
+                {
+                    <p>Uploading images for: <strong>@imageUploadTarget.DrawingNumber - @imageUploadTarget.ItemDescription</strong></p>
+                    
+                    <InputFile OnChange="@HandleImageUpload" multiple accept="image/*" class="form-control mb-3" />
+                    
+                    @if (uploadedFiles.Any())
+                    {
+                        <div class="mt-3">
+                            <h6>Selected Files:</h6>
+                            <ul>
+                                @foreach (var file in uploadedFiles)
+                                {
+                                    <li>@file.Name (@(file.Size / 1024) KB)</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="CloseImageUploadModal">Cancel</button>
+                <button type="button" class="btn btn-primary" @onclick="UploadImages" 
+                        disabled="@(!uploadedFiles.Any())">
+                    <i class="fas fa-upload"></i> Upload
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Image View Modal -->
+<div class="modal fade @(ShowImageViewModal ? "show d-block" : "")" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">View Image</h5>
+                <button type="button" class="btn-close" @onclick="CloseImageViewModal"></button>
+            </div>
+            <div class="modal-body text-center">
+                @if (viewingImage != null)
+                {
+                    <img src="@viewingImage.FilePath" class="img-fluid" alt="@viewingImage.FileName" />
+                    <p class="mt-2">@viewingImage.FileName</p>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="CloseImageViewModal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Welding Connections Modal -->
+<div class="modal fade @(ShowEditConnectionsModal ? "show d-block" : "")" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Welding Connections</h5>
+                <button type="button" class="btn-close" @onclick="CloseEditConnectionsModal"></button>
+            </div>
+            <div class="modal-body">
+                @if (connectionEditTarget != null)
+                {
+                    <p>Editing connections for: <strong>@connectionEditTarget.DrawingNumber - @connectionEditTarget.ItemDescription</strong></p>
+                    
+                    <div class="mb-3">
+                        <button class="btn btn-sm btn-primary" @onclick="AddNewConnection">
+                            <i class="fas fa-plus"></i> Add Connection
+                        </button>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Connection Type</th>
+                                    <th>Quantity</th>
+                                    <th>Assemble/Fit/Tack</th>
+                                    <th>Weld</th>
+                                    <th>Check</th>
+                                    <th>Test</th>
+                                    <th>Total</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (editingConnections != null)
+                                {
+                                    @foreach (var conn in editingConnections)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <select class="form-select form-select-sm" 
+                                                        value="@conn.WeldingConnectionId"
+                                                        @onchange="@(e => UpdateConnectionType(conn, e.Value))">
+                                                    <option value="">Select...</option>
+                                                    @foreach (var wc in availableWeldingConnections)
+                                                    {
+                                                        <option value="@wc.Id">@wc.Name</option>
+                                                    }
+                                                </select>
+                                            </td>
+                                            <td>
+                                                <input type="number" class="form-control form-control-sm" 
+                                                       value="@conn.Quantity" min="1"
+                                                       @onchange="@(e => UpdateConnectionQuantity(conn, e.Value))" />
+                                            </td>
+                                            <td>
+                                                <input type="number" class="form-control form-control-sm" 
+                                                       value="@conn.AssembleFitTack" step="0.1"
+                                                       @onchange="@(e => UpdateConnectionTime(conn, "AssembleFitTack", e.Value))" />
+                                            </td>
+                                            <td>
+                                                <input type="number" class="form-control form-control-sm" 
+                                                       value="@conn.Weld" step="0.1"
+                                                       @onchange="@(e => UpdateConnectionTime(conn, "Weld", e.Value))" />
+                                            </td>
+                                            <td>
+                                                <input type="number" class="form-control form-control-sm" 
+                                                       value="@conn.WeldCheck" step="0.1"
+                                                       @onchange="@(e => UpdateConnectionTime(conn, "WeldCheck", e.Value))" />
+                                            </td>
+                                            <td>
+                                                <input type="number" class="form-control form-control-sm" 
+                                                       value="@conn.WeldTest" step="0.1"
+                                                       @onchange="@(e => UpdateConnectionTime(conn, "WeldTest", e.Value))" />
+                                            </td>
+                                            <td>
+                                                <strong>@conn.TotalMinutes.ToString("N1")</strong>
+                                            </td>
+                                            <td>
+                                                <button class="btn btn-sm btn-danger" 
+                                                        @onclick="() => RemoveConnection(conn)">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="CloseEditConnectionsModal">Cancel</button>
+                <button type="button" class="btn btn-primary" @onclick="SaveConnections">
+                    <i class="fas fa-save"></i> Save Connections
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (ShowImportModal || ShowSplitModal || ShowBulkSplitModal || ShowCreateDeliveryBundleModal || 
+     ShowCreatePackBundleModal || ShowAutoDeliveryBundleModal || ShowBundleManagementModal || 
+     ShowColumnManagementModal || ShowMaterialMappingModal || ShowImageUploadModal || 
+     ShowImageViewModal || ShowEditConnectionsModal)
+{
+    <div class="modal-backdrop fade show"></div>
+}
+
+@code {
+    // Modal visibility states
+    [Parameter] public bool ShowImportModal { get; set; }
+    [Parameter] public bool ShowSplitModal { get; set; }
+    [Parameter] public bool ShowBulkSplitModal { get; set; }
+    [Parameter] public bool ShowCreateDeliveryBundleModal { get; set; }
+    [Parameter] public bool ShowCreatePackBundleModal { get; set; }
+    [Parameter] public bool ShowAutoDeliveryBundleModal { get; set; }
+    [Parameter] public bool ShowBundleManagementModal { get; set; }
+    [Parameter] public bool ShowColumnManagementModal { get; set; }
+    [Parameter] public bool ShowMaterialMappingModal { get; set; }
+    [Parameter] public bool ShowImageUploadModal { get; set; }
+    [Parameter] public bool ShowImageViewModal { get; set; }
+    [Parameter] public bool ShowEditConnectionsModal { get; set; }
+    
+    // Callbacks
+    [Parameter] public EventCallback CloseImportModal { get; set; }
+    [Parameter] public EventCallback CloseSplitModal { get; set; }
+    [Parameter] public EventCallback CloseBulkSplitModal { get; set; }
+    [Parameter] public EventCallback CloseCreateDeliveryBundleModal { get; set; }
+    [Parameter] public EventCallback CloseCreatePackBundleModal { get; set; }
+    [Parameter] public EventCallback CloseAutoDeliveryBundleModal { get; set; }
+    [Parameter] public EventCallback CloseBundleManagementModal { get; set; }
+    [Parameter] public EventCallback CloseColumnManagementModal { get; set; }
+    [Parameter] public EventCallback CloseMaterialMappingModal { get; set; }
+    [Parameter] public EventCallback CloseImageUploadModal { get; set; }
+    [Parameter] public EventCallback CloseImageViewModal { get; set; }
+    [Parameter] public EventCallback CloseEditConnectionsModal { get; set; }
+    
+    [Parameter] public EventCallback ImportData { get; set; }
+    [Parameter] public EventCallback ConfirmSplit { get; set; }
+    [Parameter] public EventCallback ConfirmBulkSplit { get; set; }
+    [Parameter] public EventCallback CreateDeliveryBundle { get; set; }
+    [Parameter] public EventCallback CreatePackBundle { get; set; }
+    [Parameter] public EventCallback CreateAutoDeliveryBundles { get; set; }
+    [Parameter] public EventCallback SaveMaterialMappings { get; set; }
+    [Parameter] public EventCallback UploadImages { get; set; }
+    [Parameter] public EventCallback SaveConnections { get; set; }
+    
+    // Data from parent
+    [Parameter] public ProcessingItem? splitTargetItem { get; set; }
+    [Parameter] public HashSet<int> selectedItems { get; set; } = new();
+    [Parameter] public List<ProcessingItem> processingItems { get; set; } = new();
+    [Parameter] public List<DeliveryBundle> deliveryBundles { get; set; } = new();
+    [Parameter] public List<PackBundle> packBundles { get; set; } = new();
+    [Parameter] public PackageWorksheet? activeWorksheet { get; set; }
+    [Parameter] public Dictionary<string, bool> columnVisibility { get; set; } = new();
+    [Parameter] public Dictionary<string, bool> weldingColumnVisibility { get; set; } = new();
+    [Parameter] public List<string> materialIds { get; set; } = new();
+    [Parameter] public WeldingItem? imageUploadTarget { get; set; }
+    [Parameter] public WeldingItem? connectionEditTarget { get; set; }
+    [Parameter] public ImageUpload? viewingImage { get; set; }
+    [Parameter] public List<WeldingItemConnection>? editingConnections { get; set; }
+    [Parameter] public List<WeldingConnection> availableWeldingConnections { get; set; } = new();
+    
+    // Modal-specific data
+    private string importData = "";
+    private int splitQuantity = 1;
+    private string newBundleName = "";
+    private string newPackBundleName = "";
+    private string autoBundleCriteria = "material";
+    private decimal maxBundleWeight = 1000;
+    private string drawingPattern = "";
+    private string bundleManagementTab = "delivery";
+    private List<IBrowserFile> uploadedFiles = new();
+    
+    // Helper methods referenced in parent
+    [Parameter] public Func<string, string> DetermineMaterialType { get; set; } = (s) => "Misc";
+    [Parameter] public Func<string?, string> GetMaterialTypeColor { get; set; } = (s) => "secondary";
+    [Parameter] public Func<DeliveryBundle, string?, Task> UpdateBundleName { get; set; } = (b, n) => Task.CompletedTask;
+    [Parameter] public Func<PackBundle, string?, Task> UpdatePackBundleName { get; set; } = (b, n) => Task.CompletedTask;
+    [Parameter] public Func<int, bool, Task> DeleteBundle { get; set; } = (id, isPack) => Task.CompletedTask;
+    [Parameter] public Func<string, bool, Task> ToggleColumnVisibility { get; set; } = (col, vis) => Task.CompletedTask;
+    [Parameter] public Func<string, bool, Task> ToggleWeldingColumnVisibility { get; set; } = (col, vis) => Task.CompletedTask;
+    [Parameter] public Func<string, string?, Task> UpdateMaterialMapping { get; set; } = (id, type) => Task.CompletedTask;
+    [Parameter] public Action<InputFileChangeEventArgs> HandleImageUpload { get; set; } = (e) => { };
+    [Parameter] public Action AddNewConnection { get; set; } = () => { };
+    [Parameter] public Action<WeldingItemConnection, object?> UpdateConnectionType { get; set; } = (c, v) => { };
+    [Parameter] public Action<WeldingItemConnection, object?> UpdateConnectionQuantity { get; set; } = (c, v) => { };
+    [Parameter] public Action<WeldingItemConnection, string, object?> UpdateConnectionTime { get; set; } = (c, f, v) => { };
+    [Parameter] public Action<WeldingItemConnection> RemoveConnection { get; set; } = (c) => { };
+    
+    private decimal GetSelectedItemsWeight()
+    {
+        return processingItems
+            .Where(p => selectedItems.Contains(p.Id))
+            .Sum(p => p.Weight * p.Quantity);
+    }
+    
+    private int GetBundleItemCount(int bundleId, bool isPackBundle)
+    {
+        if (isPackBundle)
+            return processingItems.Count(p => p.PackBundleId == bundleId);
+        else
+            return processingItems.Count(p => p.DeliveryBundleId == bundleId);
+    }
+    
+    private decimal GetBundleWeight(int bundleId, bool isPackBundle)
+    {
+        if (isPackBundle)
+            return processingItems.Where(p => p.PackBundleId == bundleId).Sum(p => p.Weight * p.Quantity);
+        else
+            return processingItems.Where(p => p.DeliveryBundleId == bundleId).Sum(p => p.Weight * p.Quantity);
+    }
+    
+    private decimal GetPackBundleHandlingTime(int bundleId)
+    {
+        var parentItem = processingItems.FirstOrDefault(p => p.PackBundleId == bundleId && p.IsParentInPackBundle);
+        if (parentItem != null)
+        {
+            return (parentItem.MoveToAssembly + parentItem.MoveAfterWeld) / 60m;
+        }
+        return 0;
+    }
+    
+    private string GetColumnDisplayName(string columnKey)
+    {
+        return columnKey switch
+        {
+            "DrawingNumber" => "Drawing #",
+            "Quantity" => "Qty",
+            "Description" => "Description",
+            "Material" => "Material",
+            "MaterialType" => "Type",
+            "Weight" => "Weight (kg)",
+            "TotalWeight" => "Total Weight",
+            "DeliveryBundle" => "Delivery Bundle",
+            "PackBundle" => "Pack Bundle",
+            "HandlingTime" => "Handling Time",
+            "UnloadTime" => "Unload Time",
+            "MarkMeasureCut" => "Mark/Measure/Cut",
+            "QualityCheck" => "Quality Check/Clean",
+            "MoveToAssembly" => "Move to Assembly",
+            "MoveAfterWeld" => "Move After Weld",
+            "LoadingTime" => "Loading Time",
+            "ItemDescription" => "Item Description",
+            "WeldType" => "Weld Type",
+            "ConnectionQty" => "Connection Qty",
+            "WeldingConnections" => "Connections",
+            "TotalMinutes" => "Total Minutes",
+            "Images" => "Images",
+            _ => columnKey
+        };
+    }
+}

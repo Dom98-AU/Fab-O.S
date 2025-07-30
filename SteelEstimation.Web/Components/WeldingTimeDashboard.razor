@@ -1,0 +1,344 @@
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject IJSRuntime JSRuntime
+
+<div class="welding-dashboard">
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Welding Time Analysis</h5>
+        </div>
+        <div class="card-body">
+            @if (isLoading)
+            {
+                <div class="text-center">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <!-- Summary Statistics -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <h6 class="text-muted">Total Welding Hours</h6>
+                            <h3 class="mb-0">@totalWeldingHours.ToString("N1")</h3>
+                            @if (EfficiencyPercentage.HasValue && EfficiencyPercentage.Value != 100)
+                            {
+                                <small class="text-info">@((totalWeldingHours * (EfficiencyPercentage.Value / 100m)).ToString("N1")) hrs @@ @EfficiencyPercentage%</small>
+                            }
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <h6 class="text-muted">Total Connections</h6>
+                            <h3 class="mb-0">@totalConnections</h3>
+                            <small>Across @connectionTypes.Count types</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <h6 class="text-muted">Avg Time/Connection</h6>
+                            <h3 class="mb-0">@avgTimePerConnection.ToString("N1") min</h3>
+                            <small>Per connection</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <h6 class="text-muted">Most Used Connection</h6>
+                            <h3 class="mb-0">@(mostUsedConnection ?? "-")</h3>
+                            <small>@mostUsedCount connections</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Row -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="chart-container">
+                            <h6>Time by Connection Type</h6>
+                            <canvas id="weldingConnectionChart-@componentId" width="400" height="300"></canvas>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="chart-container">
+                            <h6>Time by Operation</h6>
+                            <canvas id="weldingOperationChart-@componentId" width="400" height="300"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Connection Details Table -->
+                <div class="row">
+                    <div class="col-12">
+                        <h6>Connection Type Breakdown</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Connection Type</th>
+                                        <th>Count</th>
+                                        <th>
+                                            Assemble/Fit/Tack
+                                            @if (EfficiencyPercentage.HasValue && EfficiencyPercentage.Value != 100)
+                                            {
+                                                <small class="text-muted d-block">(@EfficiencyPercentage%)</small>
+                                            }
+                                        </th>
+                                        <th>
+                                            Weld
+                                            @if (EfficiencyPercentage.HasValue && EfficiencyPercentage.Value != 100)
+                                            {
+                                                <small class="text-muted d-block">(@EfficiencyPercentage%)</small>
+                                            }
+                                        </th>
+                                        <th>
+                                            Check
+                                            @if (EfficiencyPercentage.HasValue && EfficiencyPercentage.Value != 100)
+                                            {
+                                                <small class="text-muted d-block">(@EfficiencyPercentage%)</small>
+                                            }
+                                        </th>
+                                        <th>
+                                            Test
+                                            @if (EfficiencyPercentage.HasValue && EfficiencyPercentage.Value != 100)
+                                            {
+                                                <small class="text-muted d-block">(@EfficiencyPercentage%)</small>
+                                            }
+                                        </th>
+                                        <th>
+                                            Total Hours
+                                            @if (EfficiencyPercentage.HasValue && EfficiencyPercentage.Value != 100)
+                                            {
+                                                <small class="text-muted d-block">(@EfficiencyPercentage%)</small>
+                                            }
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var stat in connectionStats.OrderByDescending(s => s.Value.TotalMinutes))
+                                    {
+                                        <tr>
+                                            <td>@stat.Key</td>
+                                            <td>@stat.Value.Count</td>
+                                            <td>@GetEfficiencyAdjustedHours(stat.Value.AssembleFitTackMinutes).ToString("N1") hrs</td>
+                                            <td>@GetEfficiencyAdjustedHours(stat.Value.WeldMinutes).ToString("N1") hrs</td>
+                                            <td>@GetEfficiencyAdjustedHours(stat.Value.WeldCheckMinutes).ToString("N1") hrs</td>
+                                            <td>@GetEfficiencyAdjustedHours(stat.Value.WeldTestMinutes).ToString("N1") hrs</td>
+                                            <td><strong>@GetEfficiencyAdjustedHours(stat.Value.TotalMinutes).ToString("N1") hrs</strong></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot class="table-light">
+                                    <tr>
+                                        <th>Total</th>
+                                        <th>@totalConnections</th>
+                                        <th>@GetEfficiencyAdjustedHours(totalAssembleFitTack).ToString("N1") hrs</th>
+                                        <th>@GetEfficiencyAdjustedHours(totalWeld).ToString("N1") hrs</th>
+                                        <th>@GetEfficiencyAdjustedHours(totalWeldCheck).ToString("N1") hrs</th>
+                                        <th>@GetEfficiencyAdjustedHours(totalWeldTest).ToString("N1") hrs</th>
+                                        <th><strong>@GetEfficiencyAdjustedHours(totalWeldingHours * 60m).ToString("N1") hrs</strong></th>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+    .stat-card {
+        background: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 8px;
+        text-align: center;
+    }
+    
+    .chart-container {
+        background: #fff;
+        padding: 1rem;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+</style>
+
+@code {
+    [Parameter] public int EstimationId { get; set; }
+    [Parameter] public List<int>? PackageIds { get; set; }
+    [Parameter] public decimal? EfficiencyPercentage { get; set; }
+    
+    private bool isLoading = true;
+    private string componentId = Guid.NewGuid().ToString();
+    
+    private decimal totalWeldingHours = 0;
+    private int totalConnections = 0;
+    private decimal avgTimePerConnection = 0;
+    private string? mostUsedConnection;
+    private int mostUsedCount = 0;
+    
+    private decimal totalAssembleFitTack = 0;
+    private decimal totalWeld = 0;
+    private decimal totalWeldCheck = 0;
+    private decimal totalWeldTest = 0;
+    
+    private List<string> connectionTypes = new();
+    private Dictionary<string, ConnectionStats> connectionStats = new();
+    
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !isLoading)
+        {
+            await DrawCharts();
+        }
+    }
+    
+    private async Task LoadData()
+    {
+        isLoading = true;
+        
+        try
+        {
+            using var context = await DbContextFactory.CreateDbContextAsync();
+            
+            // Build query based on whether we're looking at specific packages or the whole estimation
+            var query = context.WeldingItems
+                .Include(w => w.WeldingConnection)
+                .Include(w => w.ItemConnections)
+                    .ThenInclude(ic => ic.WeldingConnection)
+                .Where(w => w.ProjectId == EstimationId);
+                
+            if (PackageIds != null && PackageIds.Any())
+            {
+                query = query.Where(w => w.PackageWorksheetId != null && 
+                    PackageIds.Contains(w.PackageWorksheet!.PackageId));
+            }
+            
+            var weldingItems = await query.ToListAsync();
+            
+            // Process welding items
+            connectionStats.Clear();
+            totalAssembleFitTack = 0;
+            totalWeld = 0;
+            totalWeldCheck = 0;
+            totalWeldTest = 0;
+            totalConnections = 0;
+            
+            foreach (var item in weldingItems)
+            {
+                // Only use ItemConnections for calculations per user request
+                // Do not fall back to ConnectionQty
+                if (item.ItemConnections.Any())
+                {
+                    foreach (var itemConnection in item.ItemConnections)
+                    {
+                        var connection = itemConnection.WeldingConnection;
+                        if (connection == null) continue;
+                        
+                        var key = $"{connection.Category} - {connection.Size}";
+                        if (!connectionStats.ContainsKey(key))
+                        {
+                            connectionStats[key] = new ConnectionStats();
+                        }
+                        
+                        var stats = connectionStats[key];
+                        stats.Count += itemConnection.Quantity;
+                        stats.AssembleFitTackMinutes += itemConnection.ActualAssembleFitTack * itemConnection.Quantity;
+                        stats.WeldMinutes += itemConnection.ActualWeld * itemConnection.Quantity;
+                        stats.WeldCheckMinutes += itemConnection.ActualWeldCheck * itemConnection.Quantity;
+                        stats.WeldTestMinutes += itemConnection.ActualWeldTest * itemConnection.Quantity;
+                        
+                        totalConnections += itemConnection.Quantity;
+                    }
+                }
+            }
+            
+            // Calculate totals
+            foreach (var stat in connectionStats.Values)
+            {
+                totalAssembleFitTack += stat.AssembleFitTackMinutes;
+                totalWeld += stat.WeldMinutes;
+                totalWeldCheck += stat.WeldCheckMinutes;
+                totalWeldTest += stat.WeldTestMinutes;
+            }
+            
+            totalWeldingHours = (totalAssembleFitTack + totalWeld + totalWeldCheck + totalWeldTest) / 60m;
+            avgTimePerConnection = totalConnections > 0 ? (totalWeldingHours * 60m) / totalConnections : 0;
+            
+            // Find most used connection
+            var mostUsed = connectionStats.OrderByDescending(s => s.Value.Count).FirstOrDefault();
+            if (mostUsed.Key != null)
+            {
+                mostUsedConnection = mostUsed.Key;
+                mostUsedCount = mostUsed.Value.Count;
+            }
+            
+            connectionTypes = connectionStats.Keys.ToList();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+    
+    private async Task DrawCharts()
+    {
+        // Draw connection type pie chart
+        var connectionLabels = connectionStats.Keys.ToArray();
+        var connectionData = connectionStats.Values.Select(s => GetEfficiencyAdjustedMinutes(s.TotalMinutes)).ToArray();
+        
+        await JSRuntime.InvokeVoidAsync("dashboardCharts.drawWeldingConnectionChart", 
+            $"weldingConnectionChart-{componentId}", connectionLabels, connectionData);
+        
+        // Draw operation breakdown chart
+        var operationLabels = new[] { "Assemble/Fit/Tack", "Weld", "Check", "Test" };
+        var operationData = new[] { 
+            GetEfficiencyAdjustedMinutes(totalAssembleFitTack), 
+            GetEfficiencyAdjustedMinutes(totalWeld), 
+            GetEfficiencyAdjustedMinutes(totalWeldCheck), 
+            GetEfficiencyAdjustedMinutes(totalWeldTest) 
+        };
+        
+        await JSRuntime.InvokeVoidAsync("dashboardCharts.drawWeldingOperationChart", 
+            $"weldingOperationChart-{componentId}", operationLabels, operationData);
+    }
+    
+    private decimal GetEfficiencyAdjustedMinutes(decimal minutes)
+    {
+        if (EfficiencyPercentage.HasValue && EfficiencyPercentage.Value != 100)
+        {
+            return minutes * (EfficiencyPercentage.Value / 100m);
+        }
+        return minutes;
+    }
+    
+    private class ConnectionStats
+    {
+        public int Count { get; set; }
+        public decimal AssembleFitTackMinutes { get; set; }
+        public decimal WeldMinutes { get; set; }
+        public decimal WeldCheckMinutes { get; set; }
+        public decimal WeldTestMinutes { get; set; }
+        public decimal TotalMinutes => AssembleFitTackMinutes + WeldMinutes + WeldCheckMinutes + WeldTestMinutes;
+    }
+    
+    private decimal GetEfficiencyAdjustedHours(decimal minutes)
+    {
+        var hours = minutes / 60m;
+        if (EfficiencyPercentage.HasValue && EfficiencyPercentage.Value != 100)
+        {
+            return hours * (EfficiencyPercentage.Value / 100m);
+        }
+        return hours;
+    }
+}

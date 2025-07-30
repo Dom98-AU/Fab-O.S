@@ -1,0 +1,184 @@
+@using SteelEstimation.Core.Entities
+
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5>Material Patterns</h5>
+            <button class="btn btn-primary" @onclick="AddNew">
+                <i class="fas fa-plus"></i> Add Material Pattern
+            </button>
+        </div>
+        
+        <p class="text-muted">Define patterns to automatically categorize materials based on their ID</p>
+        
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Pattern</th>
+                        <th>Pattern Type</th>
+                        <th>Material Type</th>
+                        <th>Priority</th>
+                        <th>Active</th>
+                        <th style="width: 120px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var pattern in Patterns)
+                    {
+                        <tr>
+                            @if (editingId == pattern.Id)
+                            {
+                                <td><input class="form-control form-control-sm" @bind="editingItem.Pattern" /></td>
+                                <td>
+                                    <select class="form-select form-select-sm" @bind="editingItem.PatternType">
+                                        <option value="StartsWith">Starts With</option>
+                                        <option value="Contains">Contains</option>
+                                        <option value="Regex">Regex</option>
+                                    </select>
+                                </td>
+                                <td><input class="form-control form-control-sm" @bind="editingItem.MaterialType" /></td>
+                                <td><input type="number" class="form-control form-control-sm" @bind="editingItem.Priority" /></td>
+                                <td><input type="checkbox" class="form-check-input" @bind="editingItem.IsActive" /></td>
+                                <td>
+                                    <button class="btn btn-sm btn-success" @onclick="() => Save(editingItem)">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-secondary" @onclick="CancelEdit">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </td>
+                            }
+                            else
+                            {
+                                <td><code>@pattern.Pattern</code></td>
+                                <td>
+                                    <span class="badge bg-info">@pattern.PatternType</span>
+                                </td>
+                                <td>@pattern.MaterialType</td>
+                                <td>@pattern.Priority</td>
+                                <td>
+                                    @if (pattern.IsActive)
+                                    {
+                                        <span class="badge bg-success">Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">Inactive</span>
+                                    }
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary" @onclick="() => StartEdit(pattern)">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-danger" @onclick="() => Delete(pattern.Id)">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            }
+                        </tr>
+                    }
+                    @if (isAddingNew)
+                    {
+                        <tr>
+                            <td><input class="form-control form-control-sm" @bind="newItem.Pattern" placeholder="Pattern" /></td>
+                            <td>
+                                <select class="form-select form-select-sm" @bind="newItem.PatternType">
+                                    <option value="StartsWith">Starts With</option>
+                                    <option value="Contains">Contains</option>
+                                    <option value="Regex">Regex</option>
+                                </select>
+                            </td>
+                            <td><input class="form-control form-control-sm" @bind="newItem.MaterialType" placeholder="Material Type" /></td>
+                            <td><input type="number" class="form-control form-control-sm" @bind="newItem.Priority" placeholder="0" /></td>
+                            <td><input type="checkbox" class="form-check-input" @bind="newItem.IsActive" /></td>
+                            <td>
+                                <button class="btn btn-sm btn-success" @onclick="() => Save(newItem)">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                <button class="btn btn-sm btn-secondary" @onclick="CancelAdd">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="alert alert-info mt-3">
+            <h6>Pattern Types:</h6>
+            <ul>
+                <li><strong>Starts With:</strong> Matches if material ID starts with the pattern (case-insensitive)</li>
+                <li><strong>Contains:</strong> Matches if material ID contains the pattern (case-insensitive)</li>
+                <li><strong>Regex:</strong> Uses regular expression matching (case-insensitive)</li>
+            </ul>
+            <p class="mb-0"><strong>Priority:</strong> Lower numbers are checked first. If multiple patterns match, the one with lowest priority wins.</p>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public int CompanyId { get; set; }
+    [Parameter] public List<CompanyMaterialPattern> Patterns { get; set; } = new();
+    [Parameter] public EventCallback<CompanyMaterialPattern> OnSave { get; set; }
+    [Parameter] public EventCallback<int> OnDelete { get; set; }
+
+    private bool isAddingNew = false;
+    private int editingId = 0;
+    private CompanyMaterialPattern newItem = new();
+    private CompanyMaterialPattern editingItem = new();
+
+    private void AddNew()
+    {
+        isAddingNew = true;
+        newItem = new CompanyMaterialPattern
+        {
+            CompanyId = CompanyId,
+            IsActive = true,
+            PatternType = "StartsWith",
+            Priority = Patterns.Count > 0 ? Patterns.Max(p => p.Priority) + 1 : 0
+        };
+    }
+
+    private void CancelAdd()
+    {
+        isAddingNew = false;
+        newItem = new();
+    }
+
+    private void StartEdit(CompanyMaterialPattern pattern)
+    {
+        editingId = pattern.Id;
+        editingItem = new CompanyMaterialPattern
+        {
+            Id = pattern.Id,
+            CompanyId = pattern.CompanyId,
+            Pattern = pattern.Pattern,
+            MaterialType = pattern.MaterialType,
+            PatternType = pattern.PatternType,
+            Priority = pattern.Priority,
+            IsActive = pattern.IsActive
+        };
+    }
+
+    private void CancelEdit()
+    {
+        editingId = 0;
+        editingItem = new();
+    }
+
+    private async Task Save(CompanyMaterialPattern item)
+    {
+        await OnSave.InvokeAsync(item);
+        isAddingNew = false;
+        editingId = 0;
+        newItem = new();
+        editingItem = new();
+    }
+
+    private async Task Delete(int id)
+    {
+        await OnDelete.InvokeAsync(id);
+    }
+}

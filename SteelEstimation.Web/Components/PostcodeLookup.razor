@@ -1,0 +1,237 @@
+@using SteelEstimation.Core.DTOs
+@using SteelEstimation.Core.Interfaces
+@inject IPostcodeLookupService PostcodeLookupService
+@inject IJSRuntime JS
+
+<div class="postcode-lookup-container">
+    @if (Mode == LookupMode.Postcode)
+    {
+        <div class="input-group">
+            <input type="text" 
+                   class="form-control" 
+                   placeholder="Enter postcode"
+                   value="@searchTerm"
+                   @oninput="@(async (e) => await OnPostcodeInput(e.Value?.ToString() ?? ""))"
+                   @onblur="@(() => HideResults())"
+                   style="text-transform: uppercase;"
+                   maxlength="4" />
+            <button class="btn btn-outline-secondary" type="button" @onclick="SwitchToSuburbMode">
+                <i class="bi bi-search"></i> Search by Suburb
+            </button>
+        </div>
+    }
+    else
+    {
+        <div class="input-group">
+            <input type="text" 
+                   class="form-control" 
+                   placeholder="Enter suburb name"
+                   value="@searchTerm"
+                   @oninput="@(async (e) => await OnSuburbInput(e.Value?.ToString() ?? ""))"
+                   @onblur="@(() => HideResults())"
+                   style="text-transform: uppercase;" />
+            <button class="btn btn-outline-secondary" type="button" @onclick="SwitchToPostcodeMode">
+                <i class="bi bi-123"></i> Search by Postcode
+            </button>
+        </div>
+    }
+
+    @if (showResults && results.Any())
+    {
+        <div class="postcode-results">
+            @foreach (var result in results)
+            {
+                <div class="postcode-result-item" @onmousedown="@(() => SelectResult(result))">
+                    <strong>@result.Suburb</strong>, @result.State @result.Postcode
+                    @if (!string.IsNullOrEmpty(result.Region))
+                    {
+                        <small class="text-muted"> - @result.Region</small>
+                    }
+                </div>
+            }
+        </div>
+    }
+    else if (showResults && !string.IsNullOrEmpty(searchTerm) && searchTerm.Length >= 2)
+    {
+        <div class="postcode-results">
+            <div class="postcode-result-item text-muted">
+                No results found
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .postcode-lookup-container {
+        position: relative;
+    }
+
+    .postcode-results {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        max-height: 300px;
+        overflow-y: auto;
+        background: white;
+        border: 1px solid #ddd;
+        border-top: none;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        z-index: 1000;
+    }
+
+    .postcode-result-item {
+        padding: 8px 12px;
+        cursor: pointer;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .postcode-result-item:hover {
+        background-color: #f8f9fa;
+    }
+
+    .postcode-result-item:last-child {
+        border-bottom: none;
+    }
+</style>
+
+@code {
+    [Parameter] public EventCallback<PostcodeLookupResult> OnLocationSelected { get; set; }
+    [Parameter] public string? InitialPostcode { get; set; }
+    [Parameter] public string? InitialSuburb { get; set; }
+
+    private enum LookupMode { Postcode, Suburb }
+    
+    private LookupMode Mode = LookupMode.Postcode;
+    private string searchTerm = "";
+    private List<PostcodeLookupResult> results = new();
+    private bool showResults = false;
+    private System.Timers.Timer? debounceTimer;
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrEmpty(InitialSuburb))
+        {
+            searchTerm = InitialSuburb;
+            Mode = LookupMode.Suburb;
+        }
+        else if (!string.IsNullOrEmpty(InitialPostcode))
+        {
+            searchTerm = InitialPostcode;
+            Mode = LookupMode.Postcode;
+        }
+    }
+
+    private async Task OnPostcodeInput(string value)
+    {
+        searchTerm = value.ToUpper();
+        
+        debounceTimer?.Stop();
+        debounceTimer?.Dispose();
+        
+        if (searchTerm.Length >= 3)
+        {
+            debounceTimer = new System.Timers.Timer(300);
+            debounceTimer.Elapsed += async (sender, e) => await SearchPostcode();
+            debounceTimer.AutoReset = false;
+            debounceTimer.Start();
+        }
+        else
+        {
+            results.Clear();
+            showResults = false;
+        }
+        
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnSuburbInput(string value)
+    {
+        searchTerm = value.ToUpper();
+        
+        debounceTimer?.Stop();
+        debounceTimer?.Dispose();
+        
+        if (searchTerm.Length >= 2)
+        {
+            debounceTimer = new System.Timers.Timer(300);
+            debounceTimer.Elapsed += async (sender, e) => await SearchSuburb();
+            debounceTimer.AutoReset = false;
+            debounceTimer.Start();
+        }
+        else
+        {
+            results.Clear();
+            showResults = false;
+        }
+        
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SearchPostcode()
+    {
+        try
+        {
+            results = await PostcodeLookupService.LookupByPostcodeAsync(searchTerm);
+            showResults = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error searching postcode: {ex.Message}");
+        }
+    }
+
+    private async Task SearchSuburb()
+    {
+        try
+        {
+            results = await PostcodeLookupService.GetAutocompleteSuggestionsAsync(searchTerm);
+            showResults = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error searching suburb: {ex.Message}");
+        }
+    }
+
+    private async Task SelectResult(PostcodeLookupResult result)
+    {
+        showResults = false;
+        searchTerm = Mode == LookupMode.Postcode ? result.Postcode : result.Suburb;
+        await OnLocationSelected.InvokeAsync(result);
+    }
+
+    private void HideResults()
+    {
+        // Delay hiding to allow click events to fire
+        Task.Delay(200).ContinueWith(_ =>
+        {
+            showResults = false;
+            InvokeAsync(StateHasChanged);
+        });
+    }
+
+    private void SwitchToPostcodeMode()
+    {
+        Mode = LookupMode.Postcode;
+        searchTerm = "";
+        results.Clear();
+        showResults = false;
+    }
+
+    private void SwitchToSuburbMode()
+    {
+        Mode = LookupMode.Suburb;
+        searchTerm = "";
+        results.Clear();
+        showResults = false;
+    }
+
+    public void Dispose()
+    {
+        debounceTimer?.Stop();
+        debounceTimer?.Dispose();
+    }
+}

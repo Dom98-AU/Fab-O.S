@@ -1,0 +1,93 @@
+@page "/health"
+@using Microsoft.EntityFrameworkCore
+@using SteelEstimation.Infrastructure.Data
+@inject ApplicationDbContext DbContext
+@inject IConfiguration Configuration
+@inject IWebHostEnvironment Environment
+
+<h3>Health Check</h3>
+
+<div class="card">
+    <div class="card-body">
+        <h5>Environment Information</h5>
+        <table class="table">
+            <tr>
+                <td><strong>Environment:</strong></td>
+                <td>@Environment.EnvironmentName</td>
+            </tr>
+            <tr>
+                <td><strong>Application:</strong></td>
+                <td>@(isHealthy ? "✅ Healthy" : "❌ Unhealthy")</td>
+            </tr>
+            <tr>
+                <td><strong>Database:</strong></td>
+                <td>@dbStatus</td>
+            </tr>
+            <tr>
+                <td><strong>Database Name:</strong></td>
+                <td>@dbName</td>
+            </tr>
+            <tr>
+                <td><strong>Timestamp:</strong></td>
+                <td>@DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC")</td>
+            </tr>
+        </table>
+        
+        @if (Environment.IsDevelopment() || Environment.IsStaging())
+        {
+            <div class="mt-3">
+                <h6>Debug Information</h6>
+                <small class="text-muted">Connection String: @connectionString</small>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private bool isHealthy = false;
+    private string dbStatus = "Checking...";
+    private string dbName = "Unknown";
+    private string connectionString = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Test database connection
+            var canConnect = await DbContext.Database.CanConnectAsync();
+            if (canConnect)
+            {
+                dbStatus = "✅ Connected";
+                dbName = DbContext.Database.GetDbConnection().Database;
+                isHealthy = true;
+            }
+            else
+            {
+                dbStatus = "❌ Cannot connect";
+                isHealthy = false;
+            }
+            
+            // Get connection string for debug environments
+            if (Environment.IsDevelopment() || Environment.IsStaging())
+            {
+                connectionString = Configuration.GetConnectionString("DefaultConnection") ?? "Not configured";
+                // Mask password if present
+                if (connectionString.Contains("Password="))
+                {
+                    var passwordStart = connectionString.IndexOf("Password=") + 9;
+                    var passwordEnd = connectionString.IndexOf(";", passwordStart);
+                    if (passwordEnd > passwordStart)
+                    {
+                        var password = connectionString.Substring(passwordStart, passwordEnd - passwordStart);
+                        connectionString = connectionString.Replace(password, "****");
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            dbStatus = $"❌ Error: {ex.Message}";
+            isHealthy = false;
+        }
+    }
+}

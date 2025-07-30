@@ -1,0 +1,410 @@
+@page "/admin/settings"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@inject IConfiguration Configuration
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+
+<PageTitle>Administration Dashboard - Steel Estimation Platform</PageTitle>
+
+<h1>Administration Dashboard</h1>
+<p class="lead text-muted">Manage users, configure worksheets, and monitor system health</p>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-th-large"></i> Administration Dashboard</h5>
+            </div>
+            <div class="card-body">
+                <!-- User Management Section -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <h6 class="text-primary mb-3"><i class="fas fa-users"></i> User Management</h6>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="d-grid">
+                            <button class="btn btn-outline-primary p-3" @onclick='() => Navigation.NavigateTo("/admin/users")'>
+                                <i class="fas fa-users fa-2x mb-2"></i>
+                                <h6>User Management</h6>
+                                <small class="text-muted">Manage users and roles</small>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="d-grid">
+                            <button class="btn btn-outline-primary p-3" @onclick='() => Navigation.NavigateTo("/admin/invites")'>
+                                <i class="fas fa-envelope fa-2x mb-2"></i>
+                                <h6>Invite Users</h6>
+                                <small class="text-muted">Send invitations to new users</small>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Worksheet Configuration Section -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <h6 class="text-success mb-3"><i class="fas fa-table"></i> Worksheet Configuration</h6>
+                        <p class="text-muted small mb-3">Configure all aspects of processing and welding worksheets</p>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="d-grid">
+                            <button class="btn btn-outline-success p-3" @onclick='() => Navigation.NavigateTo("/admin/material-settings")'>
+                                <i class="fas fa-cubes fa-2x mb-2"></i>
+                                <h6>Material Settings</h6>
+                                <small class="text-muted">Company material types, patterns & MBE mappings</small>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="d-grid">
+                            <button class="btn btn-outline-success p-3" @onclick='() => Navigation.NavigateTo("/admin/connection-types")'>
+                                <i class="fas fa-plug fa-2x mb-2"></i>
+                                <h6>Connection Types</h6>
+                                <small class="text-muted">Welding connection types & time defaults</small>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="d-grid">
+                            <button class="btn btn-outline-success p-3" @onclick='() => Navigation.NavigateTo("/admin/efficiency-rates")'>
+                                <i class="fas fa-percentage fa-2x mb-2"></i>
+                                <h6>Efficiency Rates</h6>
+                                <small class="text-muted">Configure processing efficiency rates</small>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="d-grid">
+                            <button class="btn btn-outline-success p-3" @onclick='() => Navigation.NavigateTo("/admin/material-types")'>
+                                <i class="fas fa-industry fa-2x mb-2"></i>
+                                <h6>Legacy Material Types</h6>
+                                <small class="text-muted">Legacy global material type management</small>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="d-grid">
+                            <button class="btn btn-outline-success p-3" @onclick='() => Navigation.NavigateTo("/admin/mbe-mappings")'>
+                                <i class="fas fa-code-branch fa-2x mb-2"></i>
+                                <h6>Legacy MBE Mappings</h6>
+                                <small class="text-muted">Legacy MBE ID to material mappings</small>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="d-grid">
+                            <button class="btn btn-outline-success p-3" @onclick="ShowWorksheetDefaults">
+                                <i class="fas fa-sliders-h fa-2x mb-2"></i>
+                                <h6>Worksheet Defaults</h6>
+                                <small class="text-muted">Default processing times & labor rates</small>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="d-grid">
+                            <button class="btn btn-outline-success p-3" @onclick="ShowBundleSettings">
+                                <i class="fas fa-archive fa-2x mb-2"></i>
+                                <h6>Bundle Settings</h6>
+                                <small class="text-muted">Delivery bundle configuration</small>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- System Management Section -->
+                <div class="row g-3">
+                    <div class="col-12">
+                        <h6 class="text-info mb-3"><i class="fas fa-server"></i> System Management</h6>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="d-grid">
+                            <button class="btn btn-outline-info p-3" @onclick='() => Navigation.NavigateTo("/admin/environment-status")'>
+                                <i class="fas fa-server fa-2x mb-2"></i>
+                                <h6>Environment Status</h6>
+                                <small class="text-muted">View system health and status</small>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="d-grid">
+                            <button class="btn btn-outline-info p-3" @onclick='() => Navigation.NavigateTo("/health")' target="_blank">
+                                <i class="fas fa-heartbeat fa-2x mb-2"></i>
+                                <h6>Health Check</h6>
+                                <small class="text-muted">System health diagnostics</small>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="d-grid">
+                            <button class="btn btn-outline-warning p-3" @onclick="ShowConfigSection">
+                                <i class="fas fa-cogs fa-2x mb-2"></i>
+                                <h6>System Configuration</h6>
+                                <small class="text-muted">Advanced settings below</small>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row" id="configSection" style="@(showConfig ? "" : "display: none;")">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fab fa-github"></i> GitHub Integration</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">
+                    Configure GitHub integration to enable deployment tracking and commit history.
+                </p>
+                
+                <div class="mb-3">
+                    <label for="githubToken" class="form-label">GitHub Personal Access Token</label>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="githubToken" @bind="githubToken" 
+                               placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+                        <button class="btn btn-outline-secondary" type="button" @onclick="ToggleTokenVisibility">
+                            <i class="fas @(showToken ? "fa-eye-slash" : "fa-eye")"></i>
+                        </button>
+                    </div>
+                    <div class="form-text">
+                        <strong>Required Permissions:</strong> repo, workflow
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="repoOwner" class="form-label">Repository Owner</label>
+                    <input type="text" class="form-control" id="repoOwner" @bind="repoOwner" />
+                </div>
+
+                <div class="mb-3">
+                    <label for="repoName" class="form-label">Repository Name</label>
+                    <input type="text" class="form-control" id="repoName" @bind="repoName" />
+                </div>
+
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <button class="btn btn-primary" @onclick="SaveGitHubSettings" disabled="@isSaving">
+                        @if (isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                        }
+                        <i class="fas fa-save"></i> Save GitHub Settings
+                    </button>
+                    <button class="btn btn-outline-secondary" @onclick="TestGitHubConnection" disabled="@isTesting">
+                        @if (isTesting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                        }
+                        <i class="fas fa-plug"></i> Test Connection
+                    </button>
+                </div>
+
+                @if (!string.IsNullOrEmpty(testResult))
+                {
+                    <div class="alert @(testSuccess ? "alert-success" : "alert-danger") mt-3">
+                        @testResult
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-question-circle"></i> How to Create a GitHub Token</h5>
+            </div>
+            <div class="card-body">
+                <ol>
+                    <li>Go to <a href="https://github.com/settings/tokens" target="_blank">GitHub Settings → Developer settings → Personal access tokens</a></li>
+                    <li>Click "Generate new token (classic)"</li>
+                    <li>Give it a name like "Steel Estimation Platform"</li>
+                    <li>Select these scopes:
+                        <ul>
+                            <li><code>repo</code> - Full control of private repositories</li>
+                            <li><code>workflow</code> - Update GitHub Action workflows</li>
+                        </ul>
+                    </li>
+                    <li>Click "Generate token"</li>
+                    <li>Copy the token immediately (you won't see it again)</li>
+                    <li>Paste it in the field above</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Current Status</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <strong>GitHub Token:</strong><br>
+                    @if (hasGitHubToken)
+                    {
+                        <span class="badge bg-success">Configured</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-warning">Not Configured</span>
+                    }
+                </div>
+                
+                <div class="mb-3">
+                    <strong>Repository:</strong><br>
+                    <code>@currentRepoOwner/@currentRepoName</code>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string githubToken = string.Empty;
+    private string repoOwner = string.Empty;
+    private string repoName = string.Empty;
+    private bool showToken = false;
+    private bool isSaving = false;
+    private bool isTesting = false;
+    private string testResult = string.Empty;
+    private bool testSuccess = false;
+    private bool showConfig = false;
+    
+    private bool hasGitHubToken = false;
+    private string currentRepoOwner = string.Empty;
+    private string currentRepoName = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        // Load current settings
+        hasGitHubToken = !string.IsNullOrEmpty(Configuration["GitHub:AccessToken"]);
+        currentRepoOwner = Configuration["GitHub:RepoOwner"] ?? "Dom98-AU";
+        currentRepoName = Configuration["GitHub:RepoName"] ?? "Steel-Estimation-Platform";
+        
+        // Initialize form with current values
+        repoOwner = currentRepoOwner;
+        repoName = currentRepoName;
+    }
+
+    private void ToggleTokenVisibility()
+    {
+        showToken = !showToken;
+        var input = JSRuntime.InvokeVoidAsync("toggleInputType", "githubToken", showToken ? "text" : "password");
+    }
+    
+    private void ShowConfigSection()
+    {
+        showConfig = !showConfig;
+        if (showConfig)
+        {
+            // Scroll to config section
+            JSRuntime.InvokeVoidAsync("scrollToElement", "configSection");
+        }
+    }
+
+    private void ShowWorksheetDefaults()
+    {
+        // TODO: Navigate to worksheet defaults configuration
+        // For now, show a notification
+        JSRuntime.InvokeVoidAsync("alert", "Worksheet Defaults configuration coming soon! This will allow you to set default processing times and labor rates.");
+    }
+
+    private void ShowBundleSettings()
+    {
+        // TODO: Navigate to bundle settings configuration
+        // For now, show a notification
+        JSRuntime.InvokeVoidAsync("alert", "Bundle Settings configuration coming soon! This will allow you to configure delivery bundle parameters.");
+    }
+
+    private async Task SaveGitHubSettings()
+    {
+        if (string.IsNullOrEmpty(githubToken) || string.IsNullOrEmpty(repoOwner) || string.IsNullOrEmpty(repoName))
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Please fill in all required fields.");
+            return;
+        }
+
+        isSaving = true;
+        try
+        {
+            // In a real application, you would save these to a secure configuration store
+            // For now, we'll just show a message
+            await JSRuntime.InvokeVoidAsync("alert", 
+                "Settings saved! Note: In production, these settings would be stored in Azure Key Vault. " +
+                "For now, you'll need to manually add them to your app configuration.");
+                
+            hasGitHubToken = true;
+            currentRepoOwner = repoOwner;
+            currentRepoName = repoName;
+            testResult = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error saving settings: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task TestGitHubConnection()
+    {
+        if (string.IsNullOrEmpty(githubToken))
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Please enter a GitHub token first.");
+            return;
+        }
+
+        isTesting = true;
+        testResult = string.Empty;
+        
+        try
+        {
+            using var httpClient = new HttpClient();
+            httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {githubToken}");
+            httpClient.DefaultRequestHeaders.Add("User-Agent", "SteelEstimation/1.0");
+            
+            var response = await httpClient.GetAsync($"https://api.github.com/repos/{repoOwner}/{repoName}");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                testResult = "✅ Connection successful! GitHub integration is working.";
+                testSuccess = true;
+            }
+            else
+            {
+                testResult = $"❌ Connection failed: {response.StatusCode} - {await response.Content.ReadAsStringAsync()}";
+                testSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            testResult = $"❌ Connection failed: {ex.Message}";
+            testSuccess = false;
+        }
+        finally
+        {
+            isTesting = false;
+        }
+    }
+}
+
+<script>
+    window.toggleInputType = (elementId, type) => {
+        const element = document.getElementById(elementId);
+        if (element) {
+            element.type = type;
+        }
+    };
+    
+    window.scrollToElement = (elementId) => {
+        const element = document.getElementById(elementId);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    };
+</script>

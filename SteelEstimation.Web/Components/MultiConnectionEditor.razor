@@ -1,0 +1,400 @@
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+
+<div class="multi-connection-editor">
+    @if (ItemConnections.Any())
+    {
+        <div class="connection-chips">
+            @foreach (var conn in ItemConnections)
+            {
+                <div class="connection-chip">
+                    <span class="chip-name">@conn.WeldingConnection?.Name</span>
+                    <span class="chip-qty">×@conn.Quantity</span>
+                    <button class="chip-edit" @onclick="() => EditConnection(conn)" title="Edit connection">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="chip-remove" @onclick="() => RemoveConnection(conn)" title="Remove connection">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            }
+        </div>
+    }
+    else if (WeldingItem?.WeldingConnectionId != null)
+    {
+        <!-- Show legacy single connection -->
+        <div class="connection-chips">
+            <div class="connection-chip legacy">
+                <span class="chip-name">@WeldingItem.WeldingConnection?.Name</span>
+                <span class="chip-qty">×@WeldingItem.ConnectionQty</span>
+            </div>
+        </div>
+    }
+    
+    <button class="btn btn-sm btn-outline-primary mt-1" @onclick="ShowAddConnection">
+        <i class="fas fa-plus"></i> Add Connection
+    </button>
+</div>
+
+@if (_showEditModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Connection Type</h5>
+                    <button type="button" class="btn-close" @onclick="HideEditConnection"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrEmpty(_errorMessage))
+                    {
+                        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                            @_errorMessage
+                            <button type="button" class="btn-close" @onclick="@(() => _errorMessage = null)"></button>
+                        </div>
+                    }
+                    @if (_editingConnection != null)
+                    {
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Connection Type</label>
+                                <input type="text" class="form-control" value="@_editingConnection.WeldingConnection?.Name" readonly />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Quantity</label>
+                                <input type="number" class="form-control" @bind="_editQuantity" min="1" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Use Custom Times</label>
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="checkbox" @bind="_editUseCustomTimes" id="editCustomTimes">
+                                    <label class="form-check-label" for="editCustomTimes">
+                                        Override defaults
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        @if (_editUseCustomTimes && _editingConnection.WeldingConnection != null)
+                        {
+                            <hr />
+                            <h6>Custom Time Values (defaults shown)</h6>
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label class="form-label">Assemble/Fit/Tack</label>
+                                    <input type="number" class="form-control" @bind="_editAssembleFitTack" 
+                                           placeholder="@_editingConnection.WeldingConnection.DefaultAssembleFitTack" step="0.1" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Weld</label>
+                                    <input type="number" class="form-control" @bind="_editWeld" 
+                                           placeholder="@_editingConnection.WeldingConnection.DefaultWeld" step="0.1" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Weld Check</label>
+                                    <input type="number" class="form-control" @bind="_editWeldCheck" 
+                                           placeholder="@_editingConnection.WeldingConnection.DefaultWeldCheck" step="0.1" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Weld Test</label>
+                                    <input type="number" class="form-control" @bind="_editWeldTest" 
+                                           placeholder="@_editingConnection.WeldingConnection.DefaultWeldTest" step="0.1" />
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="HideEditConnection">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="UpdateConnection">Update Connection</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_showAddModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Connection Type</h5>
+                    <button type="button" class="btn-close" @onclick="HideAddConnection"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrEmpty(_errorMessage))
+                    {
+                        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                            @_errorMessage
+                            <button type="button" class="btn-close" @onclick="@(() => _errorMessage = null)"></button>
+                        </div>
+                    }
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Connection Type</label>
+                            <select class="form-select" @bind="_selectedConnectionId">
+                                <option value="">-- Select Connection --</option>
+                                @foreach (var conn in AvailableConnections)
+                                {
+                                    var isAlreadyAdded = ItemConnections.Any(ic => ic.WeldingConnectionId == conn.Id);
+                                    <option value="@conn.Id" disabled="@isAlreadyAdded">
+                                        @conn.Name (@conn.Category)
+                                        @if (isAlreadyAdded)
+                                        {
+                                            <text> (Already added)</text>
+                                        }
+                                    </option>
+                                }
+                            </select>
+                            @if (ItemConnections.Any(ic => AvailableConnections.Any(ac => ac.Id == ic.WeldingConnectionId)))
+                            {
+                                <small class="text-muted">Note: Each connection type can only be added once per item. Adjust quantities as needed.</small>
+                            }
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Quantity</label>
+                            <input type="number" class="form-control" @bind="_quantity" min="1" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Use Custom Times</label>
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" @bind="_useCustomTimes" id="customTimes">
+                                <label class="form-check-label" for="customTimes">
+                                    Override defaults
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    @if (_useCustomTimes && _selectedConnectionId > 0)
+                    {
+                        var selectedConn = AvailableConnections.FirstOrDefault(c => c.Id == _selectedConnectionId);
+                        if (selectedConn != null)
+                        {
+                            <hr />
+                            <h6>Custom Time Values (defaults shown)</h6>
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label class="form-label">Assemble/Fit/Tack</label>
+                                    <input type="number" class="form-control" @bind="_assembleFitTack" 
+                                           placeholder="@selectedConn.DefaultAssembleFitTack" step="0.1" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Weld</label>
+                                    <input type="number" class="form-control" @bind="_weld" 
+                                           placeholder="@selectedConn.DefaultWeld" step="0.1" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Weld Check</label>
+                                    <input type="number" class="form-control" @bind="_weldCheck" 
+                                           placeholder="@selectedConn.DefaultWeldCheck" step="0.1" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Weld Test</label>
+                                    <input type="number" class="form-control" @bind="_weldTest" 
+                                           placeholder="@selectedConn.DefaultWeldTest" step="0.1" />
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="HideAddConnection">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="AddConnection" 
+                            disabled="@(_selectedConnectionId <= 0)">Add Connection</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .multi-connection-editor {
+        min-height: 38px;
+    }
+    
+    .connection-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+        margin-bottom: 0.25rem;
+    }
+    
+    .connection-chip {
+        display: inline-flex;
+        align-items: center;
+        background-color: #e3f2fd;
+        border: 1px solid #90caf9;
+        border-radius: 16px;
+        padding: 2px 8px;
+        font-size: 0.875rem;
+    }
+    
+    .connection-chip.legacy {
+        background-color: #f3e5f5;
+        border-color: #ce93d8;
+    }
+    
+    .chip-name {
+        color: #1565c0;
+        margin-right: 4px;
+    }
+    
+    .chip-qty {
+        color: #666;
+        font-weight: 600;
+        margin-right: 4px;
+    }
+    
+    .chip-remove {
+        background: none;
+        border: none;
+        color: #666;
+        cursor: pointer;
+        padding: 0 2px;
+        font-size: 0.75rem;
+    }
+    
+    .chip-remove:hover {
+        color: #d32f2f;
+    }
+    
+    .chip-edit {
+        background: none;
+        border: none;
+        color: #666;
+        cursor: pointer;
+        padding: 0 2px;
+        font-size: 0.75rem;
+        margin-right: 2px;
+    }
+    
+    .chip-edit:hover {
+        color: #1976d2;
+    }
+</style>
+
+@code {
+    [Parameter] public WeldingItem WeldingItem { get; set; } = null!;
+    [Parameter] public List<WeldingConnection> AvailableConnections { get; set; } = new();
+    [Parameter] public List<WeldingItemConnection> ItemConnections { get; set; } = new();
+    [Parameter] public EventCallback<WeldingItemConnection> OnConnectionAdded { get; set; }
+    [Parameter] public EventCallback<WeldingItemConnection> OnConnectionRemoved { get; set; }
+    [Parameter] public EventCallback<WeldingItemConnection> OnConnectionUpdated { get; set; }
+    
+    private bool _showAddModal;
+    private int _selectedConnectionId;
+    private int _quantity = 1;
+    private bool _useCustomTimes;
+    private decimal? _assembleFitTack;
+    private decimal? _weld;
+    private decimal? _weldCheck;
+    private decimal? _weldTest;
+    private string? _errorMessage;
+    
+    private bool _showEditModal;
+    private WeldingItemConnection? _editingConnection;
+    private int _editQuantity;
+    private bool _editUseCustomTimes;
+    private decimal? _editAssembleFitTack;
+    private decimal? _editWeld;
+    private decimal? _editWeldCheck;
+    private decimal? _editWeldTest;
+    
+    private void ShowAddConnection()
+    {
+        _showAddModal = true;
+        ResetForm();
+    }
+    
+    private void HideAddConnection()
+    {
+        _showAddModal = false;
+        ResetForm();
+    }
+    
+    private void ResetForm()
+    {
+        _selectedConnectionId = 0;
+        _quantity = 1;
+        _useCustomTimes = false;
+        _assembleFitTack = null;
+        _weld = null;
+        _weldCheck = null;
+        _weldTest = null;
+        _errorMessage = null;
+    }
+    
+    private async Task AddConnection()
+    {
+        if (_selectedConnectionId > 0)
+        {
+            // Check if this connection type is already added
+            if (ItemConnections.Any(ic => ic.WeldingConnectionId == _selectedConnectionId))
+            {
+                // This shouldn't happen with the UI disabled options, but just in case
+                return;
+            }
+            
+            var newConnection = new WeldingItemConnection
+            {
+                WeldingItemId = WeldingItem.Id,
+                WeldingConnectionId = _selectedConnectionId,
+                Quantity = _quantity,
+                AssembleFitTack = _useCustomTimes ? _assembleFitTack : null,
+                Weld = _useCustomTimes ? _weld : null,
+                WeldCheck = _useCustomTimes ? _weldCheck : null,
+                WeldTest = _useCustomTimes ? _weldTest : null
+            };
+            
+            // Load the connection entity
+            newConnection.WeldingConnection = AvailableConnections.First(c => c.Id == _selectedConnectionId);
+            
+            await OnConnectionAdded.InvokeAsync(newConnection);
+            HideAddConnection();
+        }
+    }
+    
+    private async Task RemoveConnection(WeldingItemConnection connection)
+    {
+        await OnConnectionRemoved.InvokeAsync(connection);
+    }
+    
+    private void EditConnection(WeldingItemConnection connection)
+    {
+        _editingConnection = connection;
+        _editQuantity = connection.Quantity;
+        _editUseCustomTimes = connection.AssembleFitTack.HasValue || connection.Weld.HasValue || 
+                              connection.WeldCheck.HasValue || connection.WeldTest.HasValue;
+        _editAssembleFitTack = connection.AssembleFitTack;
+        _editWeld = connection.Weld;
+        _editWeldCheck = connection.WeldCheck;
+        _editWeldTest = connection.WeldTest;
+        _showEditModal = true;
+    }
+    
+    private void HideEditConnection()
+    {
+        _showEditModal = false;
+        _editingConnection = null;
+        _errorMessage = null;
+    }
+    
+    private async Task UpdateConnection()
+    {
+        if (_editingConnection != null)
+        {
+            _editingConnection.Quantity = _editQuantity;
+            _editingConnection.AssembleFitTack = _editUseCustomTimes ? _editAssembleFitTack : null;
+            _editingConnection.Weld = _editUseCustomTimes ? _editWeld : null;
+            _editingConnection.WeldCheck = _editUseCustomTimes ? _editWeldCheck : null;
+            _editingConnection.WeldTest = _editUseCustomTimes ? _editWeldTest : null;
+            
+            await OnConnectionUpdated.InvokeAsync(_editingConnection);
+            HideEditConnection();
+        }
+    }
+}

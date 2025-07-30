@@ -1,0 +1,96 @@
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Infrastructure.Data
+@inject ApplicationDbContext DbContext
+
+<div class="modal fade @(IsVisible ? "show d-block" : "")" tabindex="-1" role="dialog" style="@(IsVisible ? "background-color: rgba(0,0,0,0.5);" : "")">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Time Details</h5>
+                <button type="button" class="btn-close" @onclick="Cancel"></button>
+            </div>
+            @if (Item != null)
+            {
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Unload Time per Bundle (minutes)</label>
+                        <input type="number" class="form-control" @bind="Item.UnloadTimePerBundle" min="0" />
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Mark/Measure/Cut per Item (minutes)</label>
+                        <input type="number" class="form-control" @bind="Item.MarkMeasureCut" min="0" />
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Quality Check/Clean per Item (minutes)</label>
+                        <input type="number" class="form-control" @bind="Item.QualityCheckClean" min="0" />
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Move to Assembly per Bundle (minutes)</label>
+                        <input type="number" class="form-control" @bind="Item.MoveToAssembly" min="0" />
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Move After Weld per Bundle (minutes)</label>
+                        <input type="number" class="form-control" @bind="Item.MoveAfterWeld" min="0" />
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Loading Time per Bundle (minutes)</label>
+                        <input type="number" class="form-control" @bind="Item.LoadingTimePerBundle" min="0" />
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <strong>Total Processing Time:</strong> @((Item.TotalProcessingMinutes / 60m).ToString("N2")) hours
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveTimeDetails">Save Changes</button>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public ProcessingItem? Item { get; set; }
+    [Parameter] public EventCallback OnSave { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+    
+    private async Task SaveTimeDetails()
+    {
+        if (Item != null)
+        {
+            try
+            {
+                var existingItem = await DbContext.ProcessingItems.FindAsync(Item.Id);
+                if (existingItem != null)
+                {
+                    existingItem.UnloadTimePerBundle = Item.UnloadTimePerBundle;
+                    existingItem.MarkMeasureCut = Item.MarkMeasureCut;
+                    existingItem.QualityCheckClean = Item.QualityCheckClean;
+                    existingItem.MoveToAssembly = Item.MoveToAssembly;
+                    existingItem.MoveAfterWeld = Item.MoveAfterWeld;
+                    existingItem.LoadingTimePerBundle = Item.LoadingTimePerBundle;
+                    existingItem.LastModified = DateTime.UtcNow;
+                    
+                    await DbContext.SaveChangesAsync();
+                    await OnSave.InvokeAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error saving time details: {ex.Message}");
+            }
+        }
+    }
+    
+    private void Cancel()
+    {
+        OnCancel.InvokeAsync();
+    }
+}

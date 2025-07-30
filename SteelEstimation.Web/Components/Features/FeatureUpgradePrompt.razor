@@ -1,0 +1,48 @@
+@using SteelEstimation.Core.Services
+@inject IFeatureAccessService FeatureService
+
+<div class="alert alert-info feature-upgrade-prompt">
+    <div class="d-flex align-items-center">
+        <i class="fas fa-lock fa-2x me-3"></i>
+        <div class="flex-grow-1">
+            <h5 class="mb-1">@Title</h5>
+            <p class="mb-0">@Message</p>
+        </div>
+        @if (ShowContactButton)
+        {
+            <button class="btn btn-primary ms-3" @onclick="OnContactSales">
+                <i class="fas fa-envelope me-2"></i>Contact Sales
+            </button>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Feature { get; set; } = string.Empty;
+    [Parameter] public string Title { get; set; } = "Premium Feature";
+    [Parameter] public string Message { get; set; } = "This feature requires an upgraded subscription plan.";
+    [Parameter] public bool ShowContactButton { get; set; } = true;
+    [Parameter] public EventCallback OnContactSales { get; set; }
+    
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrEmpty(Feature))
+        {
+            // Could customize message based on feature
+            Title = $"Unlock {Feature}";
+        }
+    }
+}
+
+<style>
+    .feature-upgrade-prompt {
+        border-left: 4px solid #0d6efd;
+        background-color: #e7f1ff;
+        color: #0c63e4;
+    }
+    
+    .feature-upgrade-prompt h5 {
+        color: #0c63e4;
+        font-weight: 600;
+    }
+</style>

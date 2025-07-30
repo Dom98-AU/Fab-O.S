@@ -1,0 +1,172 @@
+@using SteelEstimation.Core.Entities
+
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5>Material Types</h5>
+            <button class="btn btn-primary" @onclick="AddNew">
+                <i class="fas fa-plus"></i> Add Material Type
+            </button>
+        </div>
+        
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Description</th>
+                        <th>Hourly Rate</th>
+                        <th>Weight/Foot</th>
+                        <th>Color</th>
+                        <th>Order</th>
+                        <th>Active</th>
+                        <th style="width: 120px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var type in MaterialTypes)
+                    {
+                        <tr>
+                            @if (editingId == type.Id)
+                            {
+                                <td><input class="form-control form-control-sm" @bind="editingItem.TypeName" /></td>
+                                <td><input class="form-control form-control-sm" @bind="editingItem.Description" /></td>
+                                <td><input type="number" class="form-control form-control-sm" @bind="editingItem.HourlyRate" step="0.01" /></td>
+                                <td><input type="number" class="form-control form-control-sm" @bind="editingItem.DefaultWeightPerFoot" step="0.001" /></td>
+                                <td><input class="form-control form-control-sm" @bind="editingItem.DefaultColor" /></td>
+                                <td><input type="number" class="form-control form-control-sm" @bind="editingItem.DisplayOrder" /></td>
+                                <td><input type="checkbox" class="form-check-input" @bind="editingItem.IsActive" /></td>
+                                <td>
+                                    <button class="btn btn-sm btn-success" @onclick="() => Save(editingItem)">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-secondary" @onclick="CancelEdit">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </td>
+                            }
+                            else
+                            {
+                                <td>@type.TypeName</td>
+                                <td>@type.Description</td>
+                                <td>$@type.HourlyRate.ToString("F2")</td>
+                                <td>@type.DefaultWeightPerFoot?.ToString("F3") lbs</td>
+                                <td>
+                                    <span class="badge" style="background-color: @type.DefaultColor">
+                                        @type.DefaultColor
+                                    </span>
+                                </td>
+                                <td>@type.DisplayOrder</td>
+                                <td>
+                                    @if (type.IsActive)
+                                    {
+                                        <span class="badge bg-success">Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">Inactive</span>
+                                    }
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary" @onclick="() => StartEdit(type)">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-danger" @onclick="() => Delete(type.Id)">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            }
+                        </tr>
+                    }
+                    @if (isAddingNew)
+                    {
+                        <tr>
+                            <td><input class="form-control form-control-sm" @bind="newItem.TypeName" placeholder="Type name" /></td>
+                            <td><input class="form-control form-control-sm" @bind="newItem.Description" placeholder="Description" /></td>
+                            <td><input type="number" class="form-control form-control-sm" @bind="newItem.HourlyRate" step="0.01" placeholder="0.00" /></td>
+                            <td><input type="number" class="form-control form-control-sm" @bind="newItem.DefaultWeightPerFoot" step="0.001" placeholder="0.000" /></td>
+                            <td><input class="form-control form-control-sm" @bind="newItem.DefaultColor" placeholder="#000000" /></td>
+                            <td><input type="number" class="form-control form-control-sm" @bind="newItem.DisplayOrder" placeholder="0" /></td>
+                            <td><input type="checkbox" class="form-check-input" @bind="newItem.IsActive" /></td>
+                            <td>
+                                <button class="btn btn-sm btn-success" @onclick="() => Save(newItem)">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                <button class="btn btn-sm btn-secondary" @onclick="CancelAdd">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public int CompanyId { get; set; }
+    [Parameter] public List<CompanyMaterialType> MaterialTypes { get; set; } = new();
+    [Parameter] public EventCallback<CompanyMaterialType> OnSave { get; set; }
+    [Parameter] public EventCallback<int> OnDelete { get; set; }
+
+    private bool isAddingNew = false;
+    private int editingId = 0;
+    private CompanyMaterialType newItem = new();
+    private CompanyMaterialType editingItem = new();
+
+    private void AddNew()
+    {
+        isAddingNew = true;
+        newItem = new CompanyMaterialType
+        {
+            CompanyId = CompanyId,
+            IsActive = true,
+            HourlyRate = 0,
+            DisplayOrder = MaterialTypes.Count > 0 ? MaterialTypes.Max(t => t.DisplayOrder) + 1 : 0
+        };
+    }
+
+    private void CancelAdd()
+    {
+        isAddingNew = false;
+        newItem = new();
+    }
+
+    private void StartEdit(CompanyMaterialType type)
+    {
+        editingId = type.Id;
+        editingItem = new CompanyMaterialType
+        {
+            Id = type.Id,
+            CompanyId = type.CompanyId,
+            TypeName = type.TypeName,
+            Description = type.Description,
+            HourlyRate = type.HourlyRate,
+            DefaultWeightPerFoot = type.DefaultWeightPerFoot,
+            DefaultColor = type.DefaultColor,
+            DisplayOrder = type.DisplayOrder,
+            IsActive = type.IsActive
+        };
+    }
+
+    private void CancelEdit()
+    {
+        editingId = 0;
+        editingItem = new();
+    }
+
+    private async Task Save(CompanyMaterialType item)
+    {
+        await OnSave.InvokeAsync(item);
+        isAddingNew = false;
+        editingId = 0;
+        newItem = new();
+        editingItem = new();
+    }
+
+    private async Task Delete(int id)
+    {
+        await OnDelete.InvokeAsync(id);
+    }
+}

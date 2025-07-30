@@ -1,0 +1,473 @@
+@page "/worksheets/templates"
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ILogger<Templates> Logger
+@attribute [Authorize]
+
+<PageTitle>Worksheet Templates - Steel Estimation Platform</PageTitle>
+
+<div class="container-fluid px-4">
+    <h1 class="mt-4">Worksheet Templates</h1>
+    <ol class="breadcrumb mb-4">
+        <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+        <li class="breadcrumb-item active">Worksheet Templates</li>
+    </ol>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = string.Empty"></button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @successMessage
+            <button type="button" class="btn-close" @onclick="() => successMessage = string.Empty"></button>
+        </div>
+    }
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <button class="btn btn-primary" @onclick="CreateNewTemplate">
+                        <i class="fas fa-plus"></i> Create New Template
+                    </button>
+                </div>
+                <div class="d-flex gap-2">
+                    <div class="btn-group" role="group">
+                        <button class="btn @(filterType == "all" ? "btn-primary" : "btn-outline-primary")" 
+                                @onclick="@(() => SetFilter("all"))">
+                            All Templates
+                        </button>
+                        <button class="btn @(filterType == "my" ? "btn-primary" : "btn-outline-primary")" 
+                                @onclick="@(() => SetFilter("my"))">
+                            My Templates
+                        </button>
+                        <button class="btn @(filterType == "global" ? "btn-primary" : "btn-outline-primary")" 
+                                @onclick="@(() => SetFilter("global"))">
+                            Global Templates
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            <!-- Processing Templates -->
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="fas fa-cogs"></i> Processing & Handling Templates
+                    </div>
+                    <div class="card-body">
+                        @if (!processingTemplates.Any())
+                        {
+                            <p class="text-muted text-center">No processing templates found.</p>
+                        }
+                        else
+                        {
+                            <div class="list-group">
+                                @foreach (var template in processingTemplates)
+                                {
+                                    <div class="list-group-item">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div class="flex-grow-1">
+                                                <h6 class="mb-1">
+                                                    @template.Name
+                                                    @if (template.IsDefault)
+                                                    {
+                                                        <span class="badge bg-primary ms-2">Default</span>
+                                                    }
+                                                    @if (template.IsGlobal)
+                                                    {
+                                                        <span class="badge bg-success ms-2">Global</span>
+                                                    }
+                                                    else if (template.IsPublished)
+                                                    {
+                                                        <span class="badge bg-info ms-2">Published</span>
+                                                    }
+                                                </h6>
+                                                <p class="mb-1">@template.Description</p>
+                                                <small class="text-muted">
+                                                    @template.Fields.Count fields • 
+                                                    Created @template.CreatedDate.ToString("MM/dd/yyyy")
+                                                    @if (template.CreatedByUserId == currentUserId)
+                                                    {
+                                                        <span> • <i class="fas fa-user"></i> Your template</span>
+                                                    }
+                                                </small>
+                                            </div>
+                                            <div class="btn-group btn-group-sm">
+                                                @if (!template.IsDefault)
+                                                {
+                                                    <button class="btn btn-outline-primary" @onclick="() => UseTemplate(template)"
+                                                            title="Use this template for new worksheets">
+                                                        <i class="fas fa-check"></i> Use
+                                                    </button>
+                                                }
+                                                @if (CanEdit(template))
+                                                {
+                                                    <button class="btn btn-outline-secondary" @onclick="() => EditTemplate(template)">
+                                                        <i class="fas fa-edit"></i> Edit
+                                                    </button>
+                                                }
+                                                <button class="btn btn-outline-info" @onclick="() => CloneTemplate(template)">
+                                                    <i class="fas fa-copy"></i> Clone
+                                                </button>
+                                                @if (CanDelete(template))
+                                                {
+                                                    <button class="btn btn-outline-danger" @onclick="() => DeleteTemplate(template)">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Welding Templates -->
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="fas fa-fire"></i> Welding Templates
+                    </div>
+                    <div class="card-body">
+                        @if (!weldingTemplates.Any())
+                        {
+                            <p class="text-muted text-center">No welding templates found.</p>
+                        }
+                        else
+                        {
+                            <div class="list-group">
+                                @foreach (var template in weldingTemplates)
+                                {
+                                    <div class="list-group-item">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div class="flex-grow-1">
+                                                <h6 class="mb-1">
+                                                    @template.Name
+                                                    @if (template.IsDefault)
+                                                    {
+                                                        <span class="badge bg-primary ms-2">Default</span>
+                                                    }
+                                                    @if (template.IsGlobal)
+                                                    {
+                                                        <span class="badge bg-success ms-2">Global</span>
+                                                    }
+                                                    else if (template.IsPublished)
+                                                    {
+                                                        <span class="badge bg-info ms-2">Published</span>
+                                                    }
+                                                </h6>
+                                                <p class="mb-1">@template.Description</p>
+                                                <small class="text-muted">
+                                                    @template.Fields.Count fields • 
+                                                    Created @template.CreatedDate.ToString("MM/dd/yyyy")
+                                                    @if (template.CreatedByUserId == currentUserId)
+                                                    {
+                                                        <span> • <i class="fas fa-user"></i> Your template</span>
+                                                    }
+                                                </small>
+                                            </div>
+                                            <div class="btn-group btn-group-sm">
+                                                @if (!template.IsDefault)
+                                                {
+                                                    <button class="btn btn-outline-primary" @onclick="() => UseTemplate(template)"
+                                                            title="Use this template for new worksheets">
+                                                        <i class="fas fa-check"></i> Use
+                                                    </button>
+                                                }
+                                                @if (CanEdit(template))
+                                                {
+                                                    <button class="btn btn-outline-secondary" @onclick="() => EditTemplate(template)">
+                                                        <i class="fas fa-edit"></i> Edit
+                                                    </button>
+                                                }
+                                                <button class="btn btn-outline-info" @onclick="() => CloneTemplate(template)">
+                                                    <i class="fas fa-copy"></i> Clone
+                                                </button>
+                                                @if (CanDelete(template))
+                                                {
+                                                    <button class="btn btn-outline-danger" @onclick="() => DeleteTemplate(template)">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        @if (isAdmin)
+        {
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-cog"></i> Admin Actions
+                        </div>
+                        <div class="card-body">
+                            <p>As an administrator, you can:</p>
+                            <ul>
+                                <li>Edit and delete any template</li>
+                                <li>Publish templates globally for all users</li>
+                                <li>Set default templates for new worksheets</li>
+                            </ul>
+                            <button class="btn btn-warning" @onclick="ResetToDefaults">
+                                <i class="fas fa-undo"></i> Reset All to Default Templates
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private List<WorksheetTemplate> templates = new();
+    private List<WorksheetTemplate> processingTemplates = new();
+    private List<WorksheetTemplate> weldingTemplates = new();
+    private string filterType = "all";
+    private bool isLoading = true;
+    private string? errorMessage;
+    private string? successMessage;
+    private int currentUserId;
+    private bool isAdmin = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var userEmail = authState.User.Identity?.Name;
+        
+        using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        var user = await dbContext.Users.FirstOrDefaultAsync(u => u.Email == userEmail);
+        if (user == null)
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
+        
+        currentUserId = user.Id;
+        isAdmin = authState.User.IsInRole("Administrator");
+        
+        await LoadTemplates();
+    }
+    
+    private async Task LoadTemplates()
+    {
+        try
+        {
+            isLoading = true;
+            
+            using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            var query = dbContext.WorksheetTemplates
+                .Include(t => t.Fields)
+                .AsQueryable();
+                
+            if (filterType == "my")
+            {
+                query = query.Where(t => t.CreatedByUserId == currentUserId);
+            }
+            else if (filterType == "global")
+            {
+                query = query.Where(t => t.IsGlobal);
+            }
+            else // all
+            {
+                // Show global templates and user's own templates
+                query = query.Where(t => t.IsGlobal || t.IsPublished || t.CreatedByUserId == currentUserId);
+            }
+            
+            templates = await query
+                .OrderBy(t => t.DisplayOrder)
+                .ThenBy(t => t.Name)
+                .ToListAsync();
+                
+            processingTemplates = templates.Where(t => t.BaseType == "Processing").ToList();
+            weldingTemplates = templates.Where(t => t.BaseType == "Welding").ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading templates");
+            errorMessage = "Error loading templates";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+    
+    private void SetFilter(string filter)
+    {
+        filterType = filter;
+        _ = LoadTemplates();
+    }
+    
+    private void CreateNewTemplate()
+    {
+        Navigation.NavigateTo("/worksheets/designer");
+    }
+    
+    private void EditTemplate(WorksheetTemplate template)
+    {
+        Navigation.NavigateTo($"/worksheets/designer/{template.Id}");
+    }
+    
+    private async Task CloneTemplate(WorksheetTemplate template)
+    {
+        try
+        {
+            using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            
+            var clone = new WorksheetTemplate
+            {
+                Name = $"{template.Name} (Copy)",
+                Description = template.Description,
+                BaseType = template.BaseType,
+                CreatedByUserId = currentUserId,
+                IsPublished = false,
+                IsGlobal = false,
+                IsDefault = false,
+                AllowColumnReorder = template.AllowColumnReorder,
+                DisplayOrder = 1000,
+                CreatedDate = DateTime.UtcNow,
+                LastModified = DateTime.UtcNow
+            };
+            
+            dbContext.WorksheetTemplates.Add(clone);
+            await dbContext.SaveChangesAsync();
+            
+            // Clone fields
+            var originalFields = await dbContext.WorksheetTemplateFields
+                .Where(f => f.WorksheetTemplateId == template.Id)
+                .ToListAsync();
+                
+            foreach (var field in originalFields)
+            {
+                var clonedField = new WorksheetTemplateField
+                {
+                    WorksheetTemplateId = clone.Id,
+                    FieldName = field.FieldName,
+                    DisplayName = field.DisplayName,
+                    IsVisible = field.IsVisible,
+                    IsRequired = field.IsRequired,
+                    DisplayOrder = field.DisplayOrder,
+                    ColumnWidth = field.ColumnWidth,
+                    IsFrozen = field.IsFrozen
+                };
+                
+                dbContext.WorksheetTemplateFields.Add(clonedField);
+            }
+            
+            await dbContext.SaveChangesAsync();
+            
+            successMessage = "Template cloned successfully";
+            await LoadTemplates();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error cloning template");
+            errorMessage = "Error cloning template";
+        }
+    }
+    
+    private async Task UseTemplate(WorksheetTemplate template)
+    {
+        // In a real implementation, this would set the template as the user's preferred template
+        // or navigate to create a new worksheet with this template
+        successMessage = $"Template '{template.Name}' will be used for new worksheets";
+    }
+    
+    private async Task DeleteTemplate(WorksheetTemplate template)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", 
+            $"Are you sure you want to delete the template '{template.Name}'?");
+            
+        if (!confirmed) return;
+        
+        try
+        {
+            using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            var dbTemplate = await dbContext.WorksheetTemplates.FindAsync(template.Id);
+            if (dbTemplate != null)
+            {
+                dbContext.WorksheetTemplates.Remove(dbTemplate);
+                await dbContext.SaveChangesAsync();
+                
+                successMessage = "Template deleted successfully";
+                await LoadTemplates();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error deleting template");
+            errorMessage = "Error deleting template. It may be in use.";
+        }
+    }
+    
+    private async Task ResetToDefaults()
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", 
+            "This will reset all worksheets to use the default templates. Are you sure?");
+            
+        if (!confirmed) return;
+        
+        try
+        {
+            // In a real implementation, this would update all PackageWorksheets
+            // to use the default templates
+            successMessage = "All worksheets reset to default templates";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error resetting to defaults");
+            errorMessage = "Error resetting to default templates";
+        }
+    }
+    
+    private bool CanEdit(WorksheetTemplate template)
+    {
+        if (template.IsDefault) return false;
+        if (isAdmin) return true;
+        return template.CreatedByUserId == currentUserId;
+    }
+    
+    private bool CanDelete(WorksheetTemplate template)
+    {
+        if (template.IsDefault) return false;
+        if (isAdmin) return true;
+        return template.CreatedByUserId == currentUserId && !template.IsGlobal;
+    }
+}

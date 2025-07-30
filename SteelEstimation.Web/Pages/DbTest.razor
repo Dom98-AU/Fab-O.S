@@ -1,0 +1,103 @@
+@page "/dbtest"
+@using Microsoft.EntityFrameworkCore
+@using SteelEstimation.Infrastructure.Data
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+
+<h3>Database Connection Test</h3>
+
+@if (isLoading)
+{
+    <p>Testing connection...</p>
+}
+else
+{
+    <div class="alert @(success ? "alert-success" : "alert-danger")">
+        <h4>Connection Test Result:</h4>
+        <pre>@testResult</pre>
+    </div>
+    
+    @if (userInfo != null)
+    {
+        <div class="alert alert-info">
+            <h4>Admin User Info:</h4>
+            <pre>@userInfo</pre>
+        </div>
+    }
+}
+
+@code {
+    private bool isLoading = true;
+    private bool success = false;
+    private string testResult = "";
+    private string? userInfo;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            using var context = await DbContextFactory.CreateDbContextAsync();
+            
+            // Test connection
+            var canConnect = await context.Database.CanConnectAsync();
+            testResult = $"Can Connect: {canConnect}\n";
+            
+            // Get connection string (masked)
+            var conn = context.Database.GetConnectionString();
+            if (conn != null)
+            {
+                testResult += $"Connection String: {conn.Substring(0, 50)}...\n";
+            }
+            
+            // Count users
+            var userCount = await context.Users.CountAsync();
+            testResult += $"User Count: {userCount}\n";
+            
+            // Check admin user
+            var adminUser = await context.Users
+                .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+                .FirstOrDefaultAsync(u => u.Email == "admin@steelestimation.com");
+                
+            if (adminUser != null)
+            {
+                userInfo = $"ID: {adminUser.Id}\n";
+                userInfo += $"Username: {adminUser.Username}\n";
+                userInfo += $"Email: {adminUser.Email}\n";
+                userInfo += $"Active: {adminUser.IsActive}\n";
+                userInfo += $"Email Confirmed: {adminUser.IsEmailConfirmed}\n";
+                userInfo += $"Has Password: {!string.IsNullOrEmpty(adminUser.PasswordHash)}\n";
+                userInfo += $"Roles: {string.Join(", ", adminUser.UserRoles.Select(ur => ur.Role.RoleName))}\n";
+            }
+            else
+            {
+                userInfo = "Admin user not found!";
+            }
+            
+            success = true;
+        }
+        catch (Exception ex)
+        {
+            success = false;
+            testResult = $"Exception Type: {ex.GetType().FullName}\n";
+            testResult += $"Message: {ex.Message}\n";
+            
+            if (ex.InnerException != null)
+            {
+                testResult += $"\nInner Exception Type: {ex.InnerException.GetType().FullName}\n";
+                testResult += $"Inner Message: {ex.InnerException.Message}\n";
+                
+                if (ex.InnerException.InnerException != null)
+                {
+                    testResult += $"\nInner Inner Exception: {ex.InnerException.InnerException.GetType().FullName}\n";
+                    testResult += $"Inner Inner Message: {ex.InnerException.InnerException.Message}\n";
+                }
+            }
+            
+            testResult += $"\nStack Trace:\n{ex.StackTrace}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

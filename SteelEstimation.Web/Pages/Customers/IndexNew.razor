@@ -1,0 +1,377 @@
+@page "/customers-new"
+@using Microsoft.EntityFrameworkCore
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Core.Services
+@using SteelEstimation.Infrastructure.Data
+@using SteelEstimation.Web.Shared.Components
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager Navigation
+@inject IAuthenticationService AuthService
+@inject ISettingsService SettingsService
+@attribute [Authorize(Policy = "Estimator")]
+
+<PageTitle>Customers - Steel Estimation Platform</PageTitle>
+
+<StandardListPage TItem="Customer"
+    Title="Customers"
+    Icon="fas fa-building"
+    Subtitle="Manage your customer database"
+    ItemName="Customer"
+    ItemNamePlural="Customers"
+    Items="@customers"
+    SearchPlaceholder="Search by company name, ABN, or trading name..."
+    EmptyMessage="No customers found. Add your first customer to get started."
+    ShowUniqueId="@showCustomerNumbers"
+    GetUniqueId="@(c => $"CUST-{c.Id:D5}")"
+    SearchFilter="@SearchCustomers"
+    OnViewCallback="@(c => { ViewCustomer(c.Id); return Task.CompletedTask; })"
+    OnEditCallback="@(c => { EditCustomer(c.Id); return Task.CompletedTask; })"
+    OnDeleteCallback="@DeleteCustomers"
+    OnRowClickCallback="@(c => { ViewCustomer(c.Id); return Task.CompletedTask; })">
+    
+    <HeaderActions>
+        <button class="btn btn-primary" @onclick="CreateNewCustomer">
+            <i class="fas fa-plus me-2"></i>New Customer
+        </button>
+        <button class="btn btn-outline-secondary ms-2" @onclick="ImportCustomers">
+            <i class="fas fa-file-import me-2"></i>Import
+        </button>
+        <button class="btn btn-outline-secondary ms-2" @onclick="RefreshData">
+            <i class="fas fa-sync-alt @(_isRefreshing ? "fa-spin" : "")"></i>
+        </button>
+    </HeaderActions>
+    
+    <FilterOptions>
+        <div class="col-md-3">
+            <select class="form-select form-select-sm" @bind="filterStatus">
+                <option value="">All Customers</option>
+                <option value="active">Active Only</option>
+                <option value="inactive">Inactive Only</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <select class="form-select form-select-sm" @bind="filterState">
+                <option value="">All States</option>
+                <option value="ACT">ACT</option>
+                <option value="NSW">NSW</option>
+                <option value="NT">NT</option>
+                <option value="QLD">QLD</option>
+                <option value="SA">SA</option>
+                <option value="TAS">TAS</option>
+                <option value="VIC">VIC</option>
+                <option value="WA">WA</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <select class="form-select form-select-sm" @bind="filterProjects">
+                <option value="">All</option>
+                <option value="with">With Projects</option>
+                <option value="without">Without Projects</option>
+            </select>
+        </div>
+    </FilterOptions>
+    
+    <EmptyActions>
+        <button class="btn btn-primary mt-3" @onclick="CreateNewCustomer">
+            <i class="fas fa-plus me-2"></i>Add Your First Customer
+        </button>
+        <button class="btn btn-outline-primary mt-3 ms-2" @onclick="ImportCustomers">
+            <i class="fas fa-file-import me-2"></i>Import from File
+        </button>
+    </EmptyActions>
+    
+    <BulkActions>
+        <button class="btn btn-sm btn-outline-primary me-2" @onclick="ExportSelected">
+            <i class="fas fa-download me-1"></i>Export
+        </button>
+        <button class="btn btn-sm btn-outline-secondary me-2" @onclick="MergeSelected">
+            <i class="fas fa-code-branch me-1"></i>Merge
+        </button>
+        <div class="dropdown d-inline-block">
+            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" 
+                    data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="fas fa-tags me-1"></i>Tag
+            </button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="#" @onclick:preventDefault="true" @onclick="@(() => TagSelected("VIP"))">VIP</a></li>
+                <li><a class="dropdown-item" href="#" @onclick:preventDefault="true" @onclick="@(() => TagSelected("Regular"))">Regular</a></li>
+                <li><a class="dropdown-item" href="#" @onclick:preventDefault="true" @onclick="@(() => TagSelected("Prospect"))">Prospect</a></li>
+            </ul>
+        </div>
+    </BulkActions>
+    
+    <TableHeaders>
+        <th @onclick="@(() => SortBy("CompanyName"))" style="cursor: pointer;">
+            Company Name
+            @if (sortField == "CompanyName")
+            {
+                <i class="fas fa-sort-@(sortAscending ? "up" : "down") ms-1"></i>
+            }
+        </th>
+        <th>Trading Name</th>
+        <th>ABN</th>
+        <th>Location</th>
+        <th>Contacts</th>
+        <th>Projects</th>
+        <th>Status</th>
+        <th @onclick="@(() => SortBy("CreatedDate"))" style="cursor: pointer;">
+            Created
+            @if (sortField == "CreatedDate")
+            {
+                <i class="fas fa-sort-@(sortAscending ? "up" : "down") ms-1"></i>
+            }
+        </th>
+    </TableHeaders>
+    
+    <RowTemplate Context="customer">
+        <td>
+            <strong>@customer.CompanyName</strong>
+            @if (!string.IsNullOrEmpty(customer.Notes))
+            {
+                <i class="fas fa-sticky-note text-warning ms-2" title="@customer.Notes"></i>
+            }
+        </td>
+        <td>
+            @(customer.TradingName ?? "-")
+        </td>
+        <td>
+            <code>@FormatABN(customer.ABN)</code>
+            @if (!string.IsNullOrEmpty(customer.ACN))
+            {
+                <br />
+                <small class="text-muted">ACN: @customer.ACN</small>
+            }
+        </td>
+        <td>
+            @if (customer.BillingAddress != null)
+            {
+                <small>
+                    @customer.BillingAddress.Suburb, @customer.BillingAddress.State
+                </small>
+            }
+            else
+            {
+                <span class="text-muted">-</span>
+            }
+        </td>
+        <td>
+            <span class="badge bg-secondary">
+                @customer.Contacts.Count(c => c.IsActive)
+            </span>
+        </td>
+        <td>
+            <span class="badge bg-primary">
+                @customer.Projects.Count(p => !p.IsDeleted)
+            </span>
+        </td>
+        <td>
+            @if (customer.IsActive)
+            {
+                <span class="badge bg-success">Active</span>
+            }
+            else
+            {
+                <span class="badge bg-danger">Inactive</span>
+            }
+        </td>
+        <td>
+            <span title="@customer.CreatedDate.ToString("yyyy-MM-dd HH:mm")">
+                @customer.CreatedDate.ToString("MMM dd, yyyy")
+            </span>
+        </td>
+    </RowTemplate>
+    
+    <ItemActions Context="customer">
+        <button class="btn btn-outline-info btn-sm" title="Add Contact"
+                @onclick="() => AddContact(customer)">
+            <i class="fas fa-user-plus"></i>
+        </button>
+        <button class="btn btn-outline-success btn-sm" title="New Project"
+                @onclick="() => CreateProjectForCustomer(customer)">
+            <i class="fas fa-folder-plus"></i>
+        </button>
+    </ItemActions>
+</StandardListPage>
+
+@code {
+    private List<Customer> customers = new List<Customer>();
+    private bool _isRefreshing = false;
+    private bool showCustomerNumbers = false;
+    
+    // Filter properties
+    private string filterStatus = "";
+    private string filterState = "";
+    private string filterProjects = "";
+    
+    // Sort properties
+    private string sortField = "CompanyName";
+    private bool sortAscending = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSettings();
+        await LoadData();
+    }
+
+    private async Task LoadSettings()
+    {
+        showCustomerNumbers = await SettingsService.GetBooleanSetting("ShowCustomerNumbers", false);
+    }
+
+    private async Task LoadData()
+    {
+        using var context = await DbFactory.CreateDbContextAsync();
+        
+        // Load customers with related data
+        var query = context.Customers
+            .Include(c => c.Company)
+            .Include(c => c.BillingAddress)
+            .Include(c => c.ShippingAddress)
+            .Include(c => c.Contacts)
+            .Include(c => c.Projects)
+            .Include(c => c.CreatedBy)
+            .AsQueryable();
+
+        // Apply filters
+        if (!string.IsNullOrEmpty(filterStatus))
+        {
+            query = filterStatus == "active" 
+                ? query.Where(c => c.IsActive) 
+                : query.Where(c => !c.IsActive);
+        }
+
+        if (!string.IsNullOrEmpty(filterState))
+        {
+            query = query.Where(c => c.BillingAddress != null && c.BillingAddress.State == filterState);
+        }
+
+        if (!string.IsNullOrEmpty(filterProjects))
+        {
+            if (filterProjects == "with")
+            {
+                query = query.Where(c => c.Projects.Any(p => !p.IsDeleted));
+            }
+            else
+            {
+                query = query.Where(c => !c.Projects.Any(p => !p.IsDeleted));
+            }
+        }
+
+        // Apply sorting
+        query = sortField switch
+        {
+            "CompanyName" => sortAscending ? query.OrderBy(c => c.CompanyName) : query.OrderByDescending(c => c.CompanyName),
+            "CreatedDate" => sortAscending ? query.OrderBy(c => c.CreatedDate) : query.OrderByDescending(c => c.CreatedDate),
+            _ => query.OrderBy(c => c.CompanyName)
+        };
+
+        customers = await query.ToListAsync();
+    }
+
+    private bool SearchCustomers(Customer customer, string searchTerm)
+    {
+        if (string.IsNullOrWhiteSpace(searchTerm)) return true;
+        
+        var term = searchTerm.ToLower();
+        return customer.CompanyName.ToLower().Contains(term) ||
+               (customer.TradingName?.ToLower().Contains(term) ?? false) ||
+               customer.ABN.Contains(term) ||
+               (customer.ACN?.Contains(term) ?? false);
+    }
+
+    private string FormatABN(string abn)
+    {
+        if (string.IsNullOrEmpty(abn) || abn.Length != 11) return abn;
+        return $"{abn.Substring(0, 2)} {abn.Substring(2, 3)} {abn.Substring(5, 3)} {abn.Substring(8, 3)}";
+    }
+
+    private void CreateNewCustomer()
+    {
+        Navigation.NavigateTo("/customers/new");
+    }
+
+    private void ViewCustomer(int id)
+    {
+        Navigation.NavigateTo($"/customers/{id}");
+    }
+
+    private void EditCustomer(int id)
+    {
+        Navigation.NavigateTo($"/customers/{id}/edit");
+    }
+
+    private async Task DeleteCustomers(List<Customer> customersToDelete)
+    {
+        using var context = await DbFactory.CreateDbContextAsync();
+        
+        foreach (var customer in customersToDelete)
+        {
+            // Check if customer has active projects
+            var hasActiveProjects = await context.Projects
+                .AnyAsync(p => p.CustomerId == customer.Id && !p.IsDeleted);
+                
+            if (!hasActiveProjects)
+            {
+                var dbCustomer = await context.Customers.FindAsync(customer.Id);
+                if (dbCustomer != null)
+                {
+                    dbCustomer.IsActive = false;
+                    dbCustomer.ModifiedDate = DateTime.UtcNow;
+                }
+            }
+        }
+        
+        await context.SaveChangesAsync();
+        await LoadData();
+    }
+
+    private void ImportCustomers()
+    {
+        Navigation.NavigateTo("/customers/import");
+    }
+
+    private async Task RefreshData()
+    {
+        _isRefreshing = true;
+        await LoadData();
+        _isRefreshing = false;
+    }
+
+    private void SortBy(string field)
+    {
+        if (sortField == field)
+        {
+            sortAscending = !sortAscending;
+        }
+        else
+        {
+            sortField = field;
+            sortAscending = true;
+        }
+    }
+
+    private void ExportSelected()
+    {
+        // Implementation for exporting selected customers
+    }
+
+    private void MergeSelected()
+    {
+        // Implementation for merging selected customers
+    }
+
+    private void TagSelected(string tag)
+    {
+        // Implementation for tagging selected customers
+    }
+
+    private void AddContact(Customer customer)
+    {
+        Navigation.NavigateTo($"/customers/{customer.Id}/contacts/new");
+    }
+
+    private void CreateProjectForCustomer(Customer customer)
+    {
+        Navigation.NavigateTo($"/estimation/new?customerId={customer.Id}");
+    }
+}

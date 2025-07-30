@@ -1,0 +1,164 @@
+@page "/databasetest"
+@using Microsoft.EntityFrameworkCore
+@using SteelEstimation.Infrastructure.Data
+@using SteelEstimation.Core.Interfaces
+@inject IServiceProvider ServiceProvider
+@inject ILogger<DatabaseTest> Logger
+
+<h3>Database Connection Test</h3>
+
+<button class="btn btn-primary" @onclick="RunTests">Run Database Tests</button>
+
+<div class="mt-4">
+    <h4>Results:</h4>
+    <pre class="@(hasError ? "text-danger" : "text-success")">@results</pre>
+</div>
+
+@code {
+    private string results = "Click 'Run Database Tests' to start...";
+    private bool hasError = false;
+
+    private async Task RunTests()
+    {
+        results = "";
+        hasError = false;
+        
+        try
+        {
+            results += "=== Database Connection Test ===\n\n";
+            
+            // Test 1: Get DbContext
+            var dbContext = ServiceProvider.GetService<ApplicationDbContext>();
+            if (dbContext == null)
+            {
+                results += "ERROR: ApplicationDbContext is not registered!\n";
+                hasError = true;
+                return;
+            }
+            results += "✓ ApplicationDbContext is registered\n";
+            
+            // Test 2: Get connection string
+            try
+            {
+                var connectionString = dbContext.Database.GetConnectionString();
+                results += $"✓ Connection string found (length: {connectionString?.Length ?? 0})\n";
+                
+                // Mask sensitive parts but show structure
+                if (!string.IsNullOrEmpty(connectionString))
+                {
+                    var parts = connectionString.Split(';');
+                    foreach (var part in parts)
+                    {
+                        if (part.Contains("Server="))
+                            results += $"  - {part}\n";
+                        else if (part.Contains("Database="))
+                            results += $"  - {part}\n";
+                        else if (part.Contains("Authentication="))
+                            results += $"  - {part}\n";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                results += $"✗ Error getting connection string: {ex.Message}\n";
+            }
+            
+            // Test 3: Can connect
+            results += "\n=== Testing Database Connection ===\n";
+            try
+            {
+                var canConnect = await dbContext.Database.CanConnectAsync();
+                if (canConnect)
+                {
+                    results += "✓ Successfully connected to database!\n";
+                }
+                else
+                {
+                    results += "✗ Cannot connect to database\n";
+                    hasError = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                results += $"✗ Connection failed: {ex.GetType().Name}\n";
+                results += $"  Message: {ex.Message}\n";
+                if (ex.InnerException != null)
+                {
+                    results += $"  Inner: {ex.InnerException.Message}\n";
+                }
+                hasError = true;
+            }
+            
+            // Test 4: Query data
+            results += "\n=== Testing Data Access ===\n";
+            try
+            {
+                var userCount = await dbContext.Users.CountAsync();
+                results += $"✓ Users table accessible. Count: {userCount}\n";
+                
+                var adminExists = await dbContext.Users.AnyAsync(u => u.Email == "admin@steelestimation.com");
+                results += $"✓ Admin user exists: {adminExists}\n";
+                
+                if (adminExists)
+                {
+                    var admin = await dbContext.Users.FirstOrDefaultAsync(u => u.Email == "admin@steelestimation.com");
+                    results += $"  - Username: {admin?.Username}\n";
+                    results += $"  - IsActive: {admin?.IsActive}\n";
+                    results += $"  - Password hash length: {admin?.PasswordHash?.Length}\n";
+                }
+            }
+            catch (Exception ex)
+            {
+                results += $"✗ Data query failed: {ex.GetType().Name}\n";
+                results += $"  Message: {ex.Message}\n";
+                if (ex.InnerException != null)
+                {
+                    results += $"  Inner: {ex.InnerException.Message}\n";
+                }
+                hasError = true;
+            }
+            
+            // Test 5: Check AuthService
+            results += "\n=== Testing Authentication Service ===\n";
+            var authService = ServiceProvider.GetService<IAuthenticationService>();
+            if (authService == null)
+            {
+                results += "✗ IAuthenticationService is not registered!\n";
+                hasError = true;
+            }
+            else
+            {
+                results += $"✓ IAuthenticationService is registered\n";
+                results += $"  Type: {authService.GetType().FullName}\n";
+                
+                try
+                {
+                    results += "\nTesting login with admin@steelestimation.com...\n";
+                    var loginResult = await authService.LoginAsync("admin@steelestimation.com", "Admin@123");
+                    results += $"  Success: {loginResult.Success}\n";
+                    results += $"  Message: {loginResult.Message}\n";
+                }
+                catch (Exception ex)
+                {
+                    results += $"✗ Login test failed: {ex.GetType().Name}\n";
+                    results += $"  Message: {ex.Message}\n";
+                    if (ex.InnerException != null)
+                    {
+                        results += $"  Inner: {ex.InnerException.Message}\n";
+                    }
+                }
+            }
+            
+        }
+        catch (Exception ex)
+        {
+            hasError = true;
+            results += $"\n=== UNHANDLED EXCEPTION ===\n";
+            results += $"Type: {ex.GetType().FullName}\n";
+            results += $"Message: {ex.Message}\n";
+            results += $"Stack: {ex.StackTrace}\n";
+        }
+        
+        results += "\n=== Test Complete ===\n";
+    }
+}

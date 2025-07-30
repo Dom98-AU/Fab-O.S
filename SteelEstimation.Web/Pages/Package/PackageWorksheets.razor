@@ -1,0 +1,2957 @@
+@page "/estimation/{EstimationId:int}/package/{PackageId:int}/worksheets"
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@using SteelEstimation.Core.DTOs
+@using SteelEstimation.Core.Services
+@using SteelEstimation.Core.Interfaces
+@using SteelEstimation.Core.Configuration
+@using Microsoft.AspNetCore.Components.Forms
+@using SteelEstimation.Web.Helpers
+@using Microsoft.Extensions.Options
+@using Newtonsoft.Json
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@inject IImageUploadService ImageUploadService
+@inject IWorksheetChangeService WorksheetChangeService
+@inject SteelEstimation.Core.Interfaces.IWorksheetColumnService WorksheetColumnService
+@inject IOptions<BundleSettings> BundleSettings
+@inject IOptions<MaterialMappingSettings> MaterialMappingSettings
+@* MaterialTypeService removed - using direct MaterialId mapping *@
+@inject IConfiguration Configuration
+@inject SteelEstimation.Core.Interfaces.IAuthenticationService AuthenticationService
+@* Template services removed - not used in this version *@
+@implements IDisposable
+
+<PageTitle>Package Worksheets - Steel Estimation Platform</PageTitle>
+
+<style>
+    /* Table wrapper for horizontal scrolling */
+    .table-wrapper {
+        overflow-x: auto;
+        overflow-y: visible;
+        max-width: 100%;
+        margin-bottom: 20px;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        background: white;
+        box-shadow: 0 0 10px rgba(0,0,0,0.05);
+    }
+    
+    .table-wrapper::-webkit-scrollbar {
+        height: 12px;
+    }
+    
+    .table-wrapper::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 0 0 0.375rem 0.375rem;
+    }
+    
+    .table-wrapper::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 6px;
+    }
+    
+    .table-wrapper::-webkit-scrollbar-thumb:hover {
+        background: #555;
+    }
+    
+    /* Make table headers sticky */
+    .table-resizable thead th {
+        position: sticky;
+        top: 0;
+        background: white;
+        z-index: 10;
+        box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1);
+        overflow: visible !important;
+    }
+    
+    /* Ensure minimum column widths are respected */
+    .table-resizable th,
+    .table-resizable td {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    /* Input fields in cells should fill width */
+    .table-resizable td input.form-control,
+    .table-resizable td select.form-control {
+        min-width: 100%;
+    }
+    
+    /* Simple resize handles */
+    .simple-resize-handle {
+        position: absolute !important;
+        right: -8px !important;
+        top: 0 !important;
+        bottom: 0 !important;
+        width: 16px !important;
+        cursor: col-resize !important;
+        user-select: none;
+        z-index: 1001 !important;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    /* Resize line that appears on hover */
+    .resize-line {
+        width: 2px;
+        height: 100%;
+        background-color: #0d6efd;
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+    
+    /* Show line on handle hover */
+    .simple-resize-handle:hover .resize-line {
+        opacity: 1 !important;
+    }
+    
+    /* Make sure drag handles don't interfere */
+    .column-drag-handle {
+        position: relative;
+        z-index: 999;
+        margin-right: 5px;
+    }
+    
+    /* Prevent text selection while resizing */
+    .resizing {
+        user-select: none;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+    }
+    
+    /* Visual feedback during resize */
+    .table-resizable.resizing {
+        cursor: col-resize;
+    }
+    
+    /* Welding worksheet specific styles */
+    .welding-table tbody tr {
+        height: 140px;
+        vertical-align: middle;
+    }
+    
+    .welding-table tbody tr td {
+        vertical-align: middle;
+        padding: 8px;
+    }
+    
+    .welding-table .img-thumbnail {
+        width: 120px !important;
+        height: 120px !important;
+        object-fit: cover;
+        padding: 2px;
+        border: 2px solid #dee2e6;
+        transition: transform 0.2s;
+        cursor: pointer;
+    }
+    
+    .welding-table .img-thumbnail:hover {
+        transform: scale(1.05);
+        border-color: #0d6efd;
+    }
+    
+    /* Bundle indicators */
+    .bundle-badge {
+        font-size: 0.75rem;
+        padding: 2px 6px;
+        margin-left: 4px;
+    }
+    
+    .delivery-bundle-badge {
+        background-color: #28a745;
+        color: white;
+    }
+    
+    .pack-bundle-badge {
+        background-color: #17a2b8;
+        color: white;
+    }
+    
+    /* Column freezing */
+    .frozen-column {
+        position: sticky;
+        background-color: #f8f9fa;
+        z-index: 10;
+    }
+    
+    /* Metric cards */
+    .metric-card {
+        transition: all 0.2s;
+        cursor: pointer;
+    }
+    
+    .metric-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    /* Toast notifications */
+    .toast-container {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1050;
+    }
+    
+    /* Toolbar styling */
+    .worksheet-toolbar {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+    }
+    
+    .vr {
+        width: 1px;
+        min-height: 1.5rem;
+        background-color: #dee2e6;
+    }
+    
+    /* Image paste target */
+    .image-paste-target {
+        border: 2px dashed #ccc;
+        min-height: 120px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+    
+    .image-paste-target:hover {
+        border-color: #0d6efd;
+        background-color: #f0f8ff;
+    }
+    
+    .image-paste-target.paste-ready {
+        border-color: #28a745;
+        background-color: #d4edda;
+    }
+</style>
+
+@if (package == null || estimation == null)
+{
+    <div class="text-center">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p>Loading package data...</p>
+    </div>
+}
+else
+{
+    <div class="worksheet-page-container">
+        <!-- Breadcrumb Navigation -->
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="/estimation">
+                        <i class="fas fa-folder-open me-1"></i>
+                        Estimations
+                    </a>
+                </li>
+                <li class="breadcrumb-item">
+                    <a href="/estimation/@EstimationId">
+                        <i class="fas fa-project-diagram me-1"></i>
+                        @estimation.ProjectName
+                    </a>
+                </li>
+                <li class="breadcrumb-item active">
+                    <i class="fas fa-box me-1"></i>
+                    @package.PackageName
+                </li>
+            </ol>
+        </nav>
+
+        <!-- Package Header with Time Tracker -->
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="d-flex align-items-center gap-3">
+                <h4 class="mb-0">@package.PackageName</h4>
+                <TimeTracker EstimationId="@EstimationId" PageName="Package Worksheets" @ref="timeTracker" />
+            </div>
+            <span class="badge bg-@GetStatusColor(package.Status)">@package.Status</span>
+        </div>
+
+        <!-- Alert Messages -->
+        @if (_showAlert && !string.IsNullOrEmpty(_alertMessage))
+        {
+            <div class="alert alert-@_alertType alert-dismissible fade show" role="alert">
+                @_alertMessage
+                <button type="button" class="btn-close" @onclick="@(() => _showAlert = false)"></button>
+            </div>
+        }
+
+        <!-- Metrics Dashboard -->
+        <div class="card shadow-sm mb-2">
+            <div class="card-body py-2">
+                <div class="row">
+                    <div class="col-lg-5">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="d-flex align-items-center gap-2">
+                                <small class="text-muted">Package:</small>
+                                <strong class="text-primary">@package.PackageNumber</strong>
+                            </div>
+                            <div class="vr"></div>
+                            <div class="d-flex align-items-center gap-2">
+                                <small class="text-muted">Sheets:</small>
+                                <strong>@worksheets.Count</strong>
+                            </div>
+                            <div class="vr"></div>
+                            <div class="d-flex align-items-center gap-2">
+                                <small class="text-muted">Rate:</small>
+                                <div class="input-group input-group-sm" style="width: 100px;">
+                                    <span class="input-group-text">$</span>
+                                    <input type="number" class="form-control" 
+                                           @bind="package.LaborRatePerHour" 
+                                           @bind:event="onchange" 
+                                           @onblur="UpdateLaborRate" 
+                                           step="0.01" min="0" max="999.99" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-7">
+                        <div class="d-flex justify-content-end align-items-center gap-2 flex-wrap">
+                            <!-- Metric Cards -->
+                            <div class="metric-card text-center px-2 py-1 rounded bg-primary bg-opacity-10" 
+                                 @onclick="@(() => ShowMetricDetails("tonnage"))">
+                                <div class="d-flex align-items-center gap-1">
+                                    <i class="fas fa-weight text-primary"></i>
+                                    <div>
+                                        <small class="text-muted d-block">Tonnage</small>
+                                        <strong class="text-primary">@CalculateTotalTonnage().ToString("N2")t</strong>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="metric-card text-center px-2 py-1 bg-info bg-opacity-10 rounded"
+                                 @onclick="@(() => ShowMetricDetails("items"))">
+                                <div class="d-flex align-items-center gap-1">
+                                    <i class="fas fa-cubes text-info"></i>
+                                    <div>
+                                        <small class="text-muted d-block">Items</small>
+                                        <strong class="text-info">@GetTotalItemCount()</strong>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="metric-card text-center px-2 py-1 bg-success bg-opacity-10 rounded"
+                                 @onclick="@(() => ShowMetricDetails("beams"))">
+                                <div class="d-flex align-items-center gap-1">
+                                    <i class="fas fa-bars text-success"></i>
+                                    <div>
+                                        <small class="text-muted d-block">Beams</small>
+                                        <strong class="text-success">@GetBeamCount()</strong>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="metric-card text-center px-2 py-1 bg-warning bg-opacity-10 rounded"
+                                 @onclick="@(() => ShowMetricDetails("handling"))">
+                                <div class="d-flex align-items-center gap-1">
+                                    <i class="fas fa-clock text-warning"></i>
+                                    <div>
+                                        <small class="text-muted d-block">Handling</small>
+                                        <strong class="text-warning">@(CalculateTotalHandlingTime().ToString("N1") + "h")</strong>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="metric-card text-center px-2 py-1 bg-danger bg-opacity-10 rounded"
+                                 @onclick="@(() => ShowMetricDetails("welding"))">
+                                <div class="d-flex align-items-center gap-1">
+                                    <i class="fas fa-fire text-danger"></i>
+                                    <div>
+                                        <small class="text-muted d-block">Welding</small>
+                                        <strong class="text-danger">@(CalculateTotalWeldingHours().ToString("N1") + "h")</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Worksheet Tabs -->
+        <div class="border-bottom">
+            <div class="d-inline-flex">
+                @foreach (var worksheet in worksheets.OrderBy(w => w.Id))
+                {
+                    <button class="btn btn-link text-decoration-none px-3 py-2 border border-bottom-0 
+                            @(activeWorksheetId == worksheet.Id ? "bg-white text-dark" : "bg-light text-secondary")"
+                            style="border-radius: 0.25rem 0.25rem 0 0; margin-bottom: -1px;"
+                            @onclick="@(() => SetActiveWorksheet(worksheet.Id))">
+                        <i class="@GetWorksheetIcon(worksheet.WorksheetType)"></i> @worksheet.Name
+                    </button>
+                }
+            </div>
+        </div>
+
+        <!-- Active Worksheet Content -->
+        <div class="tab-content mt-3">
+            @if (activeWorksheet != null)
+            {
+                <!-- Worksheet Header Toolbar -->
+                <div class="worksheet-toolbar rounded p-2 mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center gap-3">
+                            <h5 class="mb-0">@activeWorksheet.Name</h5>
+                            <div class="vr"></div>
+                            
+                            <!-- History Controls -->
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="UndoLastChange" 
+                                        title="Undo (Ctrl+Z)" disabled="@(!canUndo)">
+                                    <i class="fas fa-undo"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="RedoLastChange" 
+                                        title="Redo (Ctrl+Y)" disabled="@(!canRedo)">
+                                    <i class="fas fa-redo"></i>
+                                </button>
+                            </div>
+                            
+                            <!-- Column Management -->
+                            <SteelEstimation.Web.Pages.Package.Components.ColumnViewManager 
+                                WorksheetType="@(activeWorksheet?.WorksheetType ?? "Processing")"
+                                OnViewLoaded="OnColumnViewLoaded"
+                                OnColumnOrderChanged="OnColumnOrderChanged"
+                                GetCurrentColumnOrder="GetCurrentColumnOrder" />
+                            
+                            <!-- Freeze Columns -->
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="ShowFreezeColumnsModal">
+                                <i class="fas fa-lock"></i> Freeze
+                            </button>
+                        </div>
+                        
+                        <div class="d-flex gap-2">
+                            @if (activeWorksheet.WorksheetType == "Processing")
+                            {
+                                @if (processingItems?.Count == 0)
+                                {
+                                    <button class="btn btn-primary btn-sm" @onclick="CreateBlankProcessingItems">
+                                        <i class="fas fa-plus"></i> Create 50 Rows
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-danger btn-sm" @onclick="ClearWorksheet">
+                                        <i class="fas fa-trash"></i> Clear
+                                    </button>
+                                }
+                            }
+                            else if (activeWorksheet.WorksheetType == "Welding")
+                            {
+                                @if (weldingItems?.Count == 0)
+                                {
+                                    <button class="btn btn-primary btn-sm" @onclick="CreateBlankWeldingItems">
+                                        <i class="fas fa-plus"></i> Create 25 Rows
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-danger btn-sm" @onclick="ClearWorksheet">
+                                        <i class="fas fa-trash"></i> Clear
+                                    </button>
+                                }
+                            }
+                            <button class="btn btn-secondary btn-sm" @onclick="ShowImportModal">
+                                <i class="fas fa-file-import"></i> Import
+                            </button>
+                            <button class="btn btn-secondary btn-sm" @onclick="ExportToExcel">
+                                <i class="fas fa-file-export"></i> Export
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                @if (activeWorksheet.WorksheetType == "Processing")
+                {
+                    <!-- Processing Worksheet Toolbar -->
+                    <div class="worksheet-toolbar rounded p-2 mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div class="d-flex align-items-center gap-3">
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle"></i> Auto-saves on focus out
+                                </small>
+                                <div class="vr"></div>
+                                <!-- Quick Filters -->
+                                <div class="d-flex align-items-center gap-2">
+                                    <small class="text-muted fw-bold">Quick Filters:</small>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn @(activeFilter == "all" ? "btn-primary" : "btn-outline-primary")" 
+                                                @onclick="@(() => SetFilter("all"))">
+                                            <i class="fas fa-list"></i> All (@processingItems.Count)
+                                        </button>
+                                        <button class="btn @(activeFilter == "beams" ? "btn-success" : "btn-outline-success")"
+                                                @onclick="@(() => SetFilter("beams"))">
+                                            <i class="fas fa-bars"></i> Beams (@GetMaterialTypeCount("Beams"))
+                                        </button>
+                                        <button class="btn @(activeFilter == "purlins" ? "btn-info" : "btn-outline-info")"
+                                                @onclick="@(() => SetFilter("purlins"))">
+                                            <i class="fas fa-grip-lines"></i> Purlins (@GetMaterialTypeCount("Purlins"))
+                                        </button>
+                                        <button class="btn @(activeFilter == "plates" ? "btn-warning" : "btn-outline-warning")"
+                                                @onclick="@(() => SetFilter("plates"))">
+                                            <i class="fas fa-square"></i> Plates (@GetMaterialTypeCount("Plates"))
+                                        </button>
+                                        <button class="btn @(activeFilter == "misc" ? "btn-secondary" : "btn-outline-secondary")"
+                                                @onclick="@(() => SetFilter("misc"))">
+                                            <i class="fas fa-cog"></i> Misc (@GetMaterialTypeCount("Misc"))
+                                        </button>
+                                        <button class="btn btn-outline-danger" @onclick="ClearAllFilters" title="Clear filters">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Action Buttons Row -->
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="d-flex gap-2">
+                                <!-- Selection Actions -->
+                                <button class="btn btn-sm btn-outline-primary" @onclick="SelectAll">
+                                    <i class="fas fa-check-square"></i> Select All
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="DeselectAll">
+                                    <i class="fas fa-square"></i> Deselect All
+                                </button>
+                                <div class="vr"></div>
+                                
+                                <!-- Split Rows -->
+                                <button class="btn btn-sm btn-info" @onclick="ShowBulkSplitModal" 
+                                        disabled="@(!selectedItems.Any(id => processingItems.Any(p => p.Id == id && p.Quantity > 1)))"
+                                        title="Split selected rows with quantity > 1">
+                                    <i class="fas fa-cut"></i> Split Rows
+                                </button>
+                                
+                                <!-- Bundle Actions Dropdown -->
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-success dropdown-toggle" data-bs-toggle="dropdown">
+                                        <i class="fas fa-boxes"></i> Bundles
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li><h6 class="dropdown-header">Delivery Bundles</h6></li>
+                                        <li><a class="dropdown-item" href="#" @onclick:preventDefault @onclick="ShowAutoDeliveryBundleModal">
+                                            <i class="fas fa-magic"></i> Auto Bundle
+                                        </a></li>
+                                        <li><a class="dropdown-item" href="#" @onclick:preventDefault @onclick="ShowBulkBundleModal">
+                                            <i class="fas fa-boxes"></i> Bulk Bundle
+                                        </a></li>
+                                        @if (deliveryBundles.Any())
+                                        {
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><a class="dropdown-item" href="#" @onclick:preventDefault @onclick="ShowDeliveryBundleManagement">
+                                                <i class="fas fa-cogs"></i> Manage Delivery Bundles
+                                            </a></li>
+                                        }
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><h6 class="dropdown-header">Pack Bundles</h6></li>
+                                        <li><a class="dropdown-item" href="#" @onclick:preventDefault @onclick="ShowAutoPackBundleModal">
+                                            <i class="fas fa-magic"></i> Auto Pack Bundle
+                                        </a></li>
+                                        <li><a class="dropdown-item" href="#" @onclick:preventDefault @onclick="ShowBulkPackBundleModal">
+                                            <i class="fas fa-boxes"></i> Bulk Pack Bundle
+                                        </a></li>
+                                        @if (packBundles.Any())
+                                        {
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><a class="dropdown-item" href="#" @onclick:preventDefault @onclick="ShowPackBundleManagement">
+                                                <i class="fas fa-cogs"></i> Manage Pack Bundles
+                                            </a></li>
+                                        }
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item" href="#" @onclick:preventDefault @onclick="ShowBundleManagementWindow">
+                                            <i class="fas fa-tasks"></i> All Bundle Management
+                                        </a></li>
+                                    </ul>
+                                </div>
+                                
+                                <!-- Material Mapping -->
+                                <button class="btn btn-sm btn-outline-info" @onclick="ShowMaterialMappingSummary">
+                                    <i class="fas fa-chart-pie"></i> Material Types
+                                </button>
+                            </div>
+                            
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="text-muted">
+                                    @selectedItems.Count items selected
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Processing Items Table -->
+                    <div class="table-wrapper">
+                        <table class="table table-hover table-resizable" style="min-width: 1800px;">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px;">
+                                        <input type="checkbox" class="form-check-input" 
+                                               @onchange="@(e => SelectAllVisible(bool.Parse(e.Value?.ToString() ?? "false")))" />
+                                    </th>
+                                    <th style="width: 80px;">#</th>
+                                    @foreach (var column in GetOrderedProcessingColumns())
+                                    {
+                                        <th style="@column.Style" data-column-key="@column.Key">@column.DisplayName</th>
+                                    }
+                                    <th style="width: 120px;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @{
+                                    var displayItems = GetFilteredProcessingItems();
+                                    var rowNumber = 1;
+                                }
+                                @foreach (var item in displayItems)
+                                {
+                                    var shouldShowRow = ShouldShowProcessingItem(item);
+                                    if (!shouldShowRow) continue;
+                                    
+                                    <tr class="@(selectedItems.Contains(item.Id) ? "table-active" : "")">
+                                        <td>
+                                            <input type="checkbox" class="form-check-input" 
+                                                   checked="@selectedItems.Contains(item.Id)"
+                                                   @onchange="@(e => ToggleItemSelection(item.Id, bool.Parse(e.Value?.ToString() ?? "false")))" />
+                                        </td>
+                                        <td>
+                                            @rowNumber
+                                            @if (item.DeliveryBundleId != null && item.IsParentInBundle)
+                                            {
+                                                <button class="btn btn-link btn-sm p-0 ms-1" 
+                                                        @onclick="@(() => ToggleBundleCollapse(item.DeliveryBundleId.Value))">
+                                                    <i class="fas @(collapsedBundles.Contains(item.DeliveryBundleId.Value) ? "fa-plus-square" : "fa-minus-square") text-success"></i>
+                                                </button>
+                                            }
+                                            @if (item.PackBundleId != null && item.IsParentInPackBundle)
+                                            {
+                                                <button class="btn btn-link btn-sm p-0 ms-1" 
+                                                        @onclick="@(() => TogglePackBundleCollapse(item.PackBundleId.Value))">
+                                                    <i class="fas @(collapsedPackBundles.Contains(item.PackBundleId.Value) ? "fa-plus-square" : "fa-minus-square") text-info"></i>
+                                                </button>
+                                            }
+                                        </td>
+                                        @foreach (var column in GetOrderedProcessingColumns())
+                                        {
+                                            @RenderProcessingCell(item, column.Key)
+                                        }
+                                        <td>
+                                            <button class="btn btn-sm btn-primary me-1" 
+                                                    @onclick="() => ShowSplitModal(item)" 
+                                                    title="Split Row (Ctrl+S)" 
+                                                    disabled="@(item.Quantity <= 1)">
+                                                <i class="fas fa-cut"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-danger" 
+                                                    @onclick="() => DeleteItem(item)" 
+                                                    title="Delete">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    rowNumber++;
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Bottom Actions -->
+                    @if (processingItems?.Any() == true)
+                    {
+                        <div class="d-flex justify-content-between align-items-center mt-3">
+                            <button class="btn btn-success btn-sm" @onclick="ShowCreateDeliveryBundleModal">
+                                <i class="fas fa-box"></i> Create Delivery Bundle
+                            </button>
+                            <button class="btn btn-info btn-sm" @onclick="ShowCreatePackBundleModal">
+                                <i class="fas fa-cube"></i> Create Pack Bundle
+                            </button>
+                            <button class="btn btn-primary btn-sm" @onclick="AddNewProcessingRows">
+                                <i class="fas fa-plus"></i> Add 10 Rows
+                            </button>
+                        </div>
+                    }
+                }
+                else if (activeWorksheet.WorksheetType == "Welding")
+                {
+                    <!-- Welding Worksheet -->
+                    <div class="table-wrapper">
+                        <table class="table table-hover welding-table table-resizable" style="min-width: 1200px;">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px;">#</th>
+                                    @foreach (var column in GetOrderedWeldingColumns())
+                                    {
+                                        <th style="@column.Style" data-column-key="@column.Key">@column.DisplayName</th>
+                                    }
+                                    <th style="width: 100px;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @{
+                                    var weldRowNumber = 1;
+                                }
+                                @foreach (var item in weldingItems)
+                                {
+                                    <tr>
+                                        <td>@weldRowNumber</td>
+                                        @foreach (var column in GetOrderedWeldingColumns())
+                                        {
+                                            @RenderWeldingCell(item, column.Key)
+                                        }
+                                        <td>
+                                            <button class="btn btn-sm btn-danger" 
+                                                    @onclick="() => DeleteWeldingItem(item)" 
+                                                    title="Delete">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    weldRowNumber++;
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    @if (weldingItems?.Any() == true)
+                    {
+                        <div class="d-flex justify-content-end mt-3">
+                            <button class="btn btn-primary btn-sm" @onclick="AddNewWeldingRows">
+                                <i class="fas fa-plus"></i> Add 5 Rows
+                            </button>
+                        </div>
+                    }
+                }
+            }
+        </div>
+    </div>
+}
+
+<!-- Toast Container -->
+<div class="toast-container"></div>
+
+<!-- Include Modals Component -->
+<PackageWorksheetModals 
+    ShowImportModal="showImportModal"
+    ShowSplitModal="showSplitModal"
+    ShowBulkSplitModal="showBulkSplitModal"
+    ShowCreateDeliveryBundleModal="showCreateDeliveryBundleModal"
+    ShowCreatePackBundleModal="showCreatePackBundleModal"
+    ShowAutoDeliveryBundleModal="showAutoDeliveryBundleModal"
+    ShowBundleManagementModal="showBundleManagementModal"
+    ShowColumnManagementModal="showColumnManagementModal"
+    ShowMaterialMappingModal="showMaterialMappingModal"
+    ShowImageUploadModal="showImageUploadModal"
+    ShowImageViewModal="showImageViewModal"
+    ShowEditConnectionsModal="showEditConnectionsModal"
+    CloseImportModal="CloseImportModal"
+    CloseSplitModal="CloseSplitModal"
+    CloseBulkSplitModal="CloseBulkSplitModal"
+    CloseCreateDeliveryBundleModal="CloseCreateDeliveryBundleModal"
+    CloseCreatePackBundleModal="CloseCreatePackBundleModal"
+    CloseAutoDeliveryBundleModal="CloseAutoDeliveryBundleModal"
+    CloseBundleManagementModal="CloseBundleManagementModal"
+    CloseColumnManagementModal="CloseColumnManagementModal"
+    CloseMaterialMappingModal="CloseMaterialMappingModal"
+    CloseImageUploadModal="CloseImageUploadModal"
+    CloseImageViewModal="CloseImageViewModal"
+    CloseEditConnectionsModal="CloseEditConnectionsModal"
+    ImportData="ImportData"
+    ConfirmSplit="ConfirmSplit"
+    ConfirmBulkSplit="ConfirmBulkSplit"
+    CreateDeliveryBundle="CreateDeliveryBundle"
+    CreatePackBundle="CreatePackBundle"
+    CreateAutoDeliveryBundles="CreateAutoDeliveryBundles"
+    SaveMaterialMappings="SaveMaterialMappings"
+    UploadImages="UploadImages"
+    SaveConnections="SaveConnections"
+    splitTargetItem="splitTargetItem"
+    selectedItems="selectedItems"
+    processingItems="processingItems"
+    deliveryBundles="deliveryBundles"
+    packBundles="packBundles"
+    activeWorksheet="activeWorksheet"
+    columnVisibility="columnVisibility"
+    weldingColumnVisibility="weldingColumnVisibility"
+    materialIds="materialIds"
+    imageUploadTarget="imageUploadTarget"
+    connectionEditTarget="connectionEditTarget"
+    viewingImage="viewingImage"
+    editingConnections="editingConnections"
+    availableWeldingConnections="availableWeldingConnections"
+    DetermineMaterialType="DetermineMaterialType"
+    GetMaterialTypeColor="GetMaterialTypeColor"
+    UpdateBundleName="UpdateBundleName"
+    UpdatePackBundleName="UpdatePackBundleName"
+    DeleteBundle="DeleteBundle"
+    ToggleColumnVisibility="@((col, vis) => { ToggleColumnVisibility(col, vis); return Task.CompletedTask; })"
+    ToggleWeldingColumnVisibility="@((col, vis) => { ToggleWeldingColumnVisibility(col, vis); return Task.CompletedTask; })"
+    UpdateMaterialMapping="UpdateMaterialMapping"
+    HandleImageUpload="HandleImageUpload"
+    AddNewConnection="AddNewConnection"
+    UpdateConnectionType="UpdateConnectionType"
+    UpdateConnectionQuantity="UpdateConnectionQuantity"
+    UpdateConnectionTime="UpdateConnectionTime"
+    RemoveConnection="RemoveConnection" />
+
+@code {
+    [Parameter] public int EstimationId { get; set; }
+    [Parameter] public int PackageId { get; set; }
+
+    // Core entities
+    private Project? estimation;
+    private Package? package;
+    private List<PackageWorksheet> worksheets = new();
+    private PackageWorksheet? activeWorksheet;
+    private int activeWorksheetId;
+    
+    // Processing items
+    private List<ProcessingItem> processingItems = new();
+    private List<ProcessingItem> filteredItems = new();
+    private HashSet<int> selectedItems = new();
+    private string activeFilter = "all";
+    
+    // Welding items
+    private List<WeldingItem> weldingItems = new();
+    private WeldingItem? pasteTargetItem;
+    
+    // Bundles
+    private List<DeliveryBundle> deliveryBundles = new();
+    private List<PackBundle> packBundles = new();
+    private HashSet<int> collapsedBundles = new();
+    private HashSet<int> collapsedPackBundles = new();
+    
+    // Materials - stored as string IDs
+    private List<string> materialIds = new();
+    
+    // UI State
+    private bool _showAlert = false;
+    private string _alertMessage = "";
+    private string _alertType = "info";
+    private bool isLoading = false;
+    
+    // Column visibility
+    private Dictionary<string, bool> columnVisibility = new()
+    {
+        ["DrawingNumber"] = true,
+        ["Quantity"] = true,
+        ["Description"] = true,
+        ["Material"] = true,
+        ["MaterialType"] = true,
+        ["Weight"] = true,
+        ["TotalWeight"] = true,
+        ["DeliveryBundle"] = true,
+        ["PackBundle"] = true,
+        ["HandlingTime"] = true,
+        ["UnloadTime"] = true,
+        ["MarkMeasureCut"] = true,
+        ["QualityCheck"] = true,
+        ["MoveToAssembly"] = true,
+        ["MoveAfterWeld"] = true,
+        ["LoadingTime"] = true
+    };
+    
+    private Dictionary<string, bool> weldingColumnVisibility = new()
+    {
+        ["DrawingNumber"] = true,
+        ["ItemDescription"] = true,
+        ["WeldType"] = true,
+        ["ConnectionQty"] = true,
+        ["WeldingConnections"] = true,
+        ["TotalMinutes"] = true,
+        ["Images"] = true
+    };
+    
+    // Frozen columns
+    private Dictionary<string, bool> frozenColumns = new();
+    
+    // Column ordering
+    private Dictionary<string, int> processingColumnOrder = new();
+    private Dictionary<string, int> weldingColumnOrder = new();
+    private DotNetObjectReference<PackageWorksheets>? dotNetRef;
+    
+    // History
+    private Stack<WorksheetChange> undoStack = new();
+    private Stack<WorksheetChange> redoStack = new();
+    private bool canUndo => undoStack.Any();
+    private bool canRedo => redoStack.Any();
+    
+    // Time tracker reference
+    private TimeTracker? timeTracker;
+    
+    // Modal states
+    private bool showImportModal = false;
+    private bool showSplitModal = false;
+    private bool showBulkSplitModal = false;
+    private bool showBulkBundleModal = false;
+    private bool showBundleManagementModal = false;
+    private bool showColumnManagementModal = false;
+    private bool showFreezeColumnsModal = false;
+    private bool showCreateDeliveryBundleModal = false;
+    private bool showCreatePackBundleModal = false;
+    private bool showAutoDeliveryBundleModal = false;
+    private bool showAutoPackBundleModal = false;
+    private bool showBulkPackBundleModal = false;
+    private bool showMaterialMappingModal = false;
+    private bool showImageUploadModal = false;
+    private bool showImageViewModal = false;
+    private bool showEditConnectionsModal = false;
+    
+    // Modal data
+    private ProcessingItem? splitTargetItem;
+    private WeldingItem? imageUploadTarget;
+    private WeldingItem? connectionEditTarget;
+    private ImageUpload? viewingImage;
+    private List<WeldingItemConnection>? editingConnections;
+    private List<WeldingConnection> availableWeldingConnections = new();
+    private string importData = "";
+    private int splitQuantity = 1;
+    private string newBundleName = "";
+    private string newPackBundleName = "";
+    private string autoBundleCriteria = "material";
+    private decimal maxBundleWeight = 1000;
+    private string drawingPattern = "";
+    private List<IBrowserFile> uploadedFiles = new();
+    private int currentUserId = 1; // TODO: Get from auth service
+
+    protected override async Task OnInitializedAsync()
+    {
+        dotNetRef = DotNetObjectReference.Create(this);
+        await LoadData();
+        await LoadColumnOrders();
+        await SetupClipboardPaste();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Initialize column reordering first
+            await JSRuntime.InvokeVoidAsync("columnReorder.initialize", dotNetRef, ".table-resizable");
+            
+            // Wait longer to ensure column reordering is fully initialized
+            await Task.Delay(500);
+            
+            // Then initialize simple resize functionality
+            await JSRuntime.InvokeVoidAsync("simpleResize.init");
+        }
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            isLoading = true;
+            using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            
+            // Load estimation
+            estimation = await dbContext.Projects
+                .FirstOrDefaultAsync(p => p.Id == EstimationId && !p.IsDeleted);
+                
+            if (estimation == null)
+            {
+                Navigation.NavigateTo("/estimation");
+                return;
+            }
+            
+            // Load package with worksheets
+            package = await dbContext.Packages
+                .Include(p => p.Worksheets)
+                .FirstOrDefaultAsync(p => p.Id == PackageId && p.ProjectId == EstimationId && !p.IsDeleted);
+                
+            if (package == null)
+            {
+                Navigation.NavigateTo($"/estimation/{EstimationId}");
+                return;
+            }
+            
+            // Load worksheets
+            worksheets = package.Worksheets.OrderBy(w => w.Id).ToList();
+            
+            if (worksheets.Any())
+            {
+                activeWorksheetId = worksheets.First().Id;
+                activeWorksheet = worksheets.First();
+                await LoadWorksheetData();
+            }
+            
+            // Materials are handled as string IDs from Excel imports
+            // No separate material entity in this system
+                
+            // Material types handled by MaterialMappingSettings
+            
+            // Load bundles
+            deliveryBundles = await dbContext.DeliveryBundles
+                .Where(b => b.PackageId == PackageId)
+                .OrderBy(b => b.BundleName)
+                .ToListAsync();
+                
+            packBundles = await dbContext.PackBundles
+                .Where(b => b.PackageId == PackageId)
+                .OrderBy(b => b.BundleName)
+                .ToListAsync();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadWorksheetData()
+    {
+        if (activeWorksheet == null) return;
+        
+        using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        
+        if (activeWorksheet.WorksheetType == "Processing")
+        {
+            processingItems = await dbContext.ProcessingItems
+                .Where(p => p.PackageWorksheetId == activeWorksheet.Id)
+                .OrderBy(p => p.Id)
+                .ToListAsync();
+                
+            // Apply material mapping
+            foreach (var item in processingItems)
+            {
+                // Material type determined at runtime based on MaterialId
+            }
+            
+            filteredItems = processingItems.ToList();
+            weldingItems.Clear();
+        }
+        else if (activeWorksheet.WorksheetType == "Welding")
+        {
+            weldingItems = await dbContext.WeldingItems
+                .Include(w => w.Images)
+                .Include(w => w.ItemConnections)
+                    .ThenInclude(wc => wc.WeldingConnection)
+                .Where(w => w.PackageWorksheetId == activeWorksheet.Id)
+                .OrderBy(w => w.Id)
+                .ToListAsync();
+                
+            processingItems.Clear();
+            filteredItems.Clear();
+        }
+    }
+
+    private async Task SetActiveWorksheet(int worksheetId)
+    {
+        if (activeWorksheetId == worksheetId) return;
+        
+        activeWorksheetId = worksheetId;
+        activeWorksheet = worksheets.FirstOrDefault(w => w.Id == worksheetId);
+        selectedItems.Clear();
+        await LoadWorksheetData();
+        StateHasChanged();
+    }
+
+    private string GetWorksheetIcon(string worksheetType)
+    {
+        return worksheetType switch
+        {
+            "Processing" => "fas fa-cogs",
+            "Welding" => "fas fa-fire",
+            "Packing" => "fas fa-box",
+            _ => "fas fa-file"
+        };
+    }
+
+    private string GetStatusColor(string status)
+    {
+        return status switch
+        {
+            "Active" => "success",
+            "Completed" => "primary",
+            "On Hold" => "warning",
+            _ => "secondary"
+        };
+    }
+
+    // Processing Items Methods
+    private List<ProcessingItem> GetFilteredProcessingItems()
+    {
+        if (activeFilter == "all") return processingItems;
+        
+        return processingItems.Where(item => 
+            GetItemMaterialType(item).ToLower() == activeFilter.ToLower()
+        ).ToList();
+    }
+
+    private bool ShouldShowProcessingItem(ProcessingItem item)
+    {
+        // Check bundle collapse state
+        if (item.DeliveryBundleId != null && !item.IsParentInBundle && collapsedBundles.Contains(item.DeliveryBundleId.Value))
+            return false;
+            
+        if (item.PackBundleId != null && !item.IsParentInPackBundle && collapsedPackBundles.Contains(item.PackBundleId.Value))
+            return false;
+            
+        return true;
+    }
+
+    private void SetFilter(string filter)
+    {
+        activeFilter = filter;
+        StateHasChanged();
+    }
+
+    private void ClearAllFilters()
+    {
+        activeFilter = "all";
+        StateHasChanged();
+    }
+
+    private string DetermineMaterialType(string materialId)
+    {
+        if (string.IsNullOrEmpty(materialId)) return "Misc";
+        
+        // Use the MaterialMappingSettings service method
+        return MaterialMappingSettings.Value.GetMaterialTypeFromMaterialId(materialId);
+    }
+
+    private int GetMaterialTypeCount(string type)
+    {
+        return processingItems.Count(p => GetItemMaterialType(p) == type);
+    }
+
+    private string GetMaterialTypeColor(string? type)
+    {
+        return type switch
+        {
+            "Beams" => "success",
+            "Purlins" => "info", 
+            "Plates" => "warning",
+            "Misc" => "secondary",
+            _ => "light"
+        };
+    }
+
+    private string GetItemMaterialType(ProcessingItem item)
+    {
+        if (string.IsNullOrEmpty(item.MaterialId))
+            return "Misc";
+            
+        return DetermineMaterialType(item.MaterialId);
+    }
+
+    // Selection Methods
+    private void SelectAll()
+    {
+        selectedItems = processingItems.Select(p => p.Id).ToHashSet();
+        StateHasChanged();
+    }
+
+    private void DeselectAll()
+    {
+        selectedItems.Clear();
+        StateHasChanged();
+    }
+
+    private void SelectAllVisible(bool isChecked)
+    {
+        var visibleItems = GetFilteredProcessingItems()
+            .Where(item => ShouldShowProcessingItem(item))
+            .Select(p => p.Id);
+            
+        if (isChecked)
+        {
+            foreach (var id in visibleItems)
+            {
+                selectedItems.Add(id);
+            }
+        }
+        else
+        {
+            foreach (var id in visibleItems)
+            {
+                selectedItems.Remove(id);
+            }
+        }
+        
+        StateHasChanged();
+    }
+
+    private void ToggleItemSelection(int itemId, bool isChecked)
+    {
+        if (isChecked)
+            selectedItems.Add(itemId);
+        else
+            selectedItems.Remove(itemId);
+            
+        StateHasChanged();
+    }
+
+    // Bundle Methods
+    private void ToggleBundleCollapse(int bundleId)
+    {
+        if (collapsedBundles.Contains(bundleId))
+            collapsedBundles.Remove(bundleId);
+        else
+            collapsedBundles.Add(bundleId);
+            
+        StateHasChanged();
+    }
+
+    private void TogglePackBundleCollapse(int bundleId)
+    {
+        if (collapsedPackBundles.Contains(bundleId))
+            collapsedPackBundles.Remove(bundleId);
+        else
+            collapsedPackBundles.Add(bundleId);
+            
+        StateHasChanged();
+    }
+
+    private async Task UpdateDeliveryBundle(ProcessingItem item, string? bundleIdStr)
+    {
+        var oldBundleId = item.DeliveryBundleId;
+        
+        if (string.IsNullOrEmpty(bundleIdStr))
+        {
+            item.DeliveryBundleId = null;
+            item.IsParentInBundle = false;
+        }
+        else if (int.TryParse(bundleIdStr, out var bundleId))
+        {
+            item.DeliveryBundleId = bundleId;
+            // Determine if this should be parent
+            var bundleItems = processingItems.Where(p => p.DeliveryBundleId == bundleId).ToList();
+            if (!bundleItems.Any(p => p.IsParentInBundle))
+            {
+                item.IsParentInBundle = true;
+            }
+        }
+        
+        await SaveItem(item);
+        
+        // Update old bundle if needed
+        if (oldBundleId != null)
+        {
+            var oldBundleItems = processingItems.Where(p => p.DeliveryBundleId == oldBundleId).ToList();
+            if (!oldBundleItems.Any())
+            {
+                // Remove empty bundle
+                collapsedBundles.Remove(oldBundleId.Value);
+            }
+            else if (!oldBundleItems.Any(p => p.IsParentInBundle) && oldBundleItems.Any())
+            {
+                // Assign new parent
+                oldBundleItems.First().IsParentInBundle = true;
+                await SaveItem(oldBundleItems.First());
+            }
+        }
+    }
+
+    private async Task UpdatePackBundle(ProcessingItem item, string? bundleIdStr)
+    {
+        var oldBundleId = item.PackBundleId;
+        
+        if (string.IsNullOrEmpty(bundleIdStr))
+        {
+            item.PackBundleId = null;
+            item.IsParentInPackBundle = false;
+        }
+        else if (int.TryParse(bundleIdStr, out var bundleId))
+        {
+            item.PackBundleId = bundleId;
+            // Determine if this should be parent
+            var bundleItems = processingItems.Where(p => p.PackBundleId == bundleId).ToList();
+            if (!bundleItems.Any(p => p.IsParentInPackBundle))
+            {
+                item.IsParentInPackBundle = true;
+            }
+        }
+        
+        await SaveItem(item);
+        
+        // Update old bundle if needed
+        if (oldBundleId != null)
+        {
+            var oldBundleItems = processingItems.Where(p => p.PackBundleId == oldBundleId).ToList();
+            if (!oldBundleItems.Any())
+            {
+                // Remove empty bundle
+                collapsedPackBundles.Remove(oldBundleId.Value);
+            }
+            else if (!oldBundleItems.Any(p => p.IsParentInPackBundle) && oldBundleItems.Any())
+            {
+                // Assign new parent
+                oldBundleItems.First().IsParentInPackBundle = true;
+                await SaveItem(oldBundleItems.First());
+            }
+        }
+    }
+
+    // Update Methods
+    private void UpdateItemField(ProcessingItem item, string field, string? value)
+    {
+        RecordChange(new WorksheetChange
+        {
+            ItemId = item.Id,
+            ItemType = "ProcessingItem",
+            Field = field,
+            OldValue = GetFieldValue(item, field),
+            NewValue = value
+        });
+        
+        switch (field)
+        {
+            case "DrawingNumber":
+                item.DrawingNumber = value ?? "";
+                break;
+            case "Quantity":
+                if (int.TryParse(value, out var qty) && qty > 0)
+                    item.Quantity = qty;
+                break;
+            case "Description":
+                item.Description = value ?? "";
+                break;
+            case "Weight":
+                if (decimal.TryParse(value, out var weight) && weight >= 0)
+                    item.Weight = weight;
+                break;
+        }
+    }
+
+    private async Task UpdateMaterial(ProcessingItem item, string? materialId)
+    {
+        item.MaterialId = materialId;
+        
+        // Determine material type based on the material ID pattern
+        if (!string.IsNullOrEmpty(materialId))
+        {
+            // Material type determined at runtime based on MaterialId
+        }
+        
+        await SaveItem(item);
+    }
+
+    private void UpdateWeldingField(WeldingItem item, string field, string? value)
+    {
+        RecordChange(new WorksheetChange
+        {
+            ItemId = item.Id,
+            ItemType = "WeldingItem",
+            Field = field,
+            OldValue = GetFieldValue(item, field),
+            NewValue = value
+        });
+        
+        switch (field)
+        {
+            case "DrawingNumber":
+                item.DrawingNumber = value ?? "";
+                break;
+            case "ItemDescription":
+                item.ItemDescription = value ?? "";
+                break;
+            case "WeldType":
+                item.WeldType = value ?? "";
+                break;
+            case "ConnectionQty":
+                if (int.TryParse(value, out var qty) && qty >= 0)
+                    item.ConnectionQty = qty;
+                break;
+        }
+    }
+
+    private string GetFieldValue(object item, string field)
+    {
+        var prop = item.GetType().GetProperty(field);
+        return prop?.GetValue(item)?.ToString() ?? "";
+    }
+
+    // Save Methods
+    private async Task SaveItem(ProcessingItem item)
+    {
+        using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        dbContext.ProcessingItems.Update(item);
+        await dbContext.SaveChangesAsync();
+        
+        ShowToast("Item saved", "success");
+    }
+
+    private async Task SaveWeldingItem(WeldingItem item)
+    {
+        using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        dbContext.WeldingItems.Update(item);
+        await dbContext.SaveChangesAsync();
+        
+        ShowToast("Welding item saved", "success");
+    }
+
+    private async Task DeleteItem(ProcessingItem item)
+    {
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to delete this item?"))
+            return;
+            
+        processingItems.Remove(item);
+        selectedItems.Remove(item.Id);
+        
+        using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        dbContext.ProcessingItems.Remove(item);
+        await dbContext.SaveChangesAsync();
+        
+        ShowToast("Item deleted", "info");
+        StateHasChanged();
+    }
+
+    private async Task DeleteWeldingItem(WeldingItem item)
+    {
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to delete this item?"))
+            return;
+            
+        weldingItems.Remove(item);
+        
+        using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        dbContext.WeldingItems.Remove(item);
+        await dbContext.SaveChangesAsync();
+        
+        ShowToast("Welding item deleted", "info");
+        StateHasChanged();
+    }
+
+    // Metrics Methods
+    private decimal CalculateTotalTonnage()
+    {
+        return processingItems.Sum(p => p.Quantity * p.Weight) / 1000m;
+    }
+
+    private int GetTotalItemCount()
+    {
+        return processingItems.Sum(p => p.Quantity);
+    }
+
+    private int GetBeamCount()
+    {
+        return processingItems.Where(p => GetItemMaterialType(p) == "Beams").Sum(p => p.Quantity);
+    }
+
+    private decimal CalculateTotalHandlingTime()
+    {
+        return processingItems
+            .Where(p => p.IsParentInBundle || p.IsParentInPackBundle)
+            .Sum(p => (p.MoveToAssembly + p.MoveAfterWeld) / 60m);
+    }
+
+    private decimal CalculateTotalWeldingHours()
+    {
+        return weldingItems.Sum(w => w.TotalWeldingMinutes) / 60m;
+    }
+
+    // Create Blank Items
+    private async Task CreateBlankProcessingItems()
+    {
+        using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        
+        var newItems = new List<ProcessingItem>();
+        var maxOrder = processingItems.Any() ? processingItems.Max(p => p.Id) : 0;
+        
+        for (int i = 1; i <= 50; i++)
+        {
+            var item = new ProcessingItem
+            {
+                PackageWorksheetId = activeWorksheet!.Id,
+                DrawingNumber = "",
+                Quantity = 1,
+                Description = "",
+                Weight = 0,
+                // Items ordered by Id
+                // Material type determined at runtime
+            };
+            
+            newItems.Add(item);
+            dbContext.ProcessingItems.Add(item);
+        }
+        
+        await dbContext.SaveChangesAsync();
+        processingItems.AddRange(newItems);
+        
+        ShowToast("Created 50 blank rows", "success");
+        StateHasChanged();
+    }
+
+    private async Task CreateBlankWeldingItems()
+    {
+        using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        
+        var newItems = new List<WeldingItem>();
+        var maxOrder = weldingItems.Any() ? weldingItems.Max(w => w.Id) : 0;
+        
+        for (int i = 1; i <= 25; i++)
+        {
+            var item = new WeldingItem
+            {
+                PackageWorksheetId = activeWorksheet!.Id,
+                DrawingNumber = "",
+                ItemDescription = "",
+                WeldType = "",
+                ConnectionQty = 0,
+                // TotalWeldingMinutes is calculated
+                // No DisplayOrder property
+            };
+            
+            newItems.Add(item);
+            dbContext.WeldingItems.Add(item);
+        }
+        
+        await dbContext.SaveChangesAsync();
+        weldingItems.AddRange(newItems);
+        
+        ShowToast("Created 25 blank rows", "success");
+        StateHasChanged();
+    }
+
+    private async Task AddNewProcessingRows()
+    {
+        using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        
+        var newItems = new List<ProcessingItem>();
+        var maxOrder = processingItems.Any() ? processingItems.Max(p => p.Id) : 0;
+        
+        for (int i = 1; i <= 10; i++)
+        {
+            var item = new ProcessingItem
+            {
+                PackageWorksheetId = activeWorksheet!.Id,
+                DrawingNumber = "",
+                Quantity = 1,
+                Description = "",
+                Weight = 0,
+                // Items ordered by Id
+                // Material type determined at runtime
+            };
+            
+            newItems.Add(item);
+            dbContext.ProcessingItems.Add(item);
+        }
+        
+        await dbContext.SaveChangesAsync();
+        processingItems.AddRange(newItems);
+        
+        ShowToast("Added 10 new rows", "success");
+        StateHasChanged();
+    }
+
+    private async Task AddNewWeldingRows()
+    {
+        using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        
+        var newItems = new List<WeldingItem>();
+        var maxOrder = weldingItems.Any() ? weldingItems.Max(w => w.Id) : 0;
+        
+        for (int i = 1; i <= 5; i++)
+        {
+            var item = new WeldingItem
+            {
+                PackageWorksheetId = activeWorksheet!.Id,
+                DrawingNumber = "",
+                ItemDescription = "",
+                WeldType = "",
+                ConnectionQty = 0,
+                // TotalWeldingMinutes is calculated
+                // No DisplayOrder property
+            };
+            
+            newItems.Add(item);
+            dbContext.WeldingItems.Add(item);
+        }
+        
+        await dbContext.SaveChangesAsync();
+        weldingItems.AddRange(newItems);
+        
+        ShowToast("Added 5 new rows", "success");
+        StateHasChanged();
+    }
+
+    // Clear Worksheet
+    private async Task ClearWorksheet()
+    {
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to clear all items from this worksheet? This cannot be undone."))
+            return;
+            
+        using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        
+        if (activeWorksheet?.WorksheetType == "Processing")
+        {
+            dbContext.ProcessingItems.RemoveRange(processingItems);
+            processingItems.Clear();
+            selectedItems.Clear();
+        }
+        else if (activeWorksheet?.WorksheetType == "Welding")
+        {
+            dbContext.WeldingItems.RemoveRange(weldingItems);
+            weldingItems.Clear();
+        }
+        
+        await dbContext.SaveChangesAsync();
+        
+        ShowToast("Worksheet cleared", "warning");
+        StateHasChanged();
+    }
+
+    // History Methods
+    private void RecordChange(WorksheetChange change)
+    {
+        undoStack.Push(change);
+        redoStack.Clear();
+    }
+
+    private async Task UndoLastChange()
+    {
+        if (!canUndo) return;
+        
+        var change = undoStack.Pop();
+        // Apply undo logic based on change type
+        redoStack.Push(change);
+        
+        ShowToast("Change undone", "info");
+        await LoadWorksheetData();
+    }
+
+    private async Task RedoLastChange()
+    {
+        if (!canRedo) return;
+        
+        var change = redoStack.Pop();
+        // Apply redo logic based on change type
+        undoStack.Push(change);
+        
+        ShowToast("Change redone", "info");
+        await LoadWorksheetData();
+    }
+
+    // Labor Rate
+    private async Task UpdateLaborRate()
+    {
+        using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        dbContext.Packages.Update(package!);
+        await dbContext.SaveChangesAsync();
+        
+        ShowToast("Labor rate updated", "success");
+    }
+
+    // Image Methods for Welding
+    private async Task SetupClipboardPaste()
+    {
+        await JSRuntime.InvokeVoidAsync("setupClipboardPaste", DotNetObjectReference.Create(this));
+    }
+
+    private void SetPasteTarget(WeldingItem item)
+    {
+        pasteTargetItem = item;
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public async Task HandlePastedImage(string base64Image, string fileName)
+    {
+        if (pasteTargetItem == null) return;
+        
+        try
+        {
+            // Convert base64 to byte array
+            var imageData = Convert.FromBase64String(base64Image.Split(',')[1]);
+            
+            // Upload image
+            var currentUser = await AuthenticationService.GetCurrentUserAsync();
+            var uploadedImage = await ImageUploadService.UploadImageFromBase64Async(base64Image, fileName, pasteTargetItem.Id, currentUser?.Id);
+            
+            // Update local collection
+            pasteTargetItem.Images ??= new List<ImageUpload>();
+            pasteTargetItem.Images.Add(uploadedImage);
+            
+            pasteTargetItem = null;
+            ShowToast("Image pasted successfully", "success");
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Failed to paste image: {ex.Message}", "danger");
+        }
+    }
+
+    private async Task DeleteWeldingImage(WeldingItem item, ImageUpload image)
+    {
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", "Delete this image?"))
+            return;
+            
+        item.Images?.Remove(image);
+        
+        using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        dbContext.ImageUploads.Remove(image);
+        await dbContext.SaveChangesAsync();
+        
+        ShowToast("Image deleted", "info");
+        StateHasChanged();
+    }
+
+    // Modal Methods
+    private void ShowImportModal() => showImportModal = true;
+    private void ShowSplitModal(ProcessingItem item)
+    {
+        splitTargetItem = item;
+        showSplitModal = true;
+    }
+    private void ShowBulkSplitModal() => showBulkSplitModal = true;
+    private void ShowBulkBundleModal() => showBulkBundleModal = true;
+    private void ShowBundleManagementWindow() => showBundleManagementModal = true;
+    private void ShowColumnManagementModal() => showColumnManagementModal = true;
+    private void ShowFreezeColumnsModal() => showFreezeColumnsModal = true;
+    private void ShowCreateDeliveryBundleModal() => showCreateDeliveryBundleModal = true;
+    private void ShowCreatePackBundleModal() => showCreatePackBundleModal = true;
+    private void ShowAutoDeliveryBundleModal() => showAutoDeliveryBundleModal = true;
+    private void ShowAutoPackBundleModal() => showAutoPackBundleModal = true;
+    private void ShowBulkPackBundleModal() => showBulkPackBundleModal = true;
+    private void ShowDeliveryBundleManagement() => showBundleManagementModal = true;
+    private void ShowPackBundleManagement() => showBundleManagementModal = true;
+    private void ShowMaterialMappingSummary() => showMaterialMappingModal = true;
+    private async Task ExportToExcel() => await JSRuntime.InvokeVoidAsync("downloadFile", "export.xlsx", "data");
+    
+    private void ShowImageUploadModal(WeldingItem item)
+    {
+        imageUploadTarget = item;
+        showImageUploadModal = true;
+    }
+    
+    private void ShowImageModal(ImageUpload image)
+    {
+        viewingImage = image;
+        showImageViewModal = true;
+    }
+    
+    
+    private void ShowMetricDetails(string metric)
+    {
+        ShowToast($"Metric details for {metric} - Coming soon!", "info");
+    }
+    
+    // Modal Close Methods
+    private void CloseImportModal() => showImportModal = false;
+    private void CloseSplitModal() => showSplitModal = false;
+    private void CloseBulkSplitModal() => showBulkSplitModal = false;
+    private void CloseCreateDeliveryBundleModal() => showCreateDeliveryBundleModal = false;
+    private void CloseCreatePackBundleModal() => showCreatePackBundleModal = false;
+    private void CloseAutoDeliveryBundleModal() => showAutoDeliveryBundleModal = false;
+    private void CloseBundleManagementModal() => showBundleManagementModal = false;
+    private void CloseColumnManagementModal() => showColumnManagementModal = false;
+    private void CloseMaterialMappingModal() => showMaterialMappingModal = false;
+    private void CloseImageUploadModal() 
+    {
+        showImageUploadModal = false;
+        uploadedFiles.Clear();
+    }
+    private void CloseImageViewModal() => showImageViewModal = false;
+    private void CloseEditConnectionsModal() => showEditConnectionsModal = false;
+    
+    // Import functionality
+    private async Task ImportData()
+    {
+        if (string.IsNullOrWhiteSpace(importData)) return;
+        
+        try
+        {
+            var lines = importData.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            
+            foreach (var line in lines)
+            {
+                var parts = line.Split('\t');
+                if (parts.Length >= 4)
+                {
+                    var newItem = new ProcessingItem
+                    {
+                        PackageWorksheetId = activeWorksheet!.Id,
+                        DrawingNumber = parts[0],
+                        Quantity = int.TryParse(parts[1], out var qty) ? qty : 1,
+                        Description = parts[2],
+                        MaterialId = parts.Length > 3 ? parts[3] : "",
+                        Weight = parts.Length > 4 && decimal.TryParse(parts[4], out var wt) ? wt : 0
+                    };
+                    
+                    dbContext.ProcessingItems.Add(newItem);
+                    processingItems.Add(newItem);
+                }
+            }
+            
+            await dbContext.SaveChangesAsync();
+            showImportModal = false;
+            importData = "";
+            ShowToast("Data imported successfully", "success");
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Import failed: {ex.Message}", "danger");
+        }
+    }
+    
+    // Split functionality
+    private async Task ConfirmSplit()
+    {
+        if (splitTargetItem == null || splitQuantity <= 0 || splitQuantity >= splitTargetItem.Quantity)
+            return;
+            
+        using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        
+        var newItem = new ProcessingItem
+        {
+            PackageWorksheetId = splitTargetItem.PackageWorksheetId,
+            DrawingNumber = splitTargetItem.DrawingNumber,
+            Quantity = splitQuantity,
+            Description = splitTargetItem.Description,
+            MaterialId = splitTargetItem.MaterialId,
+            Weight = splitTargetItem.Weight,
+            MoveToAssembly = splitTargetItem.MoveToAssembly,
+            MoveAfterWeld = splitTargetItem.MoveAfterWeld
+        };
+        
+        splitTargetItem.Quantity -= splitQuantity;
+        
+        dbContext.ProcessingItems.Add(newItem);
+        dbContext.ProcessingItems.Update(splitTargetItem);
+        await dbContext.SaveChangesAsync();
+        
+        processingItems.Add(newItem);
+        showSplitModal = false;
+        ShowToast("Row split successfully", "success");
+        StateHasChanged();
+    }
+    
+    // Bulk split functionality
+    private async Task ConfirmBulkSplit()
+    {
+        using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        var newItems = new List<ProcessingItem>();
+        
+        foreach (var itemId in selectedItems)
+        {
+            var item = processingItems.FirstOrDefault(p => p.Id == itemId);
+            if (item != null && item.Quantity > 1)
+            {
+                for (int i = 1; i < item.Quantity; i++)
+                {
+                    var newItem = new ProcessingItem
+                    {
+                        PackageWorksheetId = item.PackageWorksheetId,
+                        DrawingNumber = item.DrawingNumber,
+                        Quantity = 1,
+                        Description = item.Description,
+                        MaterialId = item.MaterialId,
+                        Weight = item.Weight,
+                        MoveToAssembly = item.MoveToAssembly,
+                        MoveAfterWeld = item.MoveAfterWeld
+                    };
+                    newItems.Add(newItem);
+                    dbContext.ProcessingItems.Add(newItem);
+                }
+                item.Quantity = 1;
+                dbContext.ProcessingItems.Update(item);
+            }
+        }
+        
+        await dbContext.SaveChangesAsync();
+        processingItems.AddRange(newItems);
+        selectedItems.Clear();
+        showBulkSplitModal = false;
+        ShowToast($"Split {newItems.Count} items successfully", "success");
+        StateHasChanged();
+    }
+    
+    // Bundle creation
+    private async Task CreateDeliveryBundle()
+    {
+        if (string.IsNullOrWhiteSpace(newBundleName) || !selectedItems.Any())
+            return;
+            
+        using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        
+        var bundle = new DeliveryBundle
+        {
+            PackageId = PackageId,
+            BundleName = newBundleName,
+            CreatedDate = DateTime.UtcNow
+        };
+        
+        dbContext.DeliveryBundles.Add(bundle);
+        await dbContext.SaveChangesAsync();
+        
+        // Set first item as parent
+        bool isFirst = true;
+        foreach (var itemId in selectedItems)
+        {
+            var item = processingItems.FirstOrDefault(p => p.Id == itemId);
+            if (item != null)
+            {
+                item.DeliveryBundleId = bundle.Id;
+                item.IsParentInBundle = isFirst;
+                dbContext.ProcessingItems.Update(item);
+                isFirst = false;
+            }
+        }
+        
+        await dbContext.SaveChangesAsync();
+        deliveryBundles.Add(bundle);
+        selectedItems.Clear();
+        newBundleName = "";
+        showCreateDeliveryBundleModal = false;
+        ShowToast("Delivery bundle created successfully", "success");
+        StateHasChanged();
+    }
+    
+    // Pack bundle creation
+    private async Task CreatePackBundle()
+    {
+        if (string.IsNullOrWhiteSpace(newPackBundleName) || !selectedItems.Any())
+            return;
+            
+        using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        
+        var bundle = new PackBundle
+        {
+            PackageId = PackageId,
+            BundleName = newPackBundleName,
+            CreatedDate = DateTime.UtcNow
+        };
+        
+        dbContext.PackBundles.Add(bundle);
+        await dbContext.SaveChangesAsync();
+        
+        // Set first item as parent
+        bool isFirst = true;
+        foreach (var itemId in selectedItems)
+        {
+            var item = processingItems.FirstOrDefault(p => p.Id == itemId);
+            if (item != null)
+            {
+                item.PackBundleId = bundle.Id;
+                item.IsParentInPackBundle = isFirst;
+                dbContext.ProcessingItems.Update(item);
+                isFirst = false;
+            }
+        }
+        
+        await dbContext.SaveChangesAsync();
+        packBundles.Add(bundle);
+        selectedItems.Clear();
+        newPackBundleName = "";
+        showCreatePackBundleModal = false;
+        ShowToast("Pack bundle created successfully", "success");
+        StateHasChanged();
+    }
+    
+    // Auto bundle creation
+    private async Task CreateAutoDeliveryBundles()
+    {
+        using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        var unbundledItems = processingItems.Where(p => p.DeliveryBundleId == null).ToList();
+        var bundlesCreated = 0;
+        
+        if (autoBundleCriteria == "material")
+        {
+            var groupedByMaterial = unbundledItems.GroupBy(p => GetItemMaterialType(p));
+            foreach (var group in groupedByMaterial)
+            {
+                if (group.Any())
+                {
+                    var bundle = new DeliveryBundle
+                    {
+                        PackageId = PackageId,
+                        BundleName = $"{group.Key} Bundle {DateTime.Now:yyyyMMdd-HHmmss}",
+                        CreatedDate = DateTime.UtcNow
+                    };
+                    
+                    dbContext.DeliveryBundles.Add(bundle);
+                    await dbContext.SaveChangesAsync();
+                    
+                    bool isFirst = true;
+                    foreach (var item in group)
+                    {
+                        item.DeliveryBundleId = bundle.Id;
+                        item.IsParentInBundle = isFirst;
+                        dbContext.ProcessingItems.Update(item);
+                        isFirst = false;
+                    }
+                    
+                    deliveryBundles.Add(bundle);
+                    bundlesCreated++;
+                }
+            }
+        }
+        else if (autoBundleCriteria == "weight")
+        {
+            var currentBundleWeight = 0m;
+            var currentBundleItems = new List<ProcessingItem>();
+            
+            foreach (var item in unbundledItems.OrderBy(p => p.Weight))
+            {
+                var itemWeight = item.Weight * item.Quantity;
+                
+                if (currentBundleWeight + itemWeight > maxBundleWeight && currentBundleItems.Any())
+                {
+                    // Create bundle for current items
+                    await CreateBundleFromItems(dbContext, currentBundleItems, $"Weight Bundle {bundlesCreated + 1}");
+                    bundlesCreated++;
+                    currentBundleItems.Clear();
+                    currentBundleWeight = 0;
+                }
+                
+                currentBundleItems.Add(item);
+                currentBundleWeight += itemWeight;
+            }
+            
+            // Create final bundle
+            if (currentBundleItems.Any())
+            {
+                await CreateBundleFromItems(dbContext, currentBundleItems, $"Weight Bundle {bundlesCreated + 1}");
+                bundlesCreated++;
+            }
+        }
+        
+        await dbContext.SaveChangesAsync();
+        showAutoDeliveryBundleModal = false;
+        ShowToast($"Created {bundlesCreated} delivery bundles", "success");
+        StateHasChanged();
+    }
+    
+    private async Task CreateBundleFromItems(ApplicationDbContext dbContext, List<ProcessingItem> items, string bundleName)
+    {
+        var bundle = new DeliveryBundle
+        {
+            PackageId = PackageId,
+            BundleName = bundleName,
+            CreatedDate = DateTime.UtcNow
+        };
+        
+        dbContext.DeliveryBundles.Add(bundle);
+        await dbContext.SaveChangesAsync();
+        
+        bool isFirst = true;
+        foreach (var item in items)
+        {
+            item.DeliveryBundleId = bundle.Id;
+            item.IsParentInBundle = isFirst;
+            dbContext.ProcessingItems.Update(item);
+            isFirst = false;
+        }
+        
+        deliveryBundles.Add(bundle);
+    }
+    
+    // Bundle management
+    private async Task UpdateBundleName(DeliveryBundle bundle, string? newName)
+    {
+        if (string.IsNullOrWhiteSpace(newName)) return;
+        
+        bundle.BundleName = newName;
+        using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        dbContext.DeliveryBundles.Update(bundle);
+        await dbContext.SaveChangesAsync();
+    }
+    
+    private async Task UpdatePackBundleName(PackBundle bundle, string? newName)
+    {
+        if (string.IsNullOrWhiteSpace(newName)) return;
+        
+        bundle.BundleName = newName;
+        using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        dbContext.PackBundles.Update(bundle);
+        await dbContext.SaveChangesAsync();
+    }
+    
+    private async Task DeleteBundle(int bundleId, bool isPackBundle)
+    {
+        using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        
+        if (isPackBundle)
+        {
+            var bundle = packBundles.FirstOrDefault(b => b.Id == bundleId);
+            if (bundle != null)
+            {
+                // Unbundle items
+                var items = processingItems.Where(p => p.PackBundleId == bundleId);
+                foreach (var item in items)
+                {
+                    item.PackBundleId = null;
+                    item.IsParentInPackBundle = false;
+                    dbContext.ProcessingItems.Update(item);
+                }
+                
+                dbContext.PackBundles.Remove(bundle);
+                packBundles.Remove(bundle);
+            }
+        }
+        else
+        {
+            var bundle = deliveryBundles.FirstOrDefault(b => b.Id == bundleId);
+            if (bundle != null)
+            {
+                // Unbundle items
+                var items = processingItems.Where(p => p.DeliveryBundleId == bundleId);
+                foreach (var item in items)
+                {
+                    item.DeliveryBundleId = null;
+                    item.IsParentInBundle = false;
+                    dbContext.ProcessingItems.Update(item);
+                }
+                
+                dbContext.DeliveryBundles.Remove(bundle);
+                deliveryBundles.Remove(bundle);
+            }
+        }
+        
+        await dbContext.SaveChangesAsync();
+        ShowToast("Bundle deleted successfully", "warning");
+        StateHasChanged();
+    }
+    
+    // Column visibility
+    private void ToggleColumnVisibility(string column, bool isVisible)
+    {
+        columnVisibility[column] = isVisible;
+        StateHasChanged();
+    }
+    
+    private void ToggleWeldingColumnVisibility(string column, bool isVisible)
+    {
+        weldingColumnVisibility[column] = isVisible;
+        StateHasChanged();
+    }
+    
+    // Material mapping (placeholder)
+    private Task UpdateMaterialMapping(string materialId, string? newType)
+    {
+        // TODO: Implement material mapping persistence
+        ShowToast("Material mapping updated (not persisted)", "info");
+        return Task.CompletedTask;
+    }
+    
+    private Task SaveMaterialMappings()
+    {
+        // TODO: Implement material mapping persistence
+        showMaterialMappingModal = false;
+        ShowToast("Material mappings saved (not persisted)", "info");
+        return Task.CompletedTask;
+    }
+    
+    // Image handling
+    private void HandleImageUpload(InputFileChangeEventArgs e)
+    {
+        uploadedFiles = e.GetMultipleFiles().ToList();
+    }
+    
+    private async Task UploadImages()
+    {
+        if (!uploadedFiles.Any() || imageUploadTarget == null) return;
+        
+        try
+        {
+            var uploadedImages = new List<ImageUpload>();
+            foreach (var file in uploadedFiles)
+            {
+                // Convert IBrowserFile to IFormFile is not directly possible
+                // This would need a different approach or API endpoint
+                ShowToast("Image upload needs API endpoint implementation", "warning");
+                break;
+            }
+            
+            foreach (var img in uploadedImages)
+            {
+                imageUploadTarget.Images.Add(img);
+            }
+            
+            showImageUploadModal = false;
+            uploadedFiles.Clear();
+            ShowToast($"Uploaded {uploadedImages.Count} images successfully", "success");
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Upload failed: {ex.Message}", "danger");
+        }
+    }
+    
+    // Welding connections
+    private async Task ShowEditConnectionsModal(WeldingItem item)
+    {
+        connectionEditTarget = item;
+        
+        using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        
+        // Load available connections
+        availableWeldingConnections = await dbContext.WeldingConnections
+            .Where(wc => wc.PackageId == null || wc.PackageId == PackageId)
+            .ToListAsync();
+        
+        // Clone current connections for editing
+        editingConnections = item.ItemConnections.Select(ic => new WeldingItemConnection
+        {
+            Id = ic.Id,
+            WeldingItemId = ic.WeldingItemId,
+            WeldingConnectionId = ic.WeldingConnectionId,
+            Quantity = ic.Quantity,
+            AssembleFitTack = ic.AssembleFitTack,
+            Weld = ic.Weld,
+            WeldCheck = ic.WeldCheck,
+            WeldTest = ic.WeldTest
+        }).ToList();
+        
+        showEditConnectionsModal = true;
+    }
+    
+    private void AddNewConnection()
+    {
+        if (editingConnections == null || connectionEditTarget == null) return;
+        
+        editingConnections.Add(new WeldingItemConnection
+        {
+            WeldingItemId = connectionEditTarget.Id,
+            Quantity = 1
+        });
+    }
+    
+    private void UpdateConnectionType(WeldingItemConnection conn, object? value)
+    {
+        if (int.TryParse(value?.ToString(), out var connId))
+        {
+            conn.WeldingConnectionId = connId;
+            var weldConn = availableWeldingConnections.FirstOrDefault(wc => wc.Id == connId);
+            if (weldConn != null && conn.AssembleFitTack == null)
+            {
+                // Set defaults if not overridden
+                conn.AssembleFitTack = null;
+                conn.Weld = null;
+                conn.WeldCheck = null;
+                conn.WeldTest = null;
+            }
+        }
+    }
+    
+    private void UpdateConnectionQuantity(WeldingItemConnection conn, object? value)
+    {
+        if (int.TryParse(value?.ToString(), out var qty))
+            conn.Quantity = qty;
+    }
+    
+    private void UpdateConnectionTime(WeldingItemConnection conn, string field, object? value)
+    {
+        if (decimal.TryParse(value?.ToString(), out var time))
+        {
+            switch (field)
+            {
+                case "AssembleFitTack":
+                    conn.AssembleFitTack = time;
+                    break;
+                case "Weld":
+                    conn.Weld = time;
+                    break;
+                case "WeldCheck":
+                    conn.WeldCheck = time;
+                    break;
+                case "WeldTest":
+                    conn.WeldTest = time;
+                    break;
+            }
+        }
+    }
+    
+    private void RemoveConnection(WeldingItemConnection conn)
+    {
+        editingConnections?.Remove(conn);
+    }
+    
+    private async Task SaveConnections()
+    {
+        if (connectionEditTarget == null || editingConnections == null) return;
+        
+        using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        
+        // Remove existing connections
+        dbContext.WeldingItemConnections.RemoveRange(connectionEditTarget.ItemConnections);
+        
+        // Add new connections
+        foreach (var conn in editingConnections.Where(c => c.WeldingConnectionId > 0))
+        {
+            dbContext.WeldingItemConnections.Add(conn);
+        }
+        
+        await dbContext.SaveChangesAsync();
+        
+        // Update local list
+        connectionEditTarget.ItemConnections = editingConnections.Where(c => c.WeldingConnectionId > 0).ToList();
+        
+        showEditConnectionsModal = false;
+        ShowToast("Connections updated successfully", "success");
+        StateHasChanged();
+    }
+
+    // Toast Notifications
+    private void ShowToast(string message, string type = "info")
+    {
+        _alertMessage = message;
+        _alertType = type;
+        _showAlert = true;
+        StateHasChanged();
+        
+        Task.Delay(3000).ContinueWith(_ =>
+        {
+            _showAlert = false;
+            InvokeAsync(StateHasChanged);
+        });
+    }
+
+    // Column ordering methods
+    private async Task LoadColumnOrders()
+    {
+        var user = await AuthenticationService.GetCurrentUserAsync();
+        if (user == null) return;
+        
+        // Load default view for processing worksheet
+        var processingView = await WorksheetColumnService.GetDefaultViewAsync(user.Id, user.CompanyId, "Processing");
+        if (processingView != null)
+        {
+            var orders = await WorksheetColumnService.GetColumnOrdersAsync(processingView.Id);
+            processingColumnOrder = orders.ToDictionary(o => o.ColumnName, o => o.DisplayOrder);
+            
+            // Update visibility based on saved view
+            foreach (var order in orders)
+            {
+                if (columnVisibility.ContainsKey(order.ColumnName))
+                {
+                    columnVisibility[order.ColumnName] = order.IsVisible;
+                }
+            }
+        }
+        else
+        {
+            // Set default order
+            processingColumnOrder = await WorksheetColumnService.GetDefaultColumnOrderAsync("Processing");
+        }
+        
+        // Load default view for welding worksheet
+        var weldingView = await WorksheetColumnService.GetDefaultViewAsync(user.Id, user.CompanyId, "Welding");
+        if (weldingView != null)
+        {
+            var orders = await WorksheetColumnService.GetColumnOrdersAsync(weldingView.Id);
+            weldingColumnOrder = orders.ToDictionary(o => o.ColumnName, o => o.DisplayOrder);
+            
+            // Update visibility based on saved view
+            foreach (var order in orders)
+            {
+                if (weldingColumnVisibility.ContainsKey(order.ColumnName))
+                {
+                    weldingColumnVisibility[order.ColumnName] = order.IsVisible;
+                }
+            }
+        }
+        else
+        {
+            // Set default order
+            weldingColumnOrder = await WorksheetColumnService.GetDefaultColumnOrderAsync("Welding");
+        }
+    }
+    
+    private async Task OnColumnViewLoaded(WorksheetColumnView view)
+    {
+        ShowToast($"Loaded view: {view.ViewName}", "info");
+        StateHasChanged();
+    }
+    
+    private async Task OnColumnOrderChanged(List<WorksheetColumnOrder> columnOrders)
+    {
+        if (activeWorksheet?.WorksheetType == "Processing")
+        {
+            processingColumnOrder = columnOrders.ToDictionary(o => o.ColumnName, o => o.DisplayOrder);
+            
+            // Update visibility
+            foreach (var order in columnOrders)
+            {
+                if (columnVisibility.ContainsKey(order.ColumnName))
+                {
+                    columnVisibility[order.ColumnName] = order.IsVisible;
+                }
+            }
+        }
+        else if (activeWorksheet?.WorksheetType == "Welding")
+        {
+            weldingColumnOrder = columnOrders.ToDictionary(o => o.ColumnName, o => o.DisplayOrder);
+            
+            // Update visibility
+            foreach (var order in columnOrders)
+            {
+                if (weldingColumnVisibility.ContainsKey(order.ColumnName))
+                {
+                    weldingColumnVisibility[order.ColumnName] = order.IsVisible;
+                }
+            }
+        }
+        
+        StateHasChanged();
+        
+        // Re-initialize column reordering after state change
+        await Task.Delay(100); // Allow DOM to update
+        await JSRuntime.InvokeVoidAsync("columnReorder.cleanup");
+        await JSRuntime.InvokeVoidAsync("columnReorder.initialize", dotNetRef, 
+            activeWorksheet?.WorksheetType == "Welding" ? ".welding-table" : ".table-resizable:first");
+    }
+    
+    private List<WorksheetColumnOrder> GetCurrentColumnOrder()
+    {
+        var currentOrder = activeWorksheet?.WorksheetType == "Processing" ? processingColumnOrder : weldingColumnOrder;
+        var currentVisibility = activeWorksheet?.WorksheetType == "Processing" ? columnVisibility : weldingColumnVisibility;
+        
+        return currentOrder.Select(kvp => new WorksheetColumnOrder
+        {
+            ColumnName = kvp.Key,
+            DisplayOrder = kvp.Value,
+            IsVisible = currentVisibility.ContainsKey(kvp.Key) ? currentVisibility[kvp.Key] : true,
+            IsFrozen = frozenColumns.ContainsKey(kvp.Key) ? frozenColumns[kvp.Key] : false,
+            DependentColumnName = kvp.Key == "Material" ? "MaterialType" : null
+        }).OrderBy(o => o.DisplayOrder).ToList();
+    }
+    
+    private List<(string Key, string DisplayName, string? Style)> GetOrderedProcessingColumns()
+    {
+        var columns = new List<(string Key, string DisplayName, string? Style)>
+        {
+            ("DrawingNumber", "Mark", "min-width: 120px;"),
+            ("Quantity", "Qty", "min-width: 80px;"),
+            ("Description", "Description", "min-width: 250px;"),
+            ("Material", "Material", "min-width: 150px;"),
+            ("MaterialType", "Type", "min-width: 100px;"),
+            ("Weight", "Weight(kg)", "min-width: 100px;"),
+            ("TotalWeight", "Total(kg)", "min-width: 100px;"),
+            ("DeliveryBundle", "Delivery Bundle", "min-width: 150px;"),
+            ("PackBundle", "Pack Bundle", "min-width: 150px;"),
+            ("HandlingTime", "Handling Time", "min-width: 120px;"),
+            ("UnloadTime", "Unload Time/Bundle", "min-width: 140px;"),
+            ("MarkMeasureCut", "Mark/Measure/Cut", "min-width: 140px;"),
+            ("QualityCheck", "Quality Check/Clean", "min-width: 150px;"),
+            ("MoveToAssembly", "Move to Assembly", "min-width: 140px;"),
+            ("MoveAfterWeld", "Move After Weld", "min-width: 140px;"),
+            ("LoadingTime", "Loading Time/Bundle", "min-width: 150px;")
+        };
+        
+        // Sort by order if we have it
+        if (processingColumnOrder.Any())
+        {
+            return columns
+                .Where(c => columnVisibility.ContainsKey(c.Key) && columnVisibility[c.Key])
+                .OrderBy(c => processingColumnOrder.ContainsKey(c.Key) ? processingColumnOrder[c.Key] : 999)
+                .ToList();
+        }
+        
+        return columns.Where(c => columnVisibility.ContainsKey(c.Key) && columnVisibility[c.Key]).ToList();
+    }
+    
+    private RenderFragment RenderProcessingCell(ProcessingItem item, string columnKey) => builder =>
+    {
+        switch (columnKey)
+        {
+            case "DrawingNumber":
+                builder.OpenElement(0, "td");
+                builder.OpenElement(1, "input");
+                builder.AddAttribute(2, "type", "text");
+                builder.AddAttribute(3, "class", "form-control form-control-sm");
+                builder.AddAttribute(4, "value", item.DrawingNumber);
+                builder.AddAttribute(5, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, e => UpdateItemField(item, "DrawingNumber", e.Value?.ToString())));
+                builder.AddAttribute(6, "onfocusout", EventCallback.Factory.Create(this, () => SaveItem(item)));
+                builder.CloseElement();
+                builder.CloseElement();
+                break;
+                
+            case "Quantity":
+                builder.OpenElement(0, "td");
+                builder.OpenElement(1, "input");
+                builder.AddAttribute(2, "type", "number");
+                builder.AddAttribute(3, "class", "form-control form-control-sm");
+                builder.AddAttribute(4, "value", item.Quantity);
+                builder.AddAttribute(5, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, e => UpdateItemField(item, "Quantity", e.Value?.ToString())));
+                builder.AddAttribute(6, "onfocusout", EventCallback.Factory.Create(this, () => SaveItem(item)));
+                builder.CloseElement();
+                builder.CloseElement();
+                break;
+                
+            case "Description":
+                builder.OpenElement(0, "td");
+                builder.OpenElement(1, "input");
+                builder.AddAttribute(2, "type", "text");
+                builder.AddAttribute(3, "class", "form-control form-control-sm");
+                builder.AddAttribute(4, "value", item.Description);
+                builder.AddAttribute(5, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, e => UpdateItemField(item, "Description", e.Value?.ToString())));
+                builder.CloseElement();
+                builder.CloseElement();
+                break;
+                
+            case "Material":
+                builder.OpenElement(0, "td");
+                builder.OpenElement(1, "input");
+                builder.AddAttribute(2, "type", "text");
+                builder.AddAttribute(3, "class", "form-control form-control-sm");
+                builder.AddAttribute(4, "value", item.MaterialId);
+                builder.AddAttribute(5, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, e => UpdateMaterial(item, e.Value?.ToString())));
+                builder.AddAttribute(6, "onfocusout", EventCallback.Factory.Create(this, () => SaveItem(item)));
+                builder.CloseElement();
+                builder.CloseElement();
+                break;
+                
+            case "MaterialType":
+                builder.OpenElement(0, "td");
+                builder.AddContent(1, GetItemMaterialType(item));
+                builder.CloseElement();
+                break;
+                
+            case "Weight":
+                builder.OpenElement(0, "td");
+                builder.OpenElement(1, "input");
+                builder.AddAttribute(2, "type", "number");
+                builder.AddAttribute(3, "step", "0.01");
+                builder.AddAttribute(4, "class", "form-control form-control-sm");
+                builder.AddAttribute(5, "value", item.Weight);
+                builder.AddAttribute(6, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, e => UpdateItemField(item, "Weight", e.Value?.ToString())));
+                builder.AddAttribute(7, "onfocusout", EventCallback.Factory.Create(this, () => SaveItem(item)));
+                builder.CloseElement();
+                builder.CloseElement();
+                break;
+                
+            case "TotalWeight":
+                builder.OpenElement(0, "td");
+                builder.AddContent(1, (item.Quantity * item.Weight).ToString("N2"));
+                builder.CloseElement();
+                break;
+                
+            case "DeliveryBundle":
+                builder.OpenElement(0, "td");
+                builder.OpenElement(1, "select");
+                builder.AddAttribute(2, "class", "form-select form-select-sm bundle-select");
+                builder.AddAttribute(3, "value", item.DeliveryBundleId?.ToString() ?? "");
+                builder.AddAttribute(4, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, e => UpdateDeliveryBundle(item, e.Value?.ToString())));
+                
+                builder.OpenElement(5, "option");
+                builder.AddAttribute(6, "value", "");
+                builder.AddContent(7, "No Bundle");
+                builder.CloseElement();
+                
+                foreach (var bundle in deliveryBundles)
+                {
+                    builder.OpenElement(8, "option");
+                    builder.AddAttribute(9, "value", bundle.Id.ToString());
+                    builder.AddContent(10, bundle.BundleName);
+                    builder.CloseElement();
+                }
+                
+                builder.CloseElement();
+                builder.CloseElement();
+                break;
+                
+            case "PackBundle":
+                builder.OpenElement(0, "td");
+                builder.OpenElement(1, "select");
+                builder.AddAttribute(2, "class", "form-select form-select-sm bundle-select");
+                builder.AddAttribute(3, "value", item.PackBundleId?.ToString() ?? "");
+                builder.AddAttribute(4, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, e => UpdatePackBundle(item, e.Value?.ToString())));
+                
+                builder.OpenElement(5, "option");
+                builder.AddAttribute(6, "value", "");
+                builder.AddContent(7, "No Bundle");
+                builder.CloseElement();
+                
+                foreach (var bundle in packBundles)
+                {
+                    builder.OpenElement(8, "option");
+                    builder.AddAttribute(9, "value", bundle.Id.ToString());
+                    builder.AddContent(10, bundle.BundleName);
+                    builder.CloseElement();
+                }
+                
+                builder.CloseElement();
+                builder.CloseElement();
+                break;
+                
+            case "HandlingTime":
+                builder.OpenElement(0, "td");
+                if (item.IsParentInBundle || item.IsParentInPackBundle)
+                {
+                    builder.AddContent(1, ((item.MoveToAssembly + item.MoveAfterWeld) / 60m).ToString("N2") + "h");
+                }
+                else
+                {
+                    builder.OpenElement(1, "span");
+                    builder.AddAttribute(2, "class", "text-muted");
+                    builder.AddContent(3, "-");
+                    builder.CloseElement();
+                }
+                builder.CloseElement();
+                break;
+                
+            case "UnloadTime":
+                builder.OpenElement(0, "td");
+                builder.OpenElement(1, "input");
+                builder.AddAttribute(2, "type", "number");
+                builder.AddAttribute(3, "step", "0.01");
+                builder.AddAttribute(4, "class", "form-control form-control-sm");
+                builder.AddAttribute(5, "value", item.UnloadTimePerBundle);
+                builder.AddAttribute(6, "disabled", item.DeliveryBundleId != null && !item.IsParentInBundle);
+                builder.AddAttribute(7, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, e => UpdateItemField(item, "UnloadTimePerBundle", e.Value?.ToString())));
+                builder.AddAttribute(8, "onfocusout", EventCallback.Factory.Create(this, () => SaveItem(item)));
+                builder.CloseElement();
+                builder.CloseElement();
+                break;
+                
+            case "MarkMeasureCut":
+                builder.OpenElement(0, "td");
+                builder.OpenElement(1, "input");
+                builder.AddAttribute(2, "type", "number");
+                builder.AddAttribute(3, "step", "0.01");
+                builder.AddAttribute(4, "class", "form-control form-control-sm");
+                builder.AddAttribute(5, "value", item.MarkMeasureCut);
+                builder.AddAttribute(6, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, e => UpdateItemField(item, "MarkMeasureCut", e.Value?.ToString())));
+                builder.AddAttribute(7, "onfocusout", EventCallback.Factory.Create(this, () => SaveItem(item)));
+                builder.CloseElement();
+                builder.CloseElement();
+                break;
+                
+            case "QualityCheck":
+                builder.OpenElement(0, "td");
+                builder.OpenElement(1, "input");
+                builder.AddAttribute(2, "type", "number");
+                builder.AddAttribute(3, "step", "0.01");
+                builder.AddAttribute(4, "class", "form-control form-control-sm");
+                builder.AddAttribute(5, "value", item.QualityCheckClean);
+                builder.AddAttribute(6, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, e => UpdateItemField(item, "QualityCheckClean", e.Value?.ToString())));
+                builder.AddAttribute(7, "onfocusout", EventCallback.Factory.Create(this, () => SaveItem(item)));
+                builder.CloseElement();
+                builder.CloseElement();
+                break;
+                
+            case "MoveToAssembly":
+                builder.OpenElement(0, "td");
+                builder.OpenElement(1, "input");
+                builder.AddAttribute(2, "type", "number");
+                builder.AddAttribute(3, "step", "0.01");
+                builder.AddAttribute(4, "class", "form-control form-control-sm");
+                builder.AddAttribute(5, "value", item.MoveToAssembly);
+                builder.AddAttribute(6, "disabled", item.PackBundleId != null && !item.IsParentInPackBundle);
+                builder.AddAttribute(7, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, e => UpdateItemField(item, "MoveToAssembly", e.Value?.ToString())));
+                builder.AddAttribute(8, "onfocusout", EventCallback.Factory.Create(this, () => SaveItem(item)));
+                builder.CloseElement();
+                builder.CloseElement();
+                break;
+                
+            case "MoveAfterWeld":
+                builder.OpenElement(0, "td");
+                builder.OpenElement(1, "input");
+                builder.AddAttribute(2, "type", "number");
+                builder.AddAttribute(3, "step", "0.01");
+                builder.AddAttribute(4, "class", "form-control form-control-sm");
+                builder.AddAttribute(5, "value", item.MoveAfterWeld);
+                builder.AddAttribute(6, "disabled", item.PackBundleId != null && !item.IsParentInPackBundle);
+                builder.AddAttribute(7, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, e => UpdateItemField(item, "MoveAfterWeld", e.Value?.ToString())));
+                builder.AddAttribute(8, "onfocusout", EventCallback.Factory.Create(this, () => SaveItem(item)));
+                builder.CloseElement();
+                builder.CloseElement();
+                break;
+                
+            case "LoadingTime":
+                builder.OpenElement(0, "td");
+                builder.OpenElement(1, "input");
+                builder.AddAttribute(2, "type", "number");
+                builder.AddAttribute(3, "step", "0.01");
+                builder.AddAttribute(4, "class", "form-control form-control-sm");
+                builder.AddAttribute(5, "value", item.LoadingTimePerBundle);
+                builder.AddAttribute(6, "disabled", item.DeliveryBundleId != null && !item.IsParentInBundle);
+                builder.AddAttribute(7, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, e => UpdateItemField(item, "LoadingTimePerBundle", e.Value?.ToString())));
+                builder.AddAttribute(8, "onfocusout", EventCallback.Factory.Create(this, () => SaveItem(item)));
+                builder.CloseElement();
+                builder.CloseElement();
+                break;
+        }
+    };
+    
+    private RenderFragment RenderWeldingCell(WeldingItem item, string columnKey) => builder =>
+    {
+        switch (columnKey)
+        {
+            case "DrawingNumber":
+                builder.OpenElement(0, "td");
+                builder.OpenElement(1, "input");
+                builder.AddAttribute(2, "type", "text");
+                builder.AddAttribute(3, "class", "form-control form-control-sm");
+                builder.AddAttribute(4, "value", item.DrawingNumber);
+                builder.AddAttribute(5, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, e => UpdateWeldingField(item, "DrawingNumber", e.Value?.ToString())));
+                builder.AddAttribute(6, "onfocusout", EventCallback.Factory.Create(this, () => SaveWeldingItem(item)));
+                builder.CloseElement();
+                builder.CloseElement();
+                break;
+                
+            case "ItemDescription":
+                builder.OpenElement(0, "td");
+                builder.OpenElement(1, "input");
+                builder.AddAttribute(2, "type", "text");
+                builder.AddAttribute(3, "class", "form-control form-control-sm");
+                builder.AddAttribute(4, "value", item.ItemDescription);
+                builder.AddAttribute(5, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, e => UpdateWeldingField(item, "ItemDescription", e.Value?.ToString())));
+                builder.AddAttribute(6, "onfocusout", EventCallback.Factory.Create(this, () => SaveWeldingItem(item)));
+                builder.CloseElement();
+                builder.CloseElement();
+                break;
+                
+            case "WeldType":
+                builder.OpenElement(0, "td");
+                builder.OpenElement(1, "select");
+                builder.AddAttribute(2, "class", "form-select form-select-sm");
+                builder.AddAttribute(3, "value", item.WeldType);
+                builder.AddAttribute(4, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, e => UpdateWeldingField(item, "WeldType", e.Value?.ToString())));
+                builder.AddAttribute(5, "onfocusout", EventCallback.Factory.Create(this, () => SaveWeldingItem(item)));
+                
+                builder.OpenElement(6, "option");
+                builder.AddAttribute(7, "value", "");
+                builder.AddContent(8, "Select Type");
+                builder.CloseElement();
+                
+                string[] weldTypes = { "Fillet", "Butt", "Plug", "Slot" };
+                foreach (var type in weldTypes)
+                {
+                    builder.OpenElement(9, "option");
+                    builder.AddAttribute(10, "value", type);
+                    builder.AddContent(11, type);
+                    builder.CloseElement();
+                }
+                
+                builder.CloseElement();
+                builder.CloseElement();
+                break;
+                
+            case "ConnectionQty":
+                builder.OpenElement(0, "td");
+                builder.OpenElement(1, "input");
+                builder.AddAttribute(2, "type", "number");
+                builder.AddAttribute(3, "class", "form-control form-control-sm");
+                builder.AddAttribute(4, "value", item.ConnectionQty);
+                builder.AddAttribute(5, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, e => UpdateWeldingField(item, "ConnectionQty", e.Value?.ToString())));
+                builder.AddAttribute(6, "onfocusout", EventCallback.Factory.Create(this, () => SaveWeldingItem(item)));
+                builder.AddAttribute(7, "min", "0");
+                builder.CloseElement();
+                builder.CloseElement();
+                break;
+                
+            case "WeldingConnections":
+                builder.OpenElement(0, "td");
+                if (item.ItemConnections?.Any() == true)
+                {
+                    builder.OpenElement(1, "div");
+                    builder.AddAttribute(2, "class", "connection-time-fields");
+                    
+                    foreach (var conn in item.ItemConnections)
+                    {
+                        builder.OpenElement(3, "div");
+                        builder.AddAttribute(4, "class", "connection-time-row");
+                        
+                        builder.OpenElement(5, "small");
+                        builder.AddAttribute(6, "class", "text-muted");
+                        builder.AddContent(7, conn.WeldingConnection.Name + ":");
+                        builder.CloseElement();
+                        
+                        builder.OpenElement(8, "strong");
+                        builder.AddContent(9, conn.TotalMinutes.ToString("N1") + " min");
+                        builder.CloseElement();
+                        
+                        builder.CloseElement();
+                    }
+                    
+                    builder.CloseElement();
+                    
+                    builder.OpenElement(10, "button");
+                    builder.AddAttribute(11, "class", "btn btn-sm btn-link p-0 mt-1");
+                    builder.AddAttribute(12, "onclick", EventCallback.Factory.Create(this, () => ShowEditConnectionsModal(item)));
+                    
+                    builder.OpenElement(13, "i");
+                    builder.AddAttribute(14, "class", "fas fa-edit");
+                    builder.CloseElement();
+                    builder.AddContent(15, " Edit");
+                    
+                    builder.CloseElement();
+                }
+                else
+                {
+                    builder.OpenElement(1, "button");
+                    builder.AddAttribute(2, "class", "btn btn-sm btn-outline-secondary");
+                    builder.AddAttribute(3, "onclick", EventCallback.Factory.Create(this, () => ShowEditConnectionsModal(item)));
+                    
+                    builder.OpenElement(4, "i");
+                    builder.AddAttribute(5, "class", "fas fa-plus");
+                    builder.CloseElement();
+                    builder.AddContent(6, " Add");
+                    
+                    builder.CloseElement();
+                }
+                builder.CloseElement();
+                break;
+                
+            case "TotalMinutes":
+                builder.OpenElement(0, "td");
+                builder.OpenElement(1, "strong");
+                builder.AddContent(2, item.TotalWeldingMinutes.ToString("N1") + " min");
+                builder.CloseElement();
+                builder.CloseElement();
+                break;
+                
+            case "Images":
+                builder.OpenElement(0, "td");
+                builder.OpenElement(1, "div");
+                builder.AddAttribute(2, "class", "d-flex gap-1 align-items-center");
+                
+                if (item.Images?.Any() == true)
+                {
+                    int imgIndex = 0;
+                    foreach (var img in item.Images.Take(2))
+                    {
+                        builder.OpenElement(3, "div");
+                        builder.AddAttribute(4, "class", "position-relative");
+                        
+                        builder.OpenElement(5, "img");
+                        builder.AddAttribute(6, "src", img.FilePath);
+                        builder.AddAttribute(7, "class", "img-thumbnail");
+                        builder.AddAttribute(8, "onclick", EventCallback.Factory.Create(this, () => ShowImageModal(img)));
+                        builder.AddAttribute(9, "alt", img.FileName);
+                        builder.CloseElement();
+                        
+                        builder.OpenElement(10, "button");
+                        builder.AddAttribute(11, "class", "btn btn-sm btn-danger position-absolute top-0 end-0 p-1");
+                        builder.AddAttribute(12, "onclick", EventCallback.Factory.Create(this, () => DeleteWeldingImage(item, img)));
+                        builder.AddAttribute(13, "style", "font-size: 0.7rem;");
+                        
+                        builder.OpenElement(14, "i");
+                        builder.AddAttribute(15, "class", "fas fa-times");
+                        builder.CloseElement();
+                        
+                        builder.CloseElement();
+                        builder.CloseElement();
+                        imgIndex++;
+                    }
+                    
+                    if (item.Images.Count > 2)
+                    {
+                        builder.OpenElement(3, "span");
+                        builder.AddAttribute(4, "class", "text-muted small");
+                        builder.AddContent(5, $"+{item.Images.Count - 2}");
+                        builder.CloseElement();
+                    }
+                }
+                
+                builder.OpenElement(3, "button");
+                builder.AddAttribute(4, "class", "btn btn-sm btn-outline-secondary image-paste-target");
+                builder.AddAttribute(5, "onclick", EventCallback.Factory.Create(this, () => ShowImageUploadModal(item)));
+                builder.AddAttribute(6, "data-paste-target", "true");
+                
+                builder.OpenElement(7, "i");
+                builder.AddAttribute(8, "class", "fas fa-camera");
+                builder.CloseElement();
+                
+                builder.CloseElement();
+                builder.CloseElement();
+                builder.CloseElement();
+                break;
+        }
+    };
+    
+    private List<(string Key, string DisplayName, string? Style)> GetOrderedWeldingColumns()
+    {
+        var columns = new List<(string Key, string DisplayName, string? Style)>
+        {
+            ("DrawingNumber", "Drawing #", null),
+            ("ItemDescription", "Description", null),
+            ("WeldType", "Weld Type", null),
+            ("ConnectionQty", "Connections", null),
+            ("WeldingConnections", "Connection Times", null),
+            ("TotalMinutes", "Total Time", null),
+            ("Images", "Images", "width: 160px;")
+        };
+        
+        // Sort by order if we have it
+        if (weldingColumnOrder.Any())
+        {
+            return columns
+                .Where(c => weldingColumnVisibility.ContainsKey(c.Key) && weldingColumnVisibility[c.Key])
+                .OrderBy(c => weldingColumnOrder.ContainsKey(c.Key) ? weldingColumnOrder[c.Key] : 999)
+                .ToList();
+        }
+        
+        return columns.Where(c => weldingColumnVisibility.ContainsKey(c.Key) && weldingColumnVisibility[c.Key]).ToList();
+    }
+    
+    [JSInvokable]
+    public async Task ReorderColumns(string draggedColumn, string targetColumn, bool dropBefore)
+    {
+        var columnOrder = activeWorksheet?.WorksheetType == "Processing" ? processingColumnOrder : weldingColumnOrder;
+        var dependencies = await WorksheetColumnService.GetColumnDependenciesAsync(activeWorksheet?.WorksheetType ?? "Processing");
+        
+        if (!columnOrder.ContainsKey(draggedColumn) || !columnOrder.ContainsKey(targetColumn))
+            return;
+        
+        var draggedOrder = columnOrder[draggedColumn];
+        var targetOrder = columnOrder[targetColumn];
+        
+        // Handle dependent columns
+        string? dependentColumn = dependencies.ContainsKey(draggedColumn) ? dependencies[draggedColumn] : null;
+        
+        // Calculate new order
+        var newOrder = dropBefore ? targetOrder : targetOrder + 1;
+        
+        // Shift other columns
+        foreach (var col in columnOrder.Keys.ToList())
+        {
+            if (col == draggedColumn) continue;
+            
+            var currentOrder = columnOrder[col];
+            if (dropBefore)
+            {
+                if (currentOrder >= targetOrder && currentOrder < draggedOrder)
+                    columnOrder[col] = currentOrder + 1;
+            }
+            else
+            {
+                if (currentOrder > targetOrder && currentOrder < draggedOrder)
+                    columnOrder[col] = currentOrder + 1;
+            }
+        }
+        
+        // Set new position for dragged column
+        columnOrder[draggedColumn] = newOrder;
+        
+        // If there's a dependent column, place it right after
+        if (dependentColumn != null && columnOrder.ContainsKey(dependentColumn))
+        {
+            columnOrder[dependentColumn] = newOrder + 1;
+        }
+        
+        // Normalize orders to be sequential
+        var orderedColumns = columnOrder.OrderBy(kvp => kvp.Value).Select((kvp, index) => new { kvp.Key, Order = index + 1 }).ToList();
+        foreach (var col in orderedColumns)
+        {
+            columnOrder[col.Key] = col.Order;
+        }
+        
+        StateHasChanged();
+        ShowToast("Column order updated", "success");
+    }
+    
+    public void Dispose()
+    {
+        timeTracker?.Dispose();
+        dotNetRef?.Dispose();
+    }
+
+    // Helper Classes
+    private class WorksheetChange
+    {
+        public int ItemId { get; set; }
+        public string ItemType { get; set; } = "";
+        public string Field { get; set; } = "";
+        public string? OldValue { get; set; }
+        public string? NewValue { get; set; }
+        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    }
+
+    // Material type is determined by MaterialId pattern in MaterialMappingSettings
+}

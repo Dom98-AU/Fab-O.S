@@ -1,0 +1,197 @@
+@inject IWebHostEnvironment Environment
+@inject IConfiguration Configuration
+@inject NavigationManager Navigation
+
+<div class="environment-badge @GetEnvironmentClass()" @onclick="ToggleDetails">
+    <i class="fas fa-server"></i>
+    <span>@Environment.EnvironmentName.ToUpper()</span>
+    @if (showDetails)
+    {
+        <div class="environment-details" @onclick:stopPropagation="true">
+            <div class="detail-section">
+                <div class="detail-item">
+                    <strong>Environment:</strong> @Environment.EnvironmentName
+                </div>
+                <div class="detail-item">
+                    <strong>Database:</strong> @GetDatabaseName()
+                </div>
+                <div class="detail-item">
+                    <strong>Version:</strong> @GetVersion()
+                </div>
+            </div>
+            <div class="environment-links">
+                <div class="link-header">Switch Environment</div>
+                <a class="environment-link @(IsProduction() ? "active" : "")" href="https://app-steel-estimation-prod.azurewebsites.net" target="_blank">
+                    <i class="fas fa-rocket text-danger"></i> Production
+                    @if (IsProduction())
+                    {
+                        <i class="fas fa-check ms-auto"></i>
+                    }
+                </a>
+                <a class="environment-link @(IsStaging() ? "active" : "")" href="https://app-steel-estimation-prod-staging.azurewebsites.net" target="_blank">
+                    <i class="fas fa-flask text-warning"></i> Sandbox/Staging
+                    @if (IsStaging())
+                    {
+                        <i class="fas fa-check ms-auto"></i>
+                    }
+                </a>
+                <hr class="my-2" />
+                <a class="environment-link" href="/health" target="_blank">
+                    <i class="fas fa-heartbeat text-success"></i> Health Check
+                </a>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .environment-badge {
+        position: relative;
+        display: inline-block;
+        padding: 5px 15px;
+        border-radius: 20px;
+        color: white;
+        font-size: 12px;
+        font-weight: bold;
+        cursor: pointer;
+        z-index: 1050;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        transition: all 0.3s ease;
+    }
+    
+    .environment-badge:hover {
+        transform: scale(1.05);
+    }
+    
+    .environment-badge.production {
+        background-color: #dc3545;
+    }
+    
+    .environment-badge.staging {
+        background-color: #ffc107;
+        color: #333;
+    }
+    
+    .environment-badge.development {
+        background-color: #28a745;
+    }
+    
+    .environment-details {
+        position: absolute;
+        top: 100%;
+        right: 0;
+        margin-top: 10px;
+        background: white;
+        color: #333;
+        border-radius: 8px;
+        padding: 0;
+        min-width: 280px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        font-weight: normal;
+        font-size: 14px;
+        overflow: hidden;
+        z-index: 2000;
+    }
+    
+    .detail-section {
+        padding: 15px;
+        background-color: #f8f9fa;
+    }
+    
+    .detail-item {
+        padding: 5px 0;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .detail-item:last-child {
+        border-bottom: none;
+    }
+    
+    .environment-links {
+        padding: 10px;
+    }
+    
+    .link-header {
+        font-weight: 600;
+        color: #6c757d;
+        font-size: 12px;
+        text-transform: uppercase;
+        margin-bottom: 10px;
+        padding: 0 5px;
+    }
+    
+    .environment-link {
+        display: flex;
+        align-items: center;
+        padding: 8px 10px;
+        text-decoration: none;
+        color: #333;
+        border-radius: 4px;
+        transition: background-color 0.2s;
+        margin-bottom: 5px;
+    }
+    
+    .environment-link:hover {
+        background-color: #f1f3f5;
+        text-decoration: none;
+        color: #333;
+    }
+    
+    .environment-link.active {
+        background-color: #e7f3ff;
+        font-weight: 500;
+    }
+    
+    .environment-link i {
+        margin-right: 10px;
+    }
+    
+    .environment-link .fa-check {
+        margin-left: auto;
+        color: #28a745;
+    }
+</style>
+
+@code {
+    private bool showDetails = false;
+    
+    private void ToggleDetails()
+    {
+        showDetails = !showDetails;
+    }
+    
+    private string GetEnvironmentClass()
+    {
+        return Environment.EnvironmentName.ToLower() switch
+        {
+            "production" => "production",
+            "staging" => "staging",
+            _ => "development"
+        };
+    }
+    
+    private string GetDatabaseName()
+    {
+        var connectionString = Configuration.GetConnectionString("DefaultConnection") ?? "";
+        if (connectionString.Contains("Database="))
+        {
+            var dbStart = connectionString.IndexOf("Database=") + 9;
+            var dbEnd = connectionString.IndexOf(";", dbStart);
+            if (dbEnd > dbStart)
+            {
+                return connectionString.Substring(dbStart, dbEnd - dbStart);
+            }
+        }
+        return "Unknown";
+    }
+    
+    private string GetVersion()
+    {
+        // In a real implementation, this would come from assembly version or git commit
+        return System.Reflection.Assembly.GetExecutingAssembly()
+            .GetName().Version?.ToString() ?? "1.0.0";
+    }
+    
+    private bool IsProduction() => Environment.IsProduction();
+    private bool IsStaging() => Environment.IsStaging();
+}

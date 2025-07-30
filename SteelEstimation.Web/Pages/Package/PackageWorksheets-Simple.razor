@@ -1,0 +1,180 @@
+@page "/estimation/{EstimationId:int}/package/{PackageId:int}/simple"
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject NavigationManager Navigation
+
+<PageTitle>Simple Package Worksheets</PageTitle>
+
+@if (package == null || estimation == null)
+{
+    <div class="text-center">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p>Loading package data...</p>
+    </div>
+}
+else
+{
+    <div class="container-fluid">
+        <h3>@package.PackageName</h3>
+        <p>Project: @estimation.ProjectName</p>
+        <p>Active Worksheet: @activeWorksheet?.Name</p>
+        <p>Processing Items: @processingItems?.Count</p>
+        <p>Welding Items: @weldingItems?.Count</p>
+        
+        @if (worksheets.Any())
+        {
+            <div class="btn-group mb-3">
+                @foreach (var ws in worksheets)
+                {
+                    <button class="btn @(ws.Id == activeWorksheetId ? "btn-primary" : "btn-outline-primary")"
+                            @onclick="() => LoadWorksheet(ws.Id)">
+                        @ws.Name
+                    </button>
+                }
+            </div>
+        }
+        
+        @if (activeWorksheet?.WorksheetType == "Processing" && processingItems != null && processingItems.Any())
+        {
+            <h4>Processing Items (First 5)</h4>
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Mark</th>
+                        <th>Quantity</th>
+                        <th>Material</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in processingItems.Take(5))
+                    {
+                        <tr>
+                            <td>@item.DrawingNumber</td>
+                            <td>@item.Quantity</td>
+                            <td>@item.MaterialId</td>
+                            <td>@item.Description</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        
+        @if (activeWorksheet?.WorksheetType == "Welding" && weldingItems != null && weldingItems.Any())
+        {
+            <h4>Welding Items (First 5)</h4>
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Drawing</th>
+                        <th>Description</th>
+                        <th>Weld Type</th>
+                        <th>Total Minutes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in weldingItems.Take(5))
+                    {
+                        <tr>
+                            <td>@item.DrawingNumber</td>
+                            <td>@item.ItemDescription</td>
+                            <td>@item.WeldType</td>
+                            <td>@item.TotalWeldingMinutes.ToString("N1")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public int EstimationId { get; set; }
+    [Parameter] public int PackageId { get; set; }
+    
+    private Project? estimation;
+    private Package? package;
+    private List<PackageWorksheet> worksheets = new();
+    private int activeWorksheetId;
+    private PackageWorksheet? activeWorksheet;
+    private List<ProcessingItem> processingItems = new();
+    private List<WeldingItem> weldingItems = new();
+    
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+    
+    private async Task LoadData()
+    {
+        try
+        {
+            using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            
+            estimation = await dbContext.Projects
+                .FirstOrDefaultAsync(p => p.Id == EstimationId && !p.IsDeleted);
+                
+            if (estimation == null)
+            {
+                Navigation.NavigateTo("/estimation");
+                return;
+            }
+            
+            package = await dbContext.Packages
+                .Include(p => p.Worksheets)
+                .FirstOrDefaultAsync(p => p.Id == PackageId && p.ProjectId == EstimationId && !p.IsDeleted);
+                
+            if (package == null)
+            {
+                Navigation.NavigateTo($"/estimation/{EstimationId}");
+                return;
+            }
+            
+            worksheets = package.Worksheets.OrderBy(w => w.DisplayOrder).ToList();
+            
+            if (worksheets.Any())
+            {
+                activeWorksheetId = worksheets.First().Id;
+                activeWorksheet = worksheets.First();
+                await LoadWorksheetItems();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading data: {ex.Message}");
+        }
+    }
+    
+    private async Task LoadWorksheet(int worksheetId)
+    {
+        activeWorksheetId = worksheetId;
+        activeWorksheet = worksheets.FirstOrDefault(w => w.Id == worksheetId);
+        await LoadWorksheetItems();
+    }
+    
+    private async Task LoadWorksheetItems()
+    {
+        if (activeWorksheet == null) return;
+        
+        using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        
+        if (activeWorksheet.WorksheetType == "Processing")
+        {
+            processingItems = await dbContext.ProcessingItems
+                .Where(p => p.PackageWorksheetId == activeWorksheet.Id)
+                .ToListAsync();
+            weldingItems.Clear();
+        }
+        else if (activeWorksheet.WorksheetType == "Welding")
+        {
+            weldingItems = await dbContext.WeldingItems
+                .Where(w => w.PackageWorksheetId == activeWorksheet.Id)
+                .ToListAsync();
+            processingItems.Clear();
+        }
+    }
+}

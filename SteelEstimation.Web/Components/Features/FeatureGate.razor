@@ -1,0 +1,36 @@
+@using SteelEstimation.Core.Services
+@inject IFeatureAccessService FeatureService
+
+@if (_hasAccess)
+{
+    @ChildContent
+}
+else if (ShowUpgradePrompt && NotAuthorized != null)
+{
+    @NotAuthorized
+}
+
+@code {
+    [Parameter, EditorRequired] public string Feature { get; set; } = string.Empty;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? NotAuthorized { get; set; }
+    [Parameter] public bool ShowUpgradePrompt { get; set; } = true;
+    
+    private bool _hasAccess;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        if (!string.IsNullOrEmpty(Feature))
+        {
+            _hasAccess = await FeatureService.HasAccessAsync(Feature);
+        }
+    }
+    
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrEmpty(Feature))
+        {
+            _hasAccess = await FeatureService.HasAccessAsync(Feature);
+        }
+    }
+}

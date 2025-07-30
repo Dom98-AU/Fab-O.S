@@ -1,0 +1,635 @@
+@page "/admin/users"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using SteelEstimation.Core.Interfaces
+@using SteelEstimation.Core.DTOs
+@using SteelEstimation.Core.Entities
+@using System.Security.Claims
+@attribute [Authorize(Roles = "Administrator")]
+@inject IUserService UserService
+@inject IAuthenticationService AuthService
+@inject NavigationManager Navigation
+@inject ILogger<UserManagement> Logger
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>User Management - Steel Estimation Platform</PageTitle>
+
+<h1>User Management</h1>
+
+<div class="row mb-3">
+    <div class="col-md-6">
+        <div class="input-group">
+            <input type="text" class="form-control" placeholder="Search users..." @bind="searchTerm" @bind:event="oninput" @onkeyup="@(async (e) => { if (e.Key == "Enter") await SearchUsers(); })" />
+            <button class="btn btn-outline-secondary" @onclick="SearchUsers">
+                <i class="fas fa-search"></i> Search
+            </button>
+        </div>
+    </div>
+    <div class="col-md-6 text-end">
+        <button class="btn btn-primary" @onclick="ShowCreateUserModal">
+            <i class="fas fa-plus"></i> Create New User
+        </button>
+        <button class="btn btn-outline-secondary" @onclick="LoadUsers">
+            <i class="fas fa-sync"></i> Refresh
+        </button>
+    </div>
+</div>
+
+@if (isLoading)
+{
+    <div class="text-center">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+}
+else if (users == null || !users.Any())
+{
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i> No users found.
+    </div>
+}
+else
+{
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Full Name</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Company</th>
+                            <th>Status</th>
+                            <th>Last Login</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var user in users)
+                        {
+                            <tr>
+                                <td>
+                                    @user.Username
+                                    @if (user.Id == currentUserId)
+                                    {
+                                        <span class="badge bg-info ms-1">You</span>
+                                    }
+                                </td>
+                                <td>@user.FullName</td>
+                                <td>
+                                    @user.Email
+                                    @if (!user.IsEmailConfirmed)
+                                    {
+                                        <i class="fas fa-exclamation-triangle text-warning" title="Email not confirmed"></i>
+                                    }
+                                </td>
+                                <td>
+                                    @foreach (var role in user.RoleNames)
+                                    {
+                                        <span class="badge bg-secondary">@role</span>
+                                    }
+                                </td>
+                                <td>@(user.CompanyName ?? "-")</td>
+                                <td>
+                                    @if (user.IsLockedOut)
+                                    {
+                                        <span class="badge bg-danger">Locked</span>
+                                    }
+                                    else if (!user.IsActive)
+                                    {
+                                        <span class="badge bg-warning">Inactive</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-success">Active</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (user.LastLoginDate.HasValue)
+                                    {
+                                        @user.LastLoginDate.Value.ToString("MMM dd, yyyy")
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">Never</span>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button class="btn btn-outline-primary" @onclick="() => EditUser(user)" title="Edit">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-outline-info" @onclick="() => ManageRoles(user)" title="Manage Roles">
+                                            <i class="fas fa-user-tag"></i>
+                                        </button>
+                                        @if (user.IsLockedOut)
+                                        {
+                                            <button class="btn btn-outline-success" @onclick="() => UnlockUser(user)" title="Unlock">
+                                                <i class="fas fa-unlock"></i>
+                                            </button>
+                                        }
+                                        @if (user.IsActive)
+                                        {
+                                            <button class="btn btn-outline-warning" @onclick="() => DeactivateUser(user)" title="Deactivate" disabled="@(user.Id == currentUserId)">
+                                                <i class="fas fa-user-slash"></i>
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-outline-success" @onclick="() => ActivateUser(user)" title="Activate">
+                                                <i class="fas fa-user-check"></i>
+                                            </button>
+                                        }
+                                        <button class="btn btn-outline-danger" @onclick="() => ResetPassword(user)" title="Reset Password">
+                                            <i class="fas fa-key"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Create User Modal -->
+@if (showCreateModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create New User</h5>
+                    <button type="button" class="btn-close" @onclick="CloseCreateModal"></button>
+                </div>
+                <div class="modal-body">
+                    <EditForm Model="@createUserModel" OnValidSubmit="@CreateUser">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="text-danger" />
+                        
+                        @if (!string.IsNullOrEmpty(modalError))
+                        {
+                            <div class="alert alert-danger">@modalError</div>
+                        }
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Username</label>
+                            <InputText class="form-control" @bind-Value="createUserModel.Username" />
+                            <ValidationMessage For="@(() => createUserModel.Username)" />
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <InputText class="form-control" @bind-Value="createUserModel.Email" />
+                            <ValidationMessage For="@(() => createUserModel.Email)" />
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Password</label>
+                            <InputText type="password" class="form-control" @bind-Value="createUserModel.Password" />
+                            <ValidationMessage For="@(() => createUserModel.Password)" />
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">First Name</label>
+                                <InputText class="form-control" @bind-Value="createUserModel.FirstName" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Last Name</label>
+                                <InputText class="form-control" @bind-Value="createUserModel.LastName" />
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Company</label>
+                            <InputText class="form-control" @bind-Value="createUserModel.CompanyName" />
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Job Title</label>
+                            <InputText class="form-control" @bind-Value="createUserModel.JobTitle" />
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Phone Number</label>
+                            <InputText class="form-control" @bind-Value="createUserModel.PhoneNumber" />
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Role</label>
+                            <InputSelect class="form-select" @bind-Value="createUserModel.RoleName">
+                                <option value="Viewer">Viewer</option>
+                                @foreach (var role in roles)
+                                {
+                                    <option value="@role.RoleName">@role.RoleName</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        
+                        <div class="form-check mb-3">
+                            <InputCheckbox class="form-check-input" @bind-Value="createUserModel.IsActive" id="isActive" />
+                            <label class="form-check-label" for="isActive">
+                                Active
+                            </label>
+                        </div>
+                        
+                        <div class="form-check mb-3">
+                            <InputCheckbox class="form-check-input" @bind-Value="createUserModel.SendWelcomeEmail" id="sendEmail" />
+                            <label class="form-check-label" for="sendEmail">
+                                Send welcome email
+                            </label>
+                        </div>
+                        
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" @onclick="CloseCreateModal">Cancel</button>
+                            <button type="submit" class="btn btn-primary" disabled="@isCreating">
+                                @if (isCreating)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                }
+                                Create User
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Edit User Modal -->
+@if (showEditModal && editingUser != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit User: @editingUser.Username</h5>
+                    <button type="button" class="btn-close" @onclick="CloseEditModal"></button>
+                </div>
+                <div class="modal-body">
+                    <EditForm Model="@updateUserModel" OnValidSubmit="@UpdateUser">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="text-danger" />
+                        
+                        @if (!string.IsNullOrEmpty(modalError))
+                        {
+                            <div class="alert alert-danger">@modalError</div>
+                        }
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <InputText class="form-control" @bind-Value="updateUserModel.Email" />
+                            <ValidationMessage For="@(() => updateUserModel.Email)" />
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">First Name</label>
+                                <InputText class="form-control" @bind-Value="updateUserModel.FirstName" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Last Name</label>
+                                <InputText class="form-control" @bind-Value="updateUserModel.LastName" />
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Company</label>
+                            <InputText class="form-control" @bind-Value="updateUserModel.CompanyName" />
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Job Title</label>
+                            <InputText class="form-control" @bind-Value="updateUserModel.JobTitle" />
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Phone Number</label>
+                            <InputText class="form-control" @bind-Value="updateUserModel.PhoneNumber" />
+                        </div>
+                        
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" @onclick="CloseEditModal">Cancel</button>
+                            <button type="submit" class="btn btn-primary" disabled="@isUpdating">
+                                @if (isUpdating)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                }
+                                Update User
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Manage Roles Modal -->
+@if (showRolesModal && managingRolesUser != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Manage Roles: @managingRolesUser.Username</h5>
+                    <button type="button" class="btn-close" @onclick="CloseRolesModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrEmpty(modalError))
+                    {
+                        <div class="alert alert-danger">@modalError</div>
+                    }
+                    
+                    <p>Select the role for this user:</p>
+                    
+                    @foreach (var role in roles)
+                    {
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="roleSelection" 
+                                   id="@($"role_{role.Id}")" 
+                                   checked="@(selectedRoleId == role.Id)"
+                                   @onchange="() => selectedRoleId = role.Id" />
+                            <label class="form-check-label" for="@($"role_{role.Id}")">
+                                <strong>@role.RoleName</strong> - @role.Description
+                            </label>
+                        </div>
+                    }
+                    
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseRolesModal">Cancel</button>
+                        <button type="button" class="btn btn-primary" @onclick="UpdateUserRoles" disabled="@isUpdatingRoles">
+                            @if (isUpdatingRoles)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                            }
+                            Update Role
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<User> users = new();
+    private List<Role> roles = new();
+    private string searchTerm = "";
+    private bool isLoading = true;
+    private int currentUserId;
+    
+    // Create User Modal
+    private bool showCreateModal = false;
+    private CreateUserRequest createUserModel = new();
+    private bool isCreating = false;
+    
+    // Edit User Modal
+    private bool showEditModal = false;
+    private User? editingUser;
+    private UpdateUserRequest updateUserModel = new();
+    private bool isUpdating = false;
+    
+    // Roles Modal
+    private bool showRolesModal = false;
+    private User? managingRolesUser;
+    private int selectedRoleId;
+    private bool isUpdatingRoles = false;
+    
+    private string? modalError;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userIdClaim = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (int.TryParse(userIdClaim, out var userId))
+        {
+            currentUserId = userId;
+        }
+        
+        await LoadRoles();
+        await LoadUsers();
+    }
+    
+    private async Task LoadRoles()
+    {
+        try
+        {
+            var allRoles = await UserService.GetAllRolesAsync();
+            roles = allRoles.ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading roles");
+        }
+    }
+    
+    private async Task LoadUsers()
+    {
+        isLoading = true;
+        try
+        {
+            var allUsers = await UserService.GetAllUsersAsync();
+            users = allUsers.ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading users");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+    
+    private async Task SearchUsers()
+    {
+        isLoading = true;
+        try
+        {
+            var searchResults = await UserService.SearchUsersAsync(searchTerm);
+            users = searchResults.ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error searching users");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+    
+    private void ShowCreateUserModal()
+    {
+        createUserModel = new CreateUserRequest();
+        modalError = null;
+        showCreateModal = true;
+    }
+    
+    private void CloseCreateModal()
+    {
+        showCreateModal = false;
+        createUserModel = new();
+        modalError = null;
+    }
+    
+    private async Task CreateUser()
+    {
+        isCreating = true;
+        modalError = null;
+        
+        try
+        {
+            var user = await UserService.CreateUserAsync(createUserModel);
+            CloseCreateModal();
+            await LoadUsers();
+        }
+        catch (InvalidOperationException ex)
+        {
+            modalError = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error creating user");
+            modalError = "An error occurred while creating the user.";
+        }
+        finally
+        {
+            isCreating = false;
+        }
+    }
+    
+    private void EditUser(User user)
+    {
+        editingUser = user;
+        updateUserModel = new UpdateUserRequest
+        {
+            Email = user.Email,
+            FirstName = user.FirstName,
+            LastName = user.LastName,
+            CompanyName = user.CompanyName,
+            JobTitle = user.JobTitle,
+            PhoneNumber = user.PhoneNumber
+        };
+        modalError = null;
+        showEditModal = true;
+    }
+    
+    private void CloseEditModal()
+    {
+        showEditModal = false;
+        editingUser = null;
+        updateUserModel = new();
+        modalError = null;
+    }
+    
+    private async Task UpdateUser()
+    {
+        if (editingUser == null) return;
+        
+        isUpdating = true;
+        modalError = null;
+        
+        try
+        {
+            await UserService.UpdateUserAsync(editingUser.Id, updateUserModel);
+            CloseEditModal();
+            await LoadUsers();
+        }
+        catch (InvalidOperationException ex)
+        {
+            modalError = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error updating user");
+            modalError = "An error occurred while updating the user.";
+        }
+        finally
+        {
+            isUpdating = false;
+        }
+    }
+    
+    private void ManageRoles(User user)
+    {
+        managingRolesUser = user;
+        selectedRoleId = user.UserRoles.FirstOrDefault()?.RoleId ?? roles.First().Id;
+        modalError = null;
+        showRolesModal = true;
+    }
+    
+    private void CloseRolesModal()
+    {
+        showRolesModal = false;
+        managingRolesUser = null;
+        modalError = null;
+    }
+    
+    private async Task UpdateUserRoles()
+    {
+        if (managingRolesUser == null) return;
+        
+        isUpdatingRoles = true;
+        modalError = null;
+        
+        try
+        {
+            var selectedRole = roles.First(r => r.Id == selectedRoleId);
+            await UserService.AssignRoleAsync(managingRolesUser.Id, selectedRole.RoleName, currentUserId);
+            CloseRolesModal();
+            await LoadUsers();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error updating user roles");
+            modalError = "An error occurred while updating the user's role.";
+        }
+        finally
+        {
+            isUpdatingRoles = false;
+        }
+    }
+    
+    private async Task ActivateUser(User user)
+    {
+        if (await UserService.ActivateUserAsync(user.Id))
+        {
+            await LoadUsers();
+        }
+    }
+    
+    private async Task DeactivateUser(User user)
+    {
+        if (user.Id == currentUserId) return; // Can't deactivate yourself
+        
+        if (await UserService.DeactivateUserAsync(user.Id))
+        {
+            await LoadUsers();
+        }
+    }
+    
+    private async Task UnlockUser(User user)
+    {
+        if (await UserService.UnlockUserAsync(user.Id))
+        {
+            await LoadUsers();
+        }
+    }
+    
+    private async Task ResetPassword(User user)
+    {
+        // For now, just reset to a default password
+        // In production, you'd want to generate a random password and email it
+        await AuthService.ResetPasswordAsync(user.Email);
+        modalError = "Password reset email sent (feature not implemented)";
+    }
+}

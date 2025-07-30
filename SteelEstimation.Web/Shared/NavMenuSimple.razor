@@ -1,0 +1,84 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+<div class="top-row ps-3 navbar">
+    <div class="d-flex align-items-center justify-content-between w-100">
+        <button class="menu-toggle-btn" @onclick="ToggleNavMenu" title="Toggle navigation">
+            <i class="fas fa-bars"></i>
+        </button>
+        <a class="navbar-brand mx-auto" href="" style="color: var(--primary-color); font-weight: 600;">
+            <i class="fas fa-industry" style="color: var(--primary-color);"></i> Steel Estimation
+        </a>
+        <div style="width: 40px;"></div> @* Spacer for symmetry *@
+    </div>
+</div>
+
+<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
+    <nav class="flex-column">
+        <AuthorizeView>
+            <Authorized>
+                <div class="nav-item px-3 mb-2">
+                    <NavLink class="nav-link modern-nav-link" href="" Match="NavLinkMatch.All">
+                        <i class="fas fa-home nav-icon"></i>
+                        <span class="nav-text">Dashboard</span>
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3 mb-2">
+                    <NavLink class="nav-link modern-nav-link" href="estimation">
+                        <i class="fas fa-calculator nav-icon"></i>
+                        <span class="nav-text">Estimation</span>
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3 mb-2">
+                    <NavLink class="nav-link modern-nav-link" href="reports">
+                        <i class="fas fa-chart-line nav-icon"></i>
+                        <span class="nav-text">Reports</span>
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3 mb-2">
+                    <NavLink class="nav-link modern-nav-link" href="import">
+                        <i class="fas fa-file-import nav-icon"></i>
+                        <span class="nav-text">Import/Export</span>
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3 mb-2">
+                    <NavLink class="nav-link modern-nav-link" href="users">
+                        <i class="fas fa-users nav-icon"></i>
+                        <span class="nav-text">Users</span>
+                    </NavLink>
+                </div>
+                <div class="nav-divider"></div>
+                <div class="nav-item px-3 mb-2">
+                    <a class="nav-link modern-nav-link text-danger" href="/Account/Logout">
+                        <i class="fas fa-sign-out-alt nav-icon"></i>
+                        <span class="nav-text">Logout</span>
+                    </a>
+                </div>
+            </Authorized>
+            <NotAuthorized>
+                <div class="nav-item px-3 mb-2">
+                    <NavLink class="nav-link modern-nav-link" href="" Match="NavLinkMatch.All">
+                        <i class="fas fa-home nav-icon"></i>
+                        <span class="nav-text">Home</span>
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3 mb-2">
+                    <a class="nav-link modern-nav-link" href="/Account/Login">
+                        <i class="fas fa-sign-in-alt nav-icon"></i>
+                        <span class="nav-text">Login</span>
+                    </a>
+                </div>
+            </NotAuthorized>
+        </AuthorizeView>
+    </nav>
+</div>
+
+@code {
+    private bool collapseNavMenu = true;
+
+    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+    }
+}

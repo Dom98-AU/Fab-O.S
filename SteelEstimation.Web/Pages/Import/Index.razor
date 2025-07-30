@@ -1,0 +1,47 @@
+@page "/import"
+
+<PageTitle>Import/Export - Steel Estimation Platform</PageTitle>
+
+<h1>Import/Export Data</h1>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Import from Excel</h5>
+            </div>
+            <div class="card-body">
+                <p>Upload Excel files to import processing and welding items.</p>
+                <div class="mb-3">
+                    <label for="fileInput" class="form-label">Select Excel File</label>
+                    <input type="file" class="form-control" id="fileInput" accept=".xlsx,.xls" disabled>
+                </div>
+                <button class="btn btn-primary" disabled>
+                    <i class="fas fa-upload"></i> Upload and Import
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Export to Excel</h5>
+            </div>
+            <div class="card-body">
+                <p>Export your project data to Excel format.</p>
+                <div class="d-grid gap-2">
+                    <button class="btn btn-success" disabled>
+                        <i class="fas fa-download"></i> Export All Projects
+                    </button>
+                    <button class="btn btn-secondary" disabled>
+                        <i class="fas fa-download"></i> Export Current Project
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    // TODO: Add import/export functionality
+}

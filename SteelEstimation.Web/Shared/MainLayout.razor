@@ -1,0 +1,200 @@
+@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Components.Authorization
+@using SteelEstimation.Web.Services
+@using SteelEstimation.Core.Services
+@inject IJSRuntime JSRuntime
+@inject SidebarService SidebarService
+@inject InactivityMonitor InactivityMonitor
+@inject SessionTimeoutMonitor SessionTimeoutMonitor
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ITimeTrackingService TimeTrackingService
+@implements IDisposable
+
+<div class="page" id="main-page">
+    <div class="sidebar" id="main-sidebar">
+        <NavMenu />
+    </div>
+
+    <main id="main-content">
+        <AuthorizeView Context="authContext">
+            <Authorized>
+                <div class="top-row px-4">
+                    <div class="d-flex align-items-center justify-content-between w-100">
+                        <div class="d-flex align-items-center gap-3">
+                            <button class="menu-toggle-btn" @onclick="ToggleSidebar" title="Toggle navigation">
+                                <i class="fas fa-bars"></i>
+                            </button>
+                            <EnvironmentBadge />
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <UserProfileDropdown />
+                        </div>
+                    </div>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+<ReAuthenticationModal @ref="_reAuthModal" 
+                      OnReAuthenticated="HandleReAuthenticated" 
+                      OnLogout="HandleLogout" />
+
+
+@code {
+    private ReAuthenticationModal? _reAuthModal;
+    private bool _isAuthenticated;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        await SidebarService.InitializeAsync();
+        SidebarService.OnChange += StateHasChanged;
+        
+        // Check if user is authenticated
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
+        
+        // Move JS interop calls to OnAfterRenderAsync
+    }
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Update DOM after every render to ensure consistency
+        await SidebarService.UpdateDomAsync();
+        
+        // Set up monitoring on first render if authenticated
+        if (firstRender && _isAuthenticated)
+        {
+            // Set up inactivity monitoring (JS interop must be in OnAfterRenderAsync)
+            InactivityMonitor.OnInactivityDetected += ShowReAuthModal;
+            await InactivityMonitor.StartMonitoringAsync();
+            
+            // Set up session timeout monitoring
+            SessionTimeoutMonitor.OnSessionExpired += HandleSessionExpired;
+            SessionTimeoutMonitor.StartMonitoring();
+        }
+    }
+    
+    private async Task ToggleSidebar()
+    {
+        await SidebarService.ToggleAsync();
+    }
+    
+    private void ShowReAuthModal()
+    {
+        InvokeAsync(async () =>
+        {
+            // Pause time tracking when showing re-auth modal
+            try
+            {
+                var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+                if (authState.User.Identity?.IsAuthenticated == true)
+                {
+                    var userIdClaim = authState.User.FindFirst("UserId")?.Value ?? 
+                                      authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                    if (int.TryParse(userIdClaim, out var userId))
+                    {
+                        // Get current page estimation ID from URL if available
+                        var uri = new Uri(Navigation.Uri);
+                        var segments = uri.Segments;
+                        for (int i = 0; i < segments.Length - 1; i++)
+                        {
+                            if (segments[i].TrimEnd('/') == "estimation" && i + 1 < segments.Length)
+                            {
+                                if (int.TryParse(segments[i + 1].TrimEnd('/'), out var estimationId))
+                                {
+                                    await TimeTrackingService.PauseSessionAsync(estimationId, userId);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log but don't fail on time tracking pause
+                Console.WriteLine($"Error pausing time tracking: {ex.Message}");
+            }
+            
+            _reAuthModal?.Show();
+            StateHasChanged();
+        });
+    }
+    
+    private void HandleReAuthenticated()
+    {
+        // Reset the inactivity timer
+        InactivityMonitor.ResetTimer();
+        
+        // Resume time tracking
+        InvokeAsync(async () =>
+        {
+            try
+            {
+                var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+                if (authState.User.Identity?.IsAuthenticated == true)
+                {
+                    var userIdClaim = authState.User.FindFirst("UserId")?.Value ?? 
+                                      authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                    if (int.TryParse(userIdClaim, out var userId))
+                    {
+                        // Get current page estimation ID from URL if available
+                        var uri = new Uri(Navigation.Uri);
+                        var segments = uri.Segments;
+                        for (int i = 0; i < segments.Length - 1; i++)
+                        {
+                            if (segments[i].TrimEnd('/') == "estimation" && i + 1 < segments.Length)
+                            {
+                                if (int.TryParse(segments[i + 1].TrimEnd('/'), out var estimationId))
+                                {
+                                    await TimeTrackingService.ResumeSessionAsync(estimationId, userId);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log but don't fail on time tracking resume
+                Console.WriteLine($"Error resuming time tracking: {ex.Message}");
+            }
+        });
+    }
+    
+    private async Task HandleLogout()
+    {
+        await InactivityMonitor.StopMonitoringAsync();
+        SessionTimeoutMonitor.StopMonitoring();
+    }
+    
+    private void HandleSessionExpired()
+    {
+        InvokeAsync(() =>
+        {
+            // Navigate to login page when session expires
+            Navigation.NavigateTo("/login", true);
+        });
+    }
+    
+    public void Dispose()
+    {
+        SidebarService.OnChange -= StateHasChanged;
+        
+        if (_isAuthenticated)
+        {
+            InactivityMonitor.OnInactivityDetected -= ShowReAuthModal;
+            SessionTimeoutMonitor.OnSessionExpired -= HandleSessionExpired;
+            
+            _ = InactivityMonitor.StopMonitoringAsync();
+            SessionTimeoutMonitor.StopMonitoring();
+        }
+    }
+}

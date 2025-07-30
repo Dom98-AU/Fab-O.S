@@ -1,0 +1,34 @@
+@page "/diagnostic"
+
+<h1>Deployment Diagnostic</h1>
+
+<h2>Build Information</h2>
+<ul>
+    <li>Build Time: @System.IO.File.GetLastWriteTimeUtc(typeof(Program).Assembly.Location).ToString("yyyy-MM-dd HH:mm:ss") UTC</li>
+    <li>Assembly Version: @typeof(Program).Assembly.GetName().Version</li>
+    <li>Environment: @Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")</li>
+</ul>
+
+<h2>Login Page Status</h2>
+<ul>
+    <li>EmptyLayout.razor exists: @System.IO.File.Exists(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Shared/EmptyLayout.razor"))</li>
+    <li>Logo file exists: @System.IO.File.Exists(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "wwwroot/images/nwi-group-logo-white.png"))</li>
+</ul>
+
+<h2>Expected Changes</h2>
+<ul>
+    <li>✅ Database try-catch (commit 006349c) - DEPLOYED</li>
+    <li>❓ Test.razor page (commit 5845a15)</li>
+    <li>❓ Version markers (commit cfcdd46)</li>
+    <li>❓ Login page fixes (commit 60049e7)</li>
+    <li>❓ Split screen design (commit 2c14570)</li>
+    <li>❓ Remove demo credentials (commit 8072198)</li>
+</ul>
+
+<h2>Quick Links</h2>
+<a href="/login" class="btn btn-primary">Go to Login</a>
+<a href="/test" class="btn btn-secondary">Go to Test Page</a>
+
+@code {
+    
+}

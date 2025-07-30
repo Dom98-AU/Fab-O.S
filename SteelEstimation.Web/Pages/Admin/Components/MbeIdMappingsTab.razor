@@ -1,0 +1,143 @@
+@using SteelEstimation.Core.Entities
+
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5>MBE ID Mappings</h5>
+            <button class="btn btn-primary" @onclick="AddNew">
+                <i class="fas fa-plus"></i> Add MBE ID Mapping
+            </button>
+        </div>
+        
+        <p class="text-muted">Map MBE IDs (e.g., B, C, PL) to material types</p>
+        
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th style="width: 150px;">MBE ID</th>
+                        <th>Material Type</th>
+                        <th>Weight/Foot</th>
+                        <th>Notes</th>
+                        <th style="width: 120px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var mapping in Mappings)
+                    {
+                        <tr>
+                            @if (editingId == mapping.Id)
+                            {
+                                <td><input class="form-control form-control-sm" @bind="editingItem.MbeId" /></td>
+                                <td><input class="form-control form-control-sm" @bind="editingItem.MaterialType" /></td>
+                                <td><input type="number" class="form-control form-control-sm" @bind="editingItem.WeightPerFoot" step="0.001" /></td>
+                                <td><input class="form-control form-control-sm" @bind="editingItem.Notes" /></td>
+                                <td>
+                                    <button class="btn btn-sm btn-success" @onclick="() => Save(editingItem)">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-secondary" @onclick="CancelEdit">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </td>
+                            }
+                            else
+                            {
+                                <td><code>@mapping.MbeId</code></td>
+                                <td>@mapping.MaterialType</td>
+                                <td>@mapping.WeightPerFoot?.ToString("F3") lbs</td>
+                                <td>@mapping.Notes</td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary" @onclick="() => StartEdit(mapping)">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-danger" @onclick="() => Delete(mapping.Id)">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            }
+                        </tr>
+                    }
+                    @if (isAddingNew)
+                    {
+                        <tr>
+                            <td><input class="form-control form-control-sm" @bind="newItem.MbeId" placeholder="MBE ID" /></td>
+                            <td><input class="form-control form-control-sm" @bind="newItem.MaterialType" placeholder="Material Type" /></td>
+                            <td><input type="number" class="form-control form-control-sm" @bind="newItem.WeightPerFoot" step="0.001" placeholder="0.000" /></td>
+                            <td><input class="form-control form-control-sm" @bind="newItem.Notes" placeholder="Notes" /></td>
+                            <td>
+                                <button class="btn btn-sm btn-success" @onclick="() => Save(newItem)">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                <button class="btn btn-sm btn-secondary" @onclick="CancelAdd">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public int CompanyId { get; set; }
+    [Parameter] public List<CompanyMbeIdMapping> Mappings { get; set; } = new();
+    [Parameter] public EventCallback<CompanyMbeIdMapping> OnSave { get; set; }
+    [Parameter] public EventCallback<int> OnDelete { get; set; }
+
+    private bool isAddingNew = false;
+    private int editingId = 0;
+    private CompanyMbeIdMapping newItem = new();
+    private CompanyMbeIdMapping editingItem = new();
+
+    private void AddNew()
+    {
+        isAddingNew = true;
+        newItem = new CompanyMbeIdMapping
+        {
+            CompanyId = CompanyId
+        };
+    }
+
+    private void CancelAdd()
+    {
+        isAddingNew = false;
+        newItem = new();
+    }
+
+    private void StartEdit(CompanyMbeIdMapping mapping)
+    {
+        editingId = mapping.Id;
+        editingItem = new CompanyMbeIdMapping
+        {
+            Id = mapping.Id,
+            CompanyId = mapping.CompanyId,
+            MbeId = mapping.MbeId,
+            MaterialType = mapping.MaterialType,
+            WeightPerFoot = mapping.WeightPerFoot,
+            Notes = mapping.Notes
+        };
+    }
+
+    private void CancelEdit()
+    {
+        editingId = 0;
+        editingItem = new();
+    }
+
+    private async Task Save(CompanyMbeIdMapping item)
+    {
+        await OnSave.InvokeAsync(item);
+        isAddingNew = false;
+        editingId = 0;
+        newItem = new();
+        editingItem = new();
+    }
+
+    private async Task Delete(int id)
+    {
+        await OnDelete.InvokeAsync(id);
+    }
+}

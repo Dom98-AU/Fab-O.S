@@ -1,0 +1,75 @@
+name: Promote to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      promotion_notes:
+        description: 'What changes are being promoted?'
+        required: true
+        default: ''
+
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+    outputs:
+      pr_number: ${{ steps.create-pr.outputs.pr_number }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Compare branches
+      id: compare
+      run: |
+        echo "## 📊 Changes to be promoted" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Commits" >> $GITHUB_STEP_SUMMARY
+        git log master..develop --oneline >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Files changed" >> $GITHUB_STEP_SUMMARY
+        git diff --stat master...develop >> $GITHUB_STEP_SUMMARY
+
+    - name: Create Pull Request
+      id: create-pr
+      uses: peter-evans/create-pull-request@v5
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        base: master
+        branch: develop
+        title: "🚀 Promote develop to production"
+        body: |
+          ## Production Promotion Request
+          
+          **Requested by:** @${{ github.actor }}
+          **Date:** ${{ github.event.head_commit.timestamp }}
+          
+          ### Promotion Notes
+          ${{ github.event.inputs.promotion_notes }}
+          
+          ### Changes Summary
+          This PR promotes all changes from `develop` to `master` for production deployment.
+          
+          ### Pre-deployment Checklist
+          - [ ] All tests passing in sandbox
+          - [ ] Features tested in sandbox environment
+          - [ ] No critical bugs identified
+          - [ ] Database migrations reviewed (if any)
+          - [ ] Stakeholders notified
+          
+          ### Post-merge Actions
+          1. This will trigger automatic production deployment
+          2. Monitor production logs after deployment
+          3. Verify critical functionality
+          
+          ---
+          ⚠️ **Important:** Merging this PR will automatically deploy to production!
+
+    - name: Output PR link
+      if: steps.create-pr.outputs.pull-request-number
+      run: |
+        echo "## ✅ Pull Request Created!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**PR #${{ steps.create-pr.outputs.pull-request-number }}**" >> $GITHUB_STEP_SUMMARY
+        echo "[View Pull Request](${{ steps.create-pr.outputs.pull-request-url }})" >> $GITHUB_STEP_SUMMARY

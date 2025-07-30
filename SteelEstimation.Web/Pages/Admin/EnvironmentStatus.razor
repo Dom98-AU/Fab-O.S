@@ -1,0 +1,325 @@
+@page "/admin/environment-status"
+@using Microsoft.AspNetCore.Authorization
+@using SteelEstimation.Core.Models
+@using SteelEstimation.Web.Services
+@attribute [Authorize(Roles = "Admin")]
+@inject DeploymentService DeploymentService
+@inject GitHubService GitHubService
+@inject IConfiguration Configuration
+
+<PageTitle>Environment Status - Steel Estimation Platform</PageTitle>
+
+<h1>Environment Status</h1>
+
+<div class="alert alert-info">
+    <i class="fas fa-info-circle"></i> <strong>Cloud-First Deployment:</strong> 
+    Deployments are managed through GitHub Actions. Push to <code>develop</code> for sandbox, 
+    and use GitHub to promote to production.
+</div>
+
+@if (isLoading)
+{
+    <div class="text-center">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+}
+else
+{
+    <!-- Environment Status Cards -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="fas fa-rocket"></i> PRODUCTION 🔴</h5>
+                </div>
+                <div class="card-body">
+                    @if (comparison?.Production != null)
+                    {
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>Version:</strong></td>
+                                <td>@comparison.Production.Version</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Commit:</strong></td>
+                                <td><code>@(comparison.Production.CommitHash.Length > 7 ? comparison.Production.CommitHash.Substring(0, 7) : comparison.Production.CommitHash)</code></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Deployed:</strong></td>
+                                <td>@comparison.Production.DeployedAt.ToString("g")</td>
+                            </tr>
+                            <tr>
+                                <td><strong>By:</strong></td>
+                                <td>@comparison.Production.DeployedBy</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Database:</strong></td>
+                                <td>@comparison.Production.DatabaseName</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Status:</strong></td>
+                                <td>
+                                    @if (comparison.Production.IsHealthy)
+                                    {
+                                        <span class="badge bg-success">Healthy</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger">Unhealthy</span>
+                                    }
+                                </td>
+                            </tr>
+                        </table>
+                        <a href="@comparison.Production.Url" target="_blank" class="btn btn-sm btn-outline-danger">
+                            <i class="fas fa-external-link-alt"></i> View Production
+                        </a>
+                    }
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card border-warning">
+                <div class="card-header bg-warning">
+                    <h5 class="mb-0"><i class="fas fa-flask"></i> SANDBOX/STAGING 🟡</h5>
+                </div>
+                <div class="card-body">
+                    @if (comparison?.Staging != null)
+                    {
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>Version:</strong></td>
+                                <td>@comparison.Staging.Version</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Commit:</strong></td>
+                                <td><code>@(comparison.Staging.CommitHash.Length > 7 ? comparison.Staging.CommitHash.Substring(0, 7) : comparison.Staging.CommitHash)</code></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Deployed:</strong></td>
+                                <td>@comparison.Staging.DeployedAt.ToString("g")</td>
+                            </tr>
+                            <tr>
+                                <td><strong>By:</strong></td>
+                                <td>@comparison.Staging.DeployedBy</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Database:</strong></td>
+                                <td>@comparison.Staging.DatabaseName</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Status:</strong></td>
+                                <td>
+                                    @if (comparison.Staging.IsHealthy)
+                                    {
+                                        <span class="badge bg-success">Healthy</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger">Unhealthy</span>
+                                    }
+                                </td>
+                            </tr>
+                        </table>
+                        <a href="@comparison.Staging.Url" target="_blank" class="btn btn-sm btn-outline-warning">
+                            <i class="fas fa-external-link-alt"></i> View Staging
+                        </a>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pending Changes -->
+    @if (comparison?.PendingCommits?.Any() == true)
+    {
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-code-branch"></i> Pending Changes in Staging
+                    <span class="badge bg-info ms-2">@comparison.PendingCommits.Count commits</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Commit</th>
+                                <th>Message</th>
+                                <th>Author</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var commit in comparison.PendingCommits.Take(10))
+                            {
+                                <tr>
+                                    <td><code>@(commit.Sha.Length > 7 ? commit.Sha.Substring(0, 7) : commit.Sha)</code></td>
+                                    <td>@GetCommitIcon(commit.Message) @commit.Message</td>
+                                    <td>@commit.Author</td>
+                                    <td>@commit.Date.ToString("g")</td>
+                                    <td>
+                                        <a href="@commit.Url" target="_blank" class="btn btn-sm btn-outline-primary">
+                                            <i class="fab fa-github"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Deployment Information -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-rocket"></i> Deployment Information</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>How to Deploy</h6>
+                    <ul>
+                        <li><strong>Sandbox:</strong> Push to <code>develop</code> branch (automatic)</li>
+                        <li><strong>Production:</strong> Use GitHub Actions → "Deploy to Production"</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h6>Quick Links</h6>
+                    <a href="@($"https://github.com/{Configuration["GitHub:RepoOwner"]}/{Configuration["GitHub:RepoName"]}/actions")" 
+                       target="_blank" class="btn btn-outline-primary me-2">
+                        <i class="fab fa-github"></i> GitHub Actions
+                    </a>
+                    <button class="btn btn-info" @onclick="RefreshStatus">
+                        <i class="fas fa-sync"></i> Refresh Status
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Deployment History -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-history"></i> Deployment History</h5>
+        </div>
+        <div class="card-body">
+            @if (deploymentHistory?.Any() == true)
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Environment</th>
+                                <th>Version</th>
+                                <th>Deployed By</th>
+                                <th>Date/Time</th>
+                                <th>Status</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var deployment in deploymentHistory)
+                            {
+                                <tr>
+                                    <td>
+                                        @if (deployment.Environment == "Production")
+                                        {
+                                            <span class="badge bg-danger">Production</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning">Staging</span>
+                                        }
+                                    </td>
+                                    <td>@deployment.Version</td>
+                                    <td>@deployment.DeployedBy</td>
+                                    <td>@deployment.DeployedAt.ToString("g")</td>
+                                    <td>
+                                        @switch (deployment.Status)
+                                        {
+                                            case "Success":
+                                                <span class="badge bg-success">✅ Success</span>
+                                                break;
+                                            case "Failed":
+                                                <span class="badge bg-danger">❌ Failed</span>
+                                                break;
+                                            case "Rolled Back":
+                                                <span class="badge bg-warning">↩️ Rolled Back</span>
+                                                break;
+                                        }
+                                    </td>
+                                    <td>@deployment.Notes</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <p class="text-muted">No deployment history available.</p>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private bool isLoading = true;
+    private EnvironmentComparison? comparison;
+    private List<DeploymentHistory>? deploymentHistory;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            comparison = await DeploymentService.CompareEnvironmentsAsync();
+            deploymentHistory = await DeploymentService.GetDeploymentHistoryAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading deployment data: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+
+    private async Task RefreshStatus()
+    {
+        await LoadData();
+    }
+
+    private string GetCommitIcon(string message)
+    {
+        if (message.StartsWith("fix", StringComparison.OrdinalIgnoreCase))
+            return "🐛";
+        if (message.StartsWith("feat", StringComparison.OrdinalIgnoreCase))
+            return "✨";
+        if (message.StartsWith("docs", StringComparison.OrdinalIgnoreCase))
+            return "📝";
+        if (message.StartsWith("style", StringComparison.OrdinalIgnoreCase))
+            return "💄";
+        if (message.StartsWith("refactor", StringComparison.OrdinalIgnoreCase))
+            return "♻️";
+        if (message.StartsWith("test", StringComparison.OrdinalIgnoreCase))
+            return "✅";
+        if (message.StartsWith("chore", StringComparison.OrdinalIgnoreCase))
+            return "🔧";
+        return "📦";
+    }
+}

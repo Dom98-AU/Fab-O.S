@@ -1,0 +1,233 @@
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+
+<div class="modal fade @(IsVisible ? "show d-block" : "")" tabindex="-1" role="dialog" style="@(IsVisible ? "background-color: rgba(0,0,0,0.5);" : "")">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">@(IsEdit ? "Edit" : "Add") Processing Item</h5>
+                <button type="button" class="btn-close" @onclick="Cancel"></button>
+            </div>
+            <EditForm Model="@item" OnValidSubmit="SaveItem">
+                <DataAnnotationsValidator />
+                <div class="modal-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Drawing Number</label>
+                            <InputText @bind-Value="item.DrawingNumber" class="form-control" placeholder="Enter drawing number" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Material ID</label>
+                            <InputText @bind-Value="item.MaterialId" class="form-control" placeholder="Enter material ID" />
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Description <span class="text-danger">*</span></label>
+                        <InputTextArea @bind-Value="item.Description" class="form-control" rows="2" placeholder="Enter item description" />
+                        <ValidationMessage For="@(() => item.Description)" />
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Quantity <span class="text-danger">*</span></label>
+                            <InputNumber @bind-Value="item.Quantity" class="form-control" />
+                            <ValidationMessage For="@(() => item.Quantity)" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Length (ft)</label>
+                            <InputNumber @bind-Value="item.Length" class="form-control" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Weight (lbs)</label>
+                            <InputNumber @bind-Value="item.Weight" class="form-control" />
+                        </div>
+                    </div>
+                    
+                    <hr />
+                    <h6 class="mb-3">Bundle Information</h6>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Delivery Bundle Qty</label>
+                            <InputNumber @bind-Value="item.DeliveryBundleQty" class="form-control" min="1" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Pack Bundle Qty</label>
+                            <InputNumber @bind-Value="item.PackBundleQty" class="form-control" min="1" />
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Bundle Group</label>
+                            <InputText @bind-Value="item.BundleGroup" class="form-control" placeholder="Optional" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Pack Group</label>
+                            <InputText @bind-Value="item.PackGroup" class="form-control" placeholder="Optional" />
+                        </div>
+                    </div>
+                    
+                    <hr />
+                    <h6 class="mb-3">Time Estimations (minutes)</h6>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Unload Time/Bundle</label>
+                            <InputNumber @bind-Value="item.UnloadTimePerBundle" class="form-control" min="0" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Mark/Measure/Cut</label>
+                            <InputNumber @bind-Value="item.MarkMeasureCut" class="form-control" min="0" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">QC/Clean</label>
+                            <InputNumber @bind-Value="item.QualityCheckClean" class="form-control" min="0" />
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Move to Assembly</label>
+                            <InputNumber @bind-Value="item.MoveToAssembly" class="form-control" min="0" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Move After Weld</label>
+                            <InputNumber @bind-Value="item.MoveAfterWeld" class="form-control" min="0" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Loading Time/Bundle</label>
+                            <InputNumber @bind-Value="item.LoadingTimePerBundle" class="form-control" min="0" />
+                        </div>
+                    </div>
+                    
+                    @if (item.Quantity > 0)
+                    {
+                        <div class="alert alert-info">
+                            <strong>Calculated Values:</strong><br />
+                            Total Weight: @item.TotalWeight.ToString("N2") lbs<br />
+                            Delivery Bundles: @item.DeliveryBundles<br />
+                            Pack Bundles: @item.PackBundles<br />
+                            Total Processing Time: @((item.TotalProcessingMinutes / 60).ToString("N2")) hours
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary">@(IsEdit ? "Update" : "Add") Item</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public bool IsEdit { get; set; }
+    [Parameter] public ProcessingItem? EditItem { get; set; }
+    [Parameter] public int ProjectId { get; set; }
+    [Parameter] public EventCallback<ProcessingItem> OnSave { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+    
+    private ProcessingItem item = new();
+    
+    protected override void OnParametersSet()
+    {
+        if (IsEdit && EditItem != null)
+        {
+            // Clone the item for editing
+            item = new ProcessingItem
+            {
+                Id = EditItem.Id,
+                ProjectId = EditItem.ProjectId,
+                DrawingNumber = EditItem.DrawingNumber,
+                Description = EditItem.Description,
+                MaterialId = EditItem.MaterialId,
+                Quantity = EditItem.Quantity,
+                Length = EditItem.Length,
+                Weight = EditItem.Weight,
+                DeliveryBundleQty = EditItem.DeliveryBundleQty,
+                PackBundleQty = EditItem.PackBundleQty,
+                BundleGroup = EditItem.BundleGroup,
+                PackGroup = EditItem.PackGroup,
+                UnloadTimePerBundle = EditItem.UnloadTimePerBundle,
+                MarkMeasureCut = EditItem.MarkMeasureCut,
+                QualityCheckClean = EditItem.QualityCheckClean,
+                MoveToAssembly = EditItem.MoveToAssembly,
+                MoveAfterWeld = EditItem.MoveAfterWeld,
+                LoadingTimePerBundle = EditItem.LoadingTimePerBundle
+            };
+        }
+        else
+        {
+            // New item with defaults
+            item = new ProcessingItem
+            {
+                ProjectId = ProjectId,
+                DeliveryBundleQty = 1,
+                PackBundleQty = 1,
+                UnloadTimePerBundle = 15,
+                MarkMeasureCut = 30,
+                QualityCheckClean = 15,
+                MoveToAssembly = 20,
+                MoveAfterWeld = 20,
+                LoadingTimePerBundle = 15
+            };
+        }
+    }
+    
+    private async Task SaveItem()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(item.Description))
+            {
+                return;
+            }
+            
+            if (IsEdit)
+            {
+                var existingItem = await DbContext.ProcessingItems.FindAsync(item.Id);
+                if (existingItem != null)
+                {
+                    existingItem.DrawingNumber = item.DrawingNumber;
+                    existingItem.Description = item.Description;
+                    existingItem.MaterialId = item.MaterialId;
+                    existingItem.Quantity = item.Quantity;
+                    existingItem.Length = item.Length;
+                    existingItem.Weight = item.Weight;
+                    existingItem.DeliveryBundleQty = item.DeliveryBundleQty;
+                    existingItem.PackBundleQty = item.PackBundleQty;
+                    existingItem.BundleGroup = item.BundleGroup;
+                    existingItem.PackGroup = item.PackGroup;
+                    existingItem.UnloadTimePerBundle = item.UnloadTimePerBundle;
+                    existingItem.MarkMeasureCut = item.MarkMeasureCut;
+                    existingItem.QualityCheckClean = item.QualityCheckClean;
+                    existingItem.MoveToAssembly = item.MoveToAssembly;
+                    existingItem.MoveAfterWeld = item.MoveAfterWeld;
+                    existingItem.LoadingTimePerBundle = item.LoadingTimePerBundle;
+                    existingItem.LastModified = DateTime.UtcNow;
+                }
+            }
+            else
+            {
+                DbContext.ProcessingItems.Add(item);
+            }
+            
+            await DbContext.SaveChangesAsync();
+            await OnSave.InvokeAsync(item);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving processing item: {ex.Message}");
+        }
+    }
+    
+    private void Cancel()
+    {
+        OnCancel.InvokeAsync();
+    }
+}

@@ -1,0 +1,329 @@
+@page "/admin/mbe-mappings"
+@using SteelEstimation.Core.Configuration
+@using Microsoft.Extensions.Options
+@using System.Text.Json
+@inject IOptions<MaterialMappingSettings> MaterialMappingSettings
+@inject IConfiguration Configuration
+@inject IJSRuntime JSRuntime
+
+<PageTitle>MBE ID Mappings - Steel Estimation Platform</PageTitle>
+
+<h1>MBE ID to Type Mappings</h1>
+
+<div class="row">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> Configure how MBE ID codes (imported from Excel) are mapped to material types.
+            These mappings determine bundling weights and material categorization.
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">MBE ID Mappings</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Add New Mapping</label>
+                    <div class="row g-2">
+                        <div class="col-4">
+                            <input type="text" class="form-control" @bind="newMbeId" placeholder="MBE ID (e.g., PL)" maxlength="10" />
+                        </div>
+                        <div class="col-4">
+                            <select class="form-select" @bind="newMbeType">
+                                <option value="">Select Type</option>
+                                <option value="Beam">Beam</option>
+                                <option value="Plate">Plate</option>
+                                <option value="Purlin">Purlin</option>
+                                <option value="Misc">Misc</option>
+                            </select>
+                        </div>
+                        <div class="col-4">
+                            <button class="btn btn-primary" @onclick="AddMbeMapping">
+                                <i class="fas fa-plus"></i> Add Mapping
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>MBE ID</th>
+                                <th>Material Type</th>
+                                <th>Max Bundle Weight (kg)</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var mapping in mbeIdMappings)
+                            {
+                                <tr>
+                                    <td class="fw-bold">@mapping.Key</td>
+                                    <td>
+                                        <span class="badge bg-@GetBadgeColor(mapping.Value)">@mapping.Value</span>
+                                    </td>
+                                    <td>@GetMaxWeight(mapping.Value) kg</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-danger" @onclick="@(() => RemoveMbeMapping(mapping.Key))">
+                                            <i class="fas fa-trash"></i> Remove
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                
+                @if (!mbeIdMappings.Any())
+                {
+                    <div class="text-center text-muted py-3">
+                        No MBE ID mappings configured. Add mappings above.
+                    </div>
+                }
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Common MBE ID Examples</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Standard Codes</h6>
+                        <ul class="list-unstyled">
+                            <li><code>PL</code> - Plates</li>
+                            <li><code>B</code> - Beams</li>
+                            <li><code>C</code> - Columns/Beams</li>
+                            <li><code>P</code> - Purlins</li>
+                            <li><code>M</code> - Miscellaneous</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Quick Add</h6>
+                        <button class="btn btn-sm btn-outline-primary me-2 mb-2" @onclick='@(() => QuickAdd("PL", "Plate"))'>
+                            Add PL → Plate
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary me-2 mb-2" @onclick='@(() => QuickAdd("B", "Beam"))'>
+                            Add B → Beam
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary me-2 mb-2" @onclick='@(() => QuickAdd("C", "Beam"))'>
+                            Add C → Beam
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary me-2 mb-2" @onclick='@(() => QuickAdd("P", "Purlin"))'>
+                            Add P → Purlin
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Test MBE ID</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <input type="text" class="form-control" @bind="testMbeId" placeholder="Enter MBE ID to test" />
+                </div>
+                <button class="btn btn-primary w-100" @onclick="TestMbeId">Test Mapping</button>
+                
+                @if (!string.IsNullOrEmpty(testResult))
+                {
+                    <div class="alert alert-@(testResult == "Misc" ? "warning" : "success") mt-3">
+                        <strong>@testMbeId</strong> → <span class="badge bg-@GetBadgeColor(testResult)">@testResult</span>
+                        <br />
+                        <small>Max bundle weight: @GetMaxWeight(testResult) kg</small>
+                    </div>
+                }
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Bundle Weight Settings</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled mb-0">
+                    <li><span class="badge bg-primary">Beam</span> @bundleSettings.BeamsMaxWeight kg</li>
+                    <li><span class="badge bg-info">Plate</span> @bundleSettings.PlatesMaxWeight kg</li>
+                    <li><span class="badge bg-success">Purlin</span> @bundleSettings.PurlinsMaxWeight kg</li>
+                    <li><span class="badge bg-secondary">Misc</span> @bundleSettings.MiscMaxWeight kg</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-3">
+    <div class="col-12">
+        <button class="btn btn-success" @onclick="SaveSettings">
+            <i class="fas fa-save"></i> Save Settings
+        </button>
+        <button class="btn btn-secondary ms-2" @onclick="LoadSettings">
+            <i class="fas fa-undo"></i> Reset
+        </button>
+        <button class="btn btn-info ms-2" @onclick="ExportJson">
+            <i class="fas fa-download"></i> Export JSON
+        </button>
+    </div>
+</div>
+
+@if (showAlert)
+{
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+        <div class="toast show" role="alert">
+            <div class="toast-header">
+                <strong class="me-auto">@alertTitle</strong>
+                <button type="button" class="btn-close" @onclick="@(() => showAlert = false)"></button>
+            </div>
+            <div class="toast-body">
+                @alertMessage
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private Dictionary<string, string> mbeIdMappings = new();
+    private BundleSettings bundleSettings = new();
+    
+    private string newMbeId = "";
+    private string newMbeType = "";
+    
+    private string testMbeId = "";
+    private string testResult = "";
+    
+    private bool showAlert = false;
+    private string alertTitle = "";
+    private string alertMessage = "";
+    
+    protected override void OnInitialized()
+    {
+        LoadSettings();
+    }
+    
+    private void LoadSettings()
+    {
+        var settings = MaterialMappingSettings.Value;
+        mbeIdMappings = new Dictionary<string, string>(settings.MbeIdMappings);
+        
+        // Load bundle settings for display
+        var config = Configuration.GetSection("BundleSettings");
+        bundleSettings = new BundleSettings
+        {
+            BeamsMaxWeight = config.GetValue<int>("BeamsMaxWeight", 3000),
+            PlatesMaxWeight = config.GetValue<int>("PlatesMaxWeight", 3000),
+            PurlinsMaxWeight = config.GetValue<int>("PurlinsMaxWeight", 2000),
+            MiscMaxWeight = config.GetValue<int>("MiscMaxWeight", 2000)
+        };
+    }
+    
+    private void AddMbeMapping()
+    {
+        var mbeId = newMbeId.Trim().ToUpper();
+        if (string.IsNullOrEmpty(mbeId) || string.IsNullOrEmpty(newMbeType))
+        {
+            ShowAlert("Error", "Please enter both MBE ID and select a type.");
+            return;
+        }
+        
+        mbeIdMappings[mbeId] = newMbeType;
+        newMbeId = "";
+        newMbeType = "";
+    }
+    
+    private void QuickAdd(string mbeId, string type)
+    {
+        mbeIdMappings[mbeId] = type;
+    }
+    
+    private void RemoveMbeMapping(string key)
+    {
+        mbeIdMappings.Remove(key);
+    }
+    
+    private void TestMbeId()
+    {
+        if (string.IsNullOrEmpty(testMbeId))
+            return;
+            
+        var settings = new MaterialMappingSettings
+        {
+            MbeIdMappings = mbeIdMappings
+        };
+        
+        testResult = settings.GetMaterialTypeFromMbeId(testMbeId);
+    }
+    
+    private int GetMaxWeight(string type)
+    {
+        return type switch
+        {
+            "Beam" => bundleSettings.BeamsMaxWeight,
+            "Plate" => bundleSettings.PlatesMaxWeight,
+            "Purlin" => bundleSettings.PurlinsMaxWeight,
+            _ => bundleSettings.MiscMaxWeight
+        };
+    }
+    
+    private string GetBadgeColor(string type)
+    {
+        return type switch
+        {
+            "Beam" => "primary",
+            "Plate" => "info",
+            "Purlin" => "success",
+            _ => "secondary"
+        };
+    }
+    
+    private Task SaveSettings()
+    {
+        try
+        {
+            ShowAlert("Success", "MBE ID mappings have been updated. Note: These changes are only applied to the current session. Export JSON to update appsettings.json.");
+        }
+        catch (Exception ex)
+        {
+            ShowAlert("Error", $"Failed to save settings: {ex.Message}");
+        }
+        return Task.CompletedTask;
+    }
+    
+    private async Task ExportJson()
+    {
+        try
+        {
+            var json = JsonSerializer.Serialize(new
+            {
+                MaterialMappings = new
+                {
+                    MbeIdMappings = mbeIdMappings,
+                    MaterialIdPatterns = MaterialMappingSettings.Value.MaterialIdPatterns
+                }
+            }, new JsonSerializerOptions { WriteIndented = true });
+            
+            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", json);
+            ShowAlert("Success", "JSON configuration copied to clipboard. Paste this into your appsettings.json file.");
+        }
+        catch (Exception ex)
+        {
+            ShowAlert("Error", $"Failed to export: {ex.Message}");
+        }
+    }
+    
+    private void ShowAlert(string title, string message)
+    {
+        alertTitle = title;
+        alertMessage = message;
+        showAlert = true;
+    }
+}

@@ -1,0 +1,11 @@
+@page "/healthcheck"
+
+<h3>Health Check</h3>
+
+<p>Environment: @Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")</p>
+<p>Time: @DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") UTC</p>
+<p>Status: OK</p>
+
+@code {
+    
+}

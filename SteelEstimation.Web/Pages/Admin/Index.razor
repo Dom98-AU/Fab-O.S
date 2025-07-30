@@ -1,0 +1,12 @@
+@page "/admin"
+@using Microsoft.AspNetCore.Authorization
+@inject NavigationManager Navigation
+@attribute [Authorize(Roles = "Administrator")]
+
+@code {
+    protected override void OnInitialized()
+    {
+        // Redirect to admin settings
+        Navigation.NavigateTo("/admin/settings", true);
+    }
+}

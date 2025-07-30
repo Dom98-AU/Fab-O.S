@@ -1,0 +1,409 @@
+@using Microsoft.AspNetCore.Components.Forms
+@using SteelEstimation.Core.DTOs
+@using SteelEstimation.Core.Interfaces
+@inject IExcelService ExcelService
+@inject IJSRuntime JSRuntime
+@inject ILogger<ExcelImportModal> Logger
+
+<div class="modal fade @(_showModal ? "show d-block" : "")" tabindex="-1" role="dialog" style="@(_showModal ? "background-color: rgba(0,0,0,0.5);" : "")">
+    <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Import from Excel</h5>
+                <button type="button" class="btn-close" @onclick="Cancel"></button>
+            </div>
+            <div class="modal-body">
+                @if (!_isProcessing && _importResult == null)
+                {
+                    <div class="mb-3">
+                        <label class="form-label">Select Excel File</label>
+                        <InputFile OnChange="HandleFileSelected" accept=".xls,.xlsx" class="form-control" />
+                        <small class="text-muted">Supported formats: .xls (Excel 97-2003) and .xlsx (Excel 2007+)</small>
+                        <div class="alert alert-success mt-2">
+                            <i class="fas fa-check-circle"></i> <strong>Both Excel formats supported!</strong>
+                            <br>You can now upload:
+                            <ul class="mb-0 mt-1">
+                                <li>.xls files (Excel 97-2003)</li>
+                                <li>.xlsx files (Excel 2007 or newer)</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <h6>Expected Column Mappings:</h6>
+                        <ul class="mb-0">
+                            <li><strong>Quantity</strong> → QTY</li>
+                            <li><strong>Description</strong> → Description</li>
+                            <li><strong>Length</strong> → Length (mm)</li>
+                            <li><strong>Part Weight</strong> → Weight (kg)</li>
+                            <li><strong>Remark</strong> → Drawing Number</li>
+                        </ul>
+                        <small class="d-block mt-2">Column headers are case-insensitive and will be automatically detected.</small>
+                    </div>
+                }
+                
+                @if (_isProcessing)
+                {
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Processing...</span>
+                        </div>
+                        <p class="mt-2">Processing Excel file...</p>
+                    </div>
+                }
+                
+                @if (_importResult != null)
+                {
+                    <div class="mb-3">
+                        <h6>Import Summary</h6>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="card text-center">
+                                    <div class="card-body">
+                                        <h5 class="card-title">@_importResult.TotalRows</h5>
+                                        <p class="card-text">Total Rows</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card text-center">
+                                    <div class="card-body">
+                                        <h5 class="card-title text-success">@_importResult.ValidRows</h5>
+                                        <p class="card-text">Valid Items</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card text-center">
+                                    <div class="card-body">
+                                        <h5 class="card-title text-danger">@_importResult.InvalidRows</h5>
+                                        <p class="card-text">Invalid Items</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    @if (_importResult.Errors.Any())
+                    {
+                        <div class="alert alert-danger">
+                            <h6>Errors:</h6>
+                            <ul class="mb-0">
+                                @foreach (var error in _importResult.Errors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+                    
+                    @if (_importResult.ColumnMappings != null && _importResult.ColumnMappings.Any())
+                    {
+                        <div class="alert alert-info">
+                            <h6>Column Mappings Found:</h6>
+                            <ul class="mb-0">
+                                @foreach (var mapping in _importResult.ColumnMappings)
+                                {
+                                    <li>@mapping.Key → Column @mapping.Value</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+                    
+                    @if (_importResult.ValidRows > 0 || _importResult.InvalidRows > 0)
+                    {
+                        var totalRowCount = _importResult.ImportedItems.Count(i => 
+                            !string.IsNullOrEmpty(i.Description) && 
+                            i.Description.ToUpper().Contains("TOTAL"));
+                        
+                        <div class="mb-2 d-flex justify-content-between align-items-center">
+                            <div>
+                                <button type="button" class="btn btn-sm btn-outline-primary" @onclick="SelectAll">
+                                    <i class="fas fa-check-square"></i> Select All
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary ms-2" @onclick="SelectNone">
+                                    <i class="fas fa-square"></i> Select None
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-success ms-2" @onclick="SelectValid">
+                                    <i class="fas fa-check"></i> Select Valid Only
+                                </button>
+                            </div>
+                            <div class="text-muted">
+                                <i class="fas fa-info-circle"></i> @_selectedIndices.Count items selected
+                                @if (totalRowCount > 0)
+                                {
+                                    <span class="ms-2 text-warning">
+                                        <i class="fas fa-exclamation-triangle"></i> @totalRowCount TOTAL row(s) will be skipped
+                                    </span>
+                                }
+                            </div>
+                        </div>
+                        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                            <table class="table table-sm table-striped">
+                                <thead class="sticky-top bg-light">
+                                    <tr>
+                                        <th style="width: 40px;">
+                                            <input type="checkbox" class="form-check-input" @onchange="ToggleAll" checked="@(_selectedIndices.Count == _importResult.ImportedItems.Count)" />
+                                        </th>
+                                        <th>Row</th>
+                                        <th>Drawing Number</th>
+                                        <th>Description</th>
+                                        <th>MBE ID</th>
+                                        <th>QTY</th>
+                                        <th>Length (mm)</th>
+                                        <th>Weight (kg)</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @{
+                                        int rowNum = 1;
+                                    }
+                                    @foreach (var item in _importResult.ImportedItems.Take(100))
+                                    {
+                                        var isTotalRow = !string.IsNullOrEmpty(item.Description) && 
+                                                        item.Description.ToUpper().Contains("TOTAL");
+                                        var rowClass = isTotalRow ? "table-warning" : (!item.IsValid ? "table-danger" : "");
+                                        
+                                        <tr class="@rowClass">
+                                            <td>
+                                                <input type="checkbox" class="form-check-input" 
+                                                       @onchange="@((e) => ToggleItemSelection(item, e))" 
+                                                       checked="@(_selectedIndices.Contains(rowNum - 1))"
+                                                       disabled="@isTotalRow" />
+                                            </td>
+                                            <td>@rowNum</td>
+                                            <td>@item.Remark</td>
+                                            <td>
+                                                @item.Description
+                                                @if (isTotalRow)
+                                                {
+                                                    <span class="badge bg-warning text-dark ms-2">TOTAL</span>
+                                                }
+                                            </td>
+                                            <td>@item.MaterialId</td>
+                                            <td>@item.Quantity</td>
+                                            <td>@item.Length</td>
+                                            <td>@item.PartWeight</td>
+                                            <td>
+                                                @if (isTotalRow)
+                                                {
+                                                    <span class="badge bg-warning text-dark" title="TOTAL rows are automatically skipped">Skipped</span>
+                                                }
+                                                else if (item.IsValid)
+                                                {
+                                                    <span class="badge bg-success">Valid</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-danger" title="@string.Join(", ", item.ValidationErrors)">Invalid</span>
+                                                }
+                                            </td>
+                                        </tr>
+                                        rowNum++;
+                                    }
+                                </tbody>
+                            </table>
+                            @if (_importResult.ImportedItems.Count > 100)
+                            {
+                                <p class="text-muted text-center">Showing first 100 items of @_importResult.ImportedItems.Count total</p>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+                @if (_importResult != null && _selectedIndices.Count > 0)
+                {
+                    <button type="button" class="btn btn-primary" @onclick="ConfirmImport">
+                        <i class="fas fa-check"></i> Import @_selectedIndices.Count Selected Items
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public EventCallback<List<ExcelImportDto>> OnImportConfirmed { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+    
+    private bool _showModal = false;
+    private bool _isProcessing = false;
+    private ExcelImportResult? _importResult;
+    private IBrowserFile? _selectedFile;
+    private HashSet<int> _selectedIndices = new();
+    
+    public void Show()
+    {
+        _showModal = true;
+        _isProcessing = false;
+        _importResult = null;
+        _selectedFile = null;
+        _selectedIndices.Clear();
+        StateHasChanged();
+    }
+    
+    public void Hide()
+    {
+        _showModal = false;
+        _isProcessing = false;
+        _importResult = null;
+        _selectedFile = null;
+        _selectedIndices.Clear();
+        StateHasChanged();
+    }
+    
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        _selectedFile = e.File;
+        _isProcessing = true;
+        _importResult = null;
+        
+        try
+        {
+            // Read file into memory first to avoid synchronous read issues
+            using var memoryStream = new MemoryStream();
+            using (var fileStream = _selectedFile.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024)) // 10MB max
+            {
+                await fileStream.CopyToAsync(memoryStream);
+            }
+            memoryStream.Position = 0;
+            
+            _importResult = await ExcelService.ImportMaterialListAsync(memoryStream, _selectedFile.Name);
+            
+            if (!_importResult.Success && _importResult.Errors.Count == 0)
+            {
+                _importResult.Errors.Add(_importResult.Message);
+            }
+            
+            // Select all valid items by default
+            _selectedIndices.Clear();
+            for (int i = 0; i < _importResult.ImportedItems.Count; i++)
+            {
+                if (_importResult.ImportedItems[i].IsValid)
+                {
+                    _selectedIndices.Add(i);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error processing Excel file");
+            _importResult = new ExcelImportResult
+            {
+                Success = false,
+                Message = $"Error processing file: {ex.Message}",
+                Errors = new List<string> { ex.Message }
+            };
+        }
+        finally
+        {
+            _isProcessing = false;
+        }
+    }
+    
+    private async Task ConfirmImport()
+    {
+        if (_selectedIndices.Count > 0 && _importResult != null)
+        {
+            // Log what we're importing
+            Console.WriteLine($"Importing {_selectedIndices.Count} selected items out of {_importResult.ImportedItems.Count} total items");
+            
+            // Convert indices to actual items
+            var selectedItems = new List<ExcelImportDto>();
+            foreach (var index in _selectedIndices.OrderBy(i => i))
+            {
+                if (index < _importResult.ImportedItems.Count)
+                {
+                    selectedItems.Add(_importResult.ImportedItems[index]);
+                }
+            }
+            
+            Console.WriteLine($"Actually importing {selectedItems.Count} items");
+            await OnImportConfirmed.InvokeAsync(selectedItems);
+            Hide();
+        }
+    }
+    
+    private async Task Cancel()
+    {
+        await OnCancel.InvokeAsync();
+        Hide();
+    }
+    
+    private void ToggleItemSelection(ExcelImportDto item, ChangeEventArgs e)
+    {
+        if (e.Value is bool isChecked && _importResult != null)
+        {
+            var index = _importResult.ImportedItems.IndexOf(item);
+            if (index >= 0)
+            {
+                Console.WriteLine($"Toggle item at index {index}: {item.Description}, Checked: {isChecked}");
+                
+                if (isChecked)
+                {
+                    _selectedIndices.Add(index);
+                }
+                else
+                {
+                    _selectedIndices.Remove(index);
+                }
+                
+                Console.WriteLine($"Selected indices count after toggle: {_selectedIndices.Count}");
+                StateHasChanged(); // Force UI update
+            }
+        }
+    }
+    
+    private void ToggleAll(ChangeEventArgs e)
+    {
+        if (e.Value is bool isChecked)
+        {
+            if (isChecked)
+            {
+                SelectAll();
+            }
+            else
+            {
+                SelectNone();
+            }
+        }
+    }
+    
+    private void SelectAll()
+    {
+        _selectedIndices.Clear();
+        if (_importResult != null)
+        {
+            for (int i = 0; i < _importResult.ImportedItems.Count; i++)
+            {
+                _selectedIndices.Add(i);
+            }
+        }
+        StateHasChanged();
+    }
+    
+    private void SelectNone()
+    {
+        _selectedIndices.Clear();
+        StateHasChanged();
+    }
+    
+    private void SelectValid()
+    {
+        _selectedIndices.Clear();
+        if (_importResult != null)
+        {
+            for (int i = 0; i < _importResult.ImportedItems.Count; i++)
+            {
+                if (_importResult.ImportedItems[i].IsValid)
+                {
+                    _selectedIndices.Add(i);
+                }
+            }
+        }
+        StateHasChanged();
+    }
+}

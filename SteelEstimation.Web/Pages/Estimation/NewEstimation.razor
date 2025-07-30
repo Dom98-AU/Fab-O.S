@@ -1,0 +1,293 @@
+@page "/estimation/new"
+@using Microsoft.AspNetCore.Components.Forms
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Infrastructure.Data
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@inject NavigationManager Navigation
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IAuthenticationService AuthService
+
+<PageTitle>New Estimation - Steel Estimation Platform</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="mb-0">Create New Estimation</h1>
+    <TimeTracker EstimationId="0" PageName="New Estimation" />
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <EditForm Model="@project" OnValidSubmit="@HandleSubmit">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="alert alert-danger" />
+            
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    @errorMessage
+                    <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+                </div>
+            }
+            
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Estimation Details</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="projectName" class="form-label">Estimation Name <span class="text-danger">*</span></label>
+                            <InputText id="projectName" class="form-control" @bind-Value="project.ProjectName" />
+                            <ValidationMessage For="@(() => project.ProjectName)" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="jobNumber" class="form-label">Job Number <span class="text-danger">*</span></label>
+                            <InputText id="jobNumber" class="form-control" @bind-Value="project.JobNumber" />
+                            <ValidationMessage For="@(() => project.JobNumber)" />
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="customerId" class="form-label">Customer</label>
+                            <div class="input-group">
+                                <InputSelect id="customerId" class="form-control" @bind-Value="project.CustomerId">
+                                    <option value="">Select Customer</option>
+                                    @if (customers != null)
+                                    {
+                                        @foreach (var customer in customers.OrderBy(c => c.CompanyName))
+                                        {
+                                            <option value="@customer.Id">@customer.CompanyName</option>
+                                        }
+                                    }
+                                </InputSelect>
+                                <button type="button" class="btn btn-outline-secondary" @onclick="CreateNewCustomer">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="projectLocation" class="form-label">Estimation Location</label>
+                            <InputText id="projectLocation" class="form-control" @bind-Value="project.ProjectLocation" />
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="estimationStage" class="form-label">Estimation Stage</label>
+                            <InputSelect id="estimationStage" class="form-control" @bind-Value="project.EstimationStage">
+                                <option value="">Select Stage</option>
+                                <option value="Preliminary">Preliminary</option>
+                                <option value="Budget">Budget</option>
+                                <option value="Tender">Tender</option>
+                                <option value="Final">Final</option>
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="laborRate" class="form-label">Labor Rate ($/hr)</label>
+                            <InputNumber id="laborRate" class="form-control" @bind-Value="project.LaborRate" />
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">Notes</label>
+                        <InputTextArea id="notes" class="form-control" @bind-Value="project.Notes" rows="3" />
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <button type="submit" class="btn btn-primary" disabled="@isSubmitting">
+                        @if (isSubmitting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        }
+                        Create Estimation
+                    </button>
+                    <button type="button" class="btn btn-secondary ms-2" @onclick="Cancel">Cancel</button>
+                </div>
+            </div>
+        </EditForm>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Quick Tips</h5>
+            </div>
+            <div class="card-body">
+                <ul class="mb-0">
+                    <li>Estimation Name and Job Number are required</li>
+                    <li>Use a unique Job Number for each estimation</li>
+                    <li>Labor Rate will be used for all calculations in this estimation</li>
+                    <li>You can add team members after creating the estimation</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private ProjectFormModel project = new();
+    private bool isSubmitting = false;
+    private string? errorMessage;
+    private List<Customer>? customers;
+    private int? companyId;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        companyId = await AuthService.GetUserCompanyIdAsync();
+        await LoadCustomers();
+    }
+    
+    private async Task LoadCustomers()
+    {
+        using var context = await DbFactory.CreateDbContextAsync();
+        customers = await context.Customers
+            .Where(c => c.CompanyId == companyId && c.IsActive)
+            .OrderBy(c => c.CompanyName)
+            .ToListAsync();
+    }
+    
+    private void CreateNewCustomer()
+    {
+        Navigation.NavigateTo("/customers/new?returnUrl=" + Uri.EscapeDataString("/estimation/new"));
+    }
+
+    private async Task HandleSubmit()
+    {
+        isSubmitting = true;
+        errorMessage = null;
+        StateHasChanged();
+        
+        try
+        {
+            Console.WriteLine("Starting to save estimation...");
+            // Get current user
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userName = authState.User?.Identity?.Name;
+            Console.WriteLine($"Current user: {userName}");
+            
+            // Create a single context for the entire operation
+            using var context = await DbFactory.CreateDbContextAsync();
+            
+            // Get user ID (for now, we'll use a default)
+            User? user = null;
+            if (!string.IsNullOrEmpty(userName))
+            {
+                user = await context.Users.FirstOrDefaultAsync(u => u.Username == userName);
+            }
+            
+            // Create new project
+            var newProject = new Project
+            {
+                ProjectName = project.ProjectName,
+                JobNumber = project.JobNumber,
+                CustomerId = project.CustomerId,
+                ProjectLocation = project.ProjectLocation,
+                EstimationStage = project.EstimationStage ?? "Preliminary",
+                LaborRate = project.LaborRate,
+                Notes = project.Notes,
+                OwnerId = user?.Id,
+                CreatedDate = DateTime.UtcNow,
+                LastModified = DateTime.UtcNow,
+                IsDeleted = false
+            };
+            
+            context.Projects.Add(newProject);
+            Console.WriteLine("Added project to context, saving...");
+            
+            await context.SaveChangesAsync();
+            Console.WriteLine($"Project saved with ID: {newProject.Id}");
+            
+            // Create 50 blank processing items for easy data entry
+            try
+            {
+                var blankItems = new List<ProcessingItem>();
+                for (int i = 1; i <= 50; i++)
+                {
+                    blankItems.Add(new ProcessingItem
+                    {
+                        ProjectId = newProject.Id,
+                        DrawingNumber = null,
+                        Description = null,  // Use null instead of empty string
+                        MaterialId = null,
+                        Quantity = 0,
+                        Weight = 0,
+                        Length = 0,
+                        DeliveryBundleQty = 1,
+                        PackBundleQty = 1,
+                        BundleGroup = null,
+                        PackGroup = null,
+                        UnloadTimePerBundle = 15,
+                        MarkMeasureCut = 30,
+                        QualityCheckClean = 15,
+                        MoveToAssembly = 20,
+                        MoveAfterWeld = 20,
+                        LoadingTimePerBundle = 15,
+                        CreatedDate = DateTime.UtcNow,
+                        LastModified = DateTime.UtcNow
+                    });
+                }
+                
+                context.ProcessingItems.AddRange(blankItems);
+                await context.SaveChangesAsync();
+                Console.WriteLine($"Created {blankItems.Count} blank processing items for project {newProject.Id}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error creating blank processing items: {ex.Message}");
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
+                }
+                // Don't fail the whole estimation creation if blank items fail
+            }
+            
+            // Navigate to the new estimation
+            Navigation.NavigateTo($"/estimation/{newProject.Id}");
+        }
+        catch (Exception ex)
+        {
+            // In production, log this error
+            Console.WriteLine($"Error saving estimation: {ex.Message}");
+            if (ex.InnerException != null)
+            {
+                Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
+                errorMessage = $"Failed to create estimation: {ex.InnerException.Message}";
+            }
+            else
+            {
+                errorMessage = $"Failed to create estimation: {ex.Message}";
+            }
+            isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/estimation");
+    }
+
+    private class ProjectFormModel
+    {
+        [Required]
+        [StringLength(200)]
+        public string ProjectName { get; set; } = string.Empty;
+        
+        [Required]
+        [StringLength(50)]
+        public string JobNumber { get; set; } = string.Empty;
+        
+        public int? CustomerId { get; set; }
+        
+        [StringLength(200)]
+        public string? ProjectLocation { get; set; }
+        
+        public string? EstimationStage { get; set; }
+        
+        [Range(0, 1000)]
+        public decimal LaborRate { get; set; } = 75.00m;
+        
+        public string? Notes { get; set; }
+    }
+}

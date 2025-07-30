@@ -1,0 +1,65 @@
+@using SteelEstimation.Core.Services
+@inject IFeatureAccessService FeatureService
+
+<FeatureGate Feature="@RequiredFeature" ShowUpgradePrompt="false">
+    <ChildContent>
+        <NavLink class="@CssClass" href="@Href" Match="@Match">
+            @ChildContent
+        </NavLink>
+    </ChildContent>
+    <NotAuthorized>
+        <div class="nav-link disabled-feature" @onclick="ShowUpgradePrompt">
+            @ChildContent
+            <i class="fas fa-lock ms-1 text-muted"></i>
+        </div>
+    </NotAuthorized>
+</FeatureGate>
+
+@if (_showPrompt)
+{
+    <div class="feature-prompt-popover">
+        <FeatureUpgradePrompt Feature="@RequiredFeature" ShowContactButton="false" />
+        <button class="btn btn-sm btn-secondary mt-2" @onclick="() => _showPrompt = false">Close</button>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public string RequiredFeature { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Href { get; set; } = string.Empty;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public NavLinkMatch Match { get; set; } = NavLinkMatch.Prefix;
+    [Parameter] public string CssClass { get; set; } = "nav-link modern-nav-link";
+    
+    private bool _showPrompt = false;
+    
+    private void ShowUpgradePrompt()
+    {
+        _showPrompt = true;
+    }
+}
+
+<style>
+    .disabled-feature {
+        opacity: 0.6;
+        cursor: pointer;
+        position: relative;
+    }
+    
+    .disabled-feature:hover {
+        opacity: 0.8;
+        background-color: rgba(0, 0, 0, 0.05);
+    }
+    
+    .feature-prompt-popover {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 1050;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        max-width: 400px;
+    }
+</style>

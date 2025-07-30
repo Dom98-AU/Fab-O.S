@@ -1,0 +1,263 @@
+@page "/admin/material-settings"
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Core.Services
+@using SteelEstimation.Core.Interfaces
+@using SteelEstimation.Web.Pages.Admin.Components
+@using Microsoft.AspNetCore.Authorization
+@inject ICompanySettingsService CompanySettingsService
+@inject IAuthenticationService AuthService
+@inject IJSRuntime JSRuntime
+@inject ILogger<MaterialSettings> Logger
+@attribute [Authorize(Roles = "Administrator")]
+
+<PageTitle>Material Settings - Steel Estimation Platform</PageTitle>
+
+<div class="container-fluid px-4">
+    <h1 class="mt-4">Material Settings</h1>
+    <ol class="breadcrumb mb-4">
+        <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="/admin/settings">Admin</a></li>
+        <li class="breadcrumb-item active">Material Settings</li>
+    </ol>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = string.Empty"></button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @successMessage
+            <button type="button" class="btn-close" @onclick="() => successMessage = string.Empty"></button>
+        </div>
+    }
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                <li class="nav-item">
+                    <a class="nav-link @(activeTab == "types" ? "active" : "")" href="#" @onclick="@(() => activeTab = "types")" @onclick:preventDefault="true">
+                        Material Types
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link @(activeTab == "mbe" ? "active" : "")" href="#" @onclick="@(() => activeTab = "mbe")" @onclick:preventDefault="true">
+                        MBE ID Mappings
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link @(activeTab == "patterns" ? "active" : "")" href="#" @onclick="@(() => activeTab = "patterns")" @onclick:preventDefault="true">
+                        Material Patterns
+                    </a>
+                </li>
+            </ul>
+        </div>
+        <div class="card-body">
+            @if (isLoading)
+            {
+                <div class="text-center">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            }
+            else
+            {
+                @switch (activeTab)
+                {
+                    case "types":
+                        <MaterialTypesTab CompanyId="@companyId" MaterialTypes="@materialTypes" OnSave="SaveMaterialType" OnDelete="DeleteMaterialType" />
+                        break;
+                    case "mbe":
+                        <MbeIdMappingsTab CompanyId="@companyId" Mappings="@mbeIdMappings" OnSave="SaveMbeIdMapping" OnDelete="DeleteMbeIdMapping" />
+                        break;
+                    case "patterns":
+                        <MaterialPatternsTab CompanyId="@companyId" Patterns="@materialPatterns" OnSave="SaveMaterialPattern" OnDelete="DeleteMaterialPattern" />
+                        break;
+                }
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private int companyId;
+    private List<CompanyMaterialType> materialTypes = new();
+    private List<CompanyMbeIdMapping> mbeIdMappings = new();
+    private List<CompanyMaterialPattern> materialPatterns = new();
+    
+    private string activeTab = "types";
+    private bool isLoading = true;
+    private string? errorMessage;
+    private string? successMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var user = await AuthService.GetCurrentUserAsync();
+            if (user == null)
+            {
+                errorMessage = "User not authenticated";
+                isLoading = false;
+                return;
+            }
+            
+            if (user.CompanyId == 0)
+            {
+                errorMessage = "User is not associated with a company. Please contact an administrator.";
+                isLoading = false;
+                return;
+            }
+            
+            companyId = user.CompanyId;
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading material settings");
+            errorMessage = $"Error loading material settings: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadData()
+    {
+        materialTypes = await CompanySettingsService.GetMaterialTypesAsync(companyId);
+        mbeIdMappings = await CompanySettingsService.GetMbeIdMappingsAsync(companyId);
+        materialPatterns = await CompanySettingsService.GetMaterialPatternsAsync(companyId);
+    }
+
+    private async Task SaveMaterialType(CompanyMaterialType materialType)
+    {
+        try
+        {
+            if (materialType.Id == 0)
+            {
+                await CompanySettingsService.CreateMaterialTypeAsync(companyId, materialType);
+                successMessage = "Material type created successfully";
+            }
+            else
+            {
+                await CompanySettingsService.UpdateMaterialTypeAsync(companyId, materialType.Id, materialType);
+                successMessage = "Material type updated successfully";
+            }
+            
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error saving material type");
+            errorMessage = "Error saving material type";
+        }
+    }
+
+    private async Task DeleteMaterialType(int materialTypeId)
+    {
+        try
+        {
+            var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to delete this material type?");
+            if (!confirmed) return;
+            
+            await CompanySettingsService.DeleteMaterialTypeAsync(companyId, materialTypeId);
+            successMessage = "Material type deleted successfully";
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error deleting material type");
+            errorMessage = "Error deleting material type";
+        }
+    }
+
+    private async Task SaveMbeIdMapping(CompanyMbeIdMapping mapping)
+    {
+        try
+        {
+            if (mapping.Id == 0)
+            {
+                await CompanySettingsService.CreateMbeIdMappingAsync(companyId, mapping);
+                successMessage = "MBE ID mapping created successfully";
+            }
+            else
+            {
+                await CompanySettingsService.UpdateMbeIdMappingAsync(companyId, mapping.Id, mapping);
+                successMessage = "MBE ID mapping updated successfully";
+            }
+            
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error saving MBE ID mapping");
+            errorMessage = "Error saving MBE ID mapping";
+        }
+    }
+
+    private async Task DeleteMbeIdMapping(int mappingId)
+    {
+        try
+        {
+            var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to delete this MBE ID mapping?");
+            if (!confirmed) return;
+            
+            await CompanySettingsService.DeleteMbeIdMappingAsync(companyId, mappingId);
+            successMessage = "MBE ID mapping deleted successfully";
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error deleting MBE ID mapping");
+            errorMessage = "Error deleting MBE ID mapping";
+        }
+    }
+
+    private async Task SaveMaterialPattern(CompanyMaterialPattern pattern)
+    {
+        try
+        {
+            if (pattern.Id == 0)
+            {
+                await CompanySettingsService.CreateMaterialPatternAsync(companyId, pattern);
+                successMessage = "Material pattern created successfully";
+            }
+            else
+            {
+                await CompanySettingsService.UpdateMaterialPatternAsync(companyId, pattern.Id, pattern);
+                successMessage = "Material pattern updated successfully";
+            }
+            
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error saving material pattern");
+            errorMessage = "Error saving material pattern";
+        }
+    }
+
+    private async Task DeleteMaterialPattern(int patternId)
+    {
+        try
+        {
+            var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to delete this material pattern?");
+            if (!confirmed) return;
+            
+            await CompanySettingsService.DeleteMaterialPatternAsync(companyId, patternId);
+            successMessage = "Material pattern deleted successfully";
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error deleting material pattern");
+            errorMessage = "Error deleting material pattern";
+        }
+    }
+}

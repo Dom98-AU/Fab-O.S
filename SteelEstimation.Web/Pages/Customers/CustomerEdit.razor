@@ -1,0 +1,558 @@
+@page "/customers/new"
+@page "/customers/edit/{CustomerId:int}"
+@using Microsoft.EntityFrameworkCore
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Core.Interfaces
+@using SteelEstimation.Infrastructure.Data
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager Navigation
+@inject IAuthenticationService AuthService
+@inject IABNLookupService ABNLookupService
+@inject IJSRuntime JS
+@attribute [Authorize(Policy = "Estimator")]
+
+<PageTitle>@(IsNew ? "New Customer" : "Edit Customer") - Steel Estimation Platform</PageTitle>
+
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col">
+            <h1>
+                <i class="fas fa-@(IsNew ? "plus" : "edit") me-2"></i>
+                @(IsNew ? "New Customer" : "Edit Customer")
+            </h1>
+        </div>
+    </div>
+
+    <form @onsubmit="SaveCustomer" @onsubmit:preventDefault="true">
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">Company Details</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Company Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control @(GetValidationClass("CompanyName"))" 
+                                       value="@customer.CompanyName"
+                                       @oninput="@((e) => customer.CompanyName = e.Value?.ToString()?.ToUpper() ?? "")"
+                                       style="text-transform: uppercase;" required />
+                                @if (validationErrors.ContainsKey("CompanyName"))
+                                {
+                                    <div class="invalid-feedback d-block">@validationErrors["CompanyName"]</div>
+                                }
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Trading Name</label>
+                                <input type="text" class="form-control" 
+                                       value="@customer.TradingName"
+                                       @oninput="@((e) => customer.TradingName = e.Value?.ToString()?.ToUpper())"
+                                       style="text-transform: uppercase;" />
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">ABN <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control @(GetValidationClass("ABN"))" 
+                                           @bind="customer.ABN" @bind:event="oninput" 
+                                           placeholder="XX XXX XXX XXX" maxlength="14" required />
+                                    <button type="button" class="btn btn-outline-secondary" 
+                                            disabled="true" title="ABN Lookup requires API registration">
+                                        <i class="fas fa-search me-1"></i>
+                                        Lookup (Disabled)
+                                    </button>
+                                </div>
+                                @if (validationErrors.ContainsKey("ABN"))
+                                {
+                                    <div class="invalid-feedback d-block">@validationErrors["ABN"]</div>
+                                }
+                                @if (!string.IsNullOrEmpty(abnValidationMessage))
+                                {
+                                    <small class="@(abnIsValid ? "text-success" : "text-danger")">
+                                        <i class="fas fa-@(abnIsValid ? "check-circle" : "times-circle")"></i>
+                                        @abnValidationMessage
+                                    </small>
+                                }
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">ACN</label>
+                                <input type="text" class="form-control" @bind="customer.ACN" 
+                                       placeholder="XXX XXX XXX" maxlength="11" />
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <label class="form-label">Notes</label>
+                                <textarea class="form-control" 
+                                          @oninput="@((e) => customer.Notes = e.Value?.ToString()?.ToUpper())"
+                                          style="text-transform: uppercase;" rows="3">@customer.Notes</textarea>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="isActive" 
+                                           @bind="customer.IsActive" />
+                                    <label class="form-check-label" for="isActive">
+                                        Active Customer
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                @if (!IsNew)
+                {
+                    <div class="card mb-3">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">Contacts</h5>
+                            <button type="button" class="btn btn-sm btn-primary" @onclick="AddContact">
+                                <i class="fas fa-plus me-1"></i>Add Contact
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            @if (!contacts.Any())
+                            {
+                                <div class="alert alert-info mb-0">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    No contacts added yet. Click "Add Contact" to add a contact person.
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="table-responsive">
+                                    <table class="table">
+                                        <thead>
+                                            <tr>
+                                                <th>Name</th>
+                                                <th>Position</th>
+                                                <th>Email</th>
+                                                <th>Phone</th>
+                                                <th>Mobile</th>
+                                                <th>Primary</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var contact in contacts)
+                                            {
+                                                <tr>
+                                                    <td>@contact.FullName</td>
+                                                    <td>@(contact.Position ?? "-")</td>
+                                                    <td>@(contact.Email ?? "-")</td>
+                                                    <td>@(contact.Phone ?? "-")</td>
+                                                    <td>@(contact.Mobile ?? "-")</td>
+                                                    <td>
+                                                        @if (contact.IsPrimary)
+                                                        {
+                                                            <span class="badge bg-primary">Primary</span>
+                                                        }
+                                                    </td>
+                                                    <td>
+                                                        <button type="button" class="btn btn-sm btn-outline-primary" 
+                                                                @onclick="@(() => EditContact(contact))">
+                                                            <i class="fas fa-edit"></i>
+                                                        </button>
+                                                        <button type="button" class="btn btn-sm btn-outline-danger" 
+                                                                @onclick="@(() => DeleteContact(contact))">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">Billing Address</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (billingAddress != null)
+                        {
+                            <AddressEditor Address="billingAddress" AddressChanged="@((addr) => billingAddress = addr)" />
+                        }
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Shipping Address</h5>
+                        <div class="form-check mb-0">
+                            <input type="checkbox" class="form-check-input" id="sameAsBilling" 
+                                   @bind="sameAsBilling" @bind:event="onchange" />
+                            <label class="form-check-label" for="sameAsBilling">
+                                Same as billing
+                            </label>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        @if (!sameAsBilling && shippingAddress != null)
+                        {
+                            <AddressEditor Address="shippingAddress" AddressChanged="@((addr) => shippingAddress = addr)" />
+                        }
+                        else if (sameAsBilling)
+                        {
+                            <p class="text-muted mb-0">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Using billing address for shipping
+                            </p>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-3">
+            <div class="col-12">
+                <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                    }
+                    <i class="fas fa-save me-2"></i>Save Customer
+                </button>
+                <button type="button" class="btn btn-secondary ms-2" @onclick="Cancel">
+                    Cancel
+                </button>
+                @if (IsNew && (contacts.Any() || !string.IsNullOrEmpty(billingAddress?.AddressLine1)))
+                {
+                    <small class="text-muted ms-3">
+                        <i class="fas fa-info-circle"></i>
+                        Contacts and addresses will be saved with the customer
+                    </small>
+                }
+            </div>
+        </div>
+    </form>
+</div>
+
+<ContactModal @ref="contactModal" OnContactSaved="OnContactSaved" />
+
+@code {
+    [Parameter] public int? CustomerId { get; set; }
+
+    private bool IsNew => !CustomerId.HasValue;
+    private Customer customer = new();
+    private Address? billingAddress = new() { AddressType = AddressType.Billing };
+    private Address? shippingAddress = new() { AddressType = AddressType.Shipping };
+    private List<Contact> contacts = new();
+    private bool sameAsBilling = false;
+    private bool isSaving = false;
+    private string? abnValidationMessage;
+    private bool abnIsValid = false;
+    private Dictionary<string, string> validationErrors = new();
+    private ContactModal? contactModal;
+    private int? companyId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Get user's company from authentication
+        companyId = await AuthService.GetUserCompanyIdAsync();
+        
+        if (!companyId.HasValue || companyId.Value == 0)
+        {
+            // Fall back to default company if user session issue
+            using var context = await DbFactory.CreateDbContextAsync();
+            var defaultCompany = await context.Companies.FirstOrDefaultAsync(c => c.Code == "DEFAULT");
+            if (defaultCompany != null)
+            {
+                companyId = defaultCompany.Id;
+            }
+            else
+            {
+                // Create default company if it doesn't exist
+                defaultCompany = new Company
+                {
+                    Name = "Default Company",
+                    Code = "DEFAULT",
+                    IsActive = true,
+                    CreatedDate = DateTime.UtcNow
+                };
+                context.Companies.Add(defaultCompany);
+                await context.SaveChangesAsync();
+                companyId = defaultCompany.Id;
+            }
+        }
+        
+        if (!IsNew && CustomerId.HasValue)
+        {
+            await LoadCustomer();
+        }
+        else
+        {
+            customer.CompanyId = companyId.Value;
+            customer.IsActive = true;
+        }
+    }
+
+    private async Task LoadCustomer()
+    {
+        using var context = await DbFactory.CreateDbContextAsync();
+        
+        var existingCustomer = await context.Customers
+            .Include(c => c.BillingAddress)
+            .Include(c => c.ShippingAddress)
+            .Include(c => c.Contacts)
+            .FirstOrDefaultAsync(c => c.Id == CustomerId);
+
+        if (existingCustomer == null)
+        {
+            Navigation.NavigateTo("/customers");
+            return;
+        }
+
+        customer = existingCustomer;
+        billingAddress = customer.BillingAddress ?? new Address { AddressType = AddressType.Billing };
+        shippingAddress = customer.ShippingAddress ?? new Address { AddressType = AddressType.Shipping };
+        contacts = customer.Contacts.ToList();
+        
+        // Check if addresses are the same
+        if (customer.BillingAddressId.HasValue && 
+            customer.BillingAddressId == customer.ShippingAddressId)
+        {
+            sameAsBilling = true;
+        }
+    }
+
+    private bool IsValidABNFormat()
+    {
+        var cleanABN = customer.ABN?.Replace(" ", "").Replace("-", "") ?? "";
+        return cleanABN.Length == 11 && cleanABN.All(char.IsDigit);
+    }
+
+    private async Task LookupABN()
+    {
+        // ABN Lookup is currently disabled
+        await JS.InvokeVoidAsync("alert", 
+            "ABN Lookup is currently disabled. To enable this feature:\n\n" +
+            "1. Register at https://abr.business.gov.au/Tools/WebServices\n" +
+            "2. Update the GUID in appsettings.json\n\n" +
+            "For now, you can manually validate the ABN checksum.");
+        
+        // Still perform local ABN checksum validation
+        if (!IsValidABNFormat())
+            return;
+            
+        var cleanABN = customer.ABN.Replace(" ", "").Replace("-", "");
+        
+        if (ABNLookupService.ValidateABN(cleanABN))
+        {
+            abnIsValid = true;
+            abnValidationMessage = "ABN checksum is valid (lookup disabled)";
+        }
+        else
+        {
+            abnIsValid = false;
+            abnValidationMessage = "Invalid ABN checksum";
+        }
+    }
+
+    private async Task SaveCustomer()
+    {
+        if (!ValidateForm())
+            return;
+
+        isSaving = true;
+        
+        try
+        {
+            using var context = await DbFactory.CreateDbContextAsync();
+            
+            // Save addresses first
+            if (billingAddress != null && !string.IsNullOrEmpty(billingAddress.AddressLine1))
+            {
+                if (billingAddress.Id == 0)
+                    context.Addresses.Add(billingAddress);
+                else
+                    context.Addresses.Update(billingAddress);
+            }
+            
+            if (!sameAsBilling && shippingAddress != null && !string.IsNullOrEmpty(shippingAddress.AddressLine1))
+            {
+                if (shippingAddress.Id == 0)
+                    context.Addresses.Add(shippingAddress);
+                else
+                    context.Addresses.Update(shippingAddress);
+            }
+            
+            await context.SaveChangesAsync();
+            
+            // Update customer with address IDs
+            customer.BillingAddressId = billingAddress?.Id > 0 ? billingAddress.Id : null;
+            customer.ShippingAddressId = sameAsBilling ? customer.BillingAddressId : 
+                (shippingAddress?.Id > 0 ? shippingAddress.Id : null);
+            
+            // Clean ABN and ensure uppercase
+            customer.ABN = customer.ABN.Replace(" ", "").Replace("-", "");
+            if (!string.IsNullOrEmpty(customer.ACN))
+                customer.ACN = customer.ACN.Replace(" ", "").Replace("-", "");
+            
+            // Ensure all text fields are uppercase
+            customer.CompanyName = customer.CompanyName.ToUpper();
+            if (!string.IsNullOrEmpty(customer.TradingName))
+                customer.TradingName = customer.TradingName.ToUpper();
+            if (!string.IsNullOrEmpty(customer.Notes))
+                customer.Notes = customer.Notes.ToUpper();
+                
+            // Ensure address fields are uppercase
+            if (billingAddress != null)
+            {
+                billingAddress.AddressLine1 = billingAddress.AddressLine1.ToUpper();
+                if (!string.IsNullOrEmpty(billingAddress.AddressLine2))
+                    billingAddress.AddressLine2 = billingAddress.AddressLine2.ToUpper();
+                billingAddress.Suburb = billingAddress.Suburb.ToUpper();
+            }
+            
+            if (shippingAddress != null && !sameAsBilling)
+            {
+                shippingAddress.AddressLine1 = shippingAddress.AddressLine1.ToUpper();
+                if (!string.IsNullOrEmpty(shippingAddress.AddressLine2))
+                    shippingAddress.AddressLine2 = shippingAddress.AddressLine2.ToUpper();
+                shippingAddress.Suburb = shippingAddress.Suburb.ToUpper();
+            }
+            
+            // Get user ID from authentication
+            var userId = await AuthService.GetCurrentUserIdAsync();
+            
+            if (!userId.HasValue || userId.Value == 0)
+            {
+                // Fall back to admin user if session issue
+                var adminUser = await context.Users.FirstOrDefaultAsync(u => u.Email == "admin@steelestimation.com");
+                if (adminUser == null)
+                {
+                    await JS.InvokeVoidAsync("alert", "Error: Unable to identify current user. Please log out and log in again.");
+                    return;
+                }
+                userId = adminUser.Id;
+            }
+            
+            if (IsNew)
+            {
+                customer.CreatedById = userId.Value;
+                customer.CreatedDate = DateTime.UtcNow;
+                customer.ModifiedDate = DateTime.UtcNow;
+                context.Customers.Add(customer);
+            }
+            else
+            {
+                customer.ModifiedById = userId.Value;
+                customer.ModifiedDate = DateTime.UtcNow;
+                context.Customers.Update(customer);
+            }
+            
+            await context.SaveChangesAsync();
+            
+            // Save contacts if any were added
+            if (contacts.Any())
+            {
+                foreach (var contact in contacts.Where(c => c.Id == 0))
+                {
+                    // Ensure contact fields are uppercase
+                    contact.FirstName = contact.FirstName.ToUpper();
+                    contact.LastName = contact.LastName.ToUpper();
+                    if (!string.IsNullOrEmpty(contact.Position))
+                        contact.Position = contact.Position.ToUpper();
+                    if (!string.IsNullOrEmpty(contact.Notes))
+                        contact.Notes = contact.Notes.ToUpper();
+                    
+                    contact.CustomerId = customer.Id;
+                    contact.CreatedDate = DateTime.UtcNow;
+                    contact.ModifiedDate = DateTime.UtcNow;
+                    context.Contacts.Add(contact);
+                }
+                await context.SaveChangesAsync();
+            }
+            
+            Navigation.NavigateTo($"/customers/{customer.Id}");
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Error saving customer: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private bool ValidateForm()
+    {
+        validationErrors.Clear();
+        
+        if (string.IsNullOrWhiteSpace(customer.CompanyName))
+            validationErrors["CompanyName"] = "Company name is required";
+            
+        var cleanABN = customer.ABN?.Replace(" ", "").Replace("-", "") ?? "";
+        if (string.IsNullOrWhiteSpace(cleanABN))
+            validationErrors["ABN"] = "ABN is required";
+        else if (cleanABN.Length != 11 || !cleanABN.All(char.IsDigit))
+            validationErrors["ABN"] = "ABN must be exactly 11 digits";
+        else if (!ABNLookupService.ValidateABN(cleanABN))
+            validationErrors["ABN"] = "Invalid ABN checksum";
+            
+        return !validationErrors.Any();
+    }
+
+    private string GetValidationClass(string field)
+    {
+        return validationErrors.ContainsKey(field) ? "is-invalid" : "";
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/customers");
+    }
+
+    private void AddContact()
+    {
+        contactModal?.Show(new Contact { CustomerId = customer.Id });
+    }
+
+    private void EditContact(Contact contact)
+    {
+        contactModal?.Show(contact);
+    }
+
+    private async Task DeleteContact(Contact contact)
+    {
+        if (await JS.InvokeAsync<bool>("confirm", $"Are you sure you want to delete contact {contact.FullName}?"))
+        {
+            contacts.Remove(contact);
+            
+            if (!IsNew)
+            {
+                using var context = await DbFactory.CreateDbContextAsync();
+                context.Contacts.Remove(contact);
+                await context.SaveChangesAsync();
+            }
+        }
+    }
+
+    private void OnContactSaved(Contact contact)
+    {
+        if (!contacts.Any(c => c.Id == contact.Id))
+        {
+            contacts.Add(contact);
+        }
+        else
+        {
+            var index = contacts.FindIndex(c => c.Id == contact.Id);
+            if (index >= 0)
+                contacts[index] = contact;
+        }
+    }
+}

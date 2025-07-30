@@ -1,0 +1,128 @@
+@page "/authdebug"
+@using SteelEstimation.Core.Interfaces
+@using SteelEstimation.Infrastructure.Services
+@inject IAuthenticationService AuthService
+@inject ILogger<AuthDebug> Logger
+
+<PageTitle>Auth Debug</PageTitle>
+
+<div class="container mt-5">
+    <h3>Authentication Debug Page</h3>
+    
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Test Login</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Username/Email:</label>
+                        <input type="text" class="form-control" @bind="username" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Password:</label>
+                        <input type="password" class="form-control" @bind="password" />
+                    </div>
+                    <button class="btn btn-primary" @onclick="TestLogin">Test Login</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Results</h5>
+                </div>
+                <div class="card-body">
+                    @if (results.Any())
+                    {
+                        <ul class="list-unstyled">
+                            @foreach (var result in results)
+                            {
+                                <li class="@(result.StartsWith("ERROR") ? "text-danger" : result.StartsWith("SUCCESS") ? "text-success" : "")">
+                                    @result
+                                </li>
+                            }
+                        </ul>
+                    }
+                    else
+                    {
+                        <p class="text-muted">No results yet</p>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="mt-4">
+        <div class="card">
+            <div class="card-header">
+                <h5>Service Information</h5>
+            </div>
+            <div class="card-body">
+                <p>AuthService Type: @(AuthService?.GetType().FullName ?? "NULL")</p>
+                <p>Is AuthService null: @(AuthService == null)</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string username = "admin@steelestimation.com";
+    private string password = "Admin@123";
+    private List<string> results = new();
+    
+    private async Task TestLogin()
+    {
+        results.Clear();
+        results.Add($"Testing login for: {username}");
+        
+        try
+        {
+            if (AuthService == null)
+            {
+                results.Add("ERROR: AuthService is null");
+                return;
+            }
+            
+            results.Add("Calling LoginAsync...");
+            var result = await AuthService.LoginAsync(username, password);
+            
+            results.Add($"Success: {result.Success}");
+            results.Add($"Message: {result.Message}");
+            
+            if (result.User != null)
+            {
+                results.Add($"User ID: {result.User.Id}");
+                results.Add($"User Email: {result.User.Email}");
+                results.Add($"User Active: {result.User.IsActive}");
+                results.Add($"Email Confirmed: {result.User.IsEmailConfirmed}");
+                
+                // Try to get roles
+                try
+                {
+                    var roles = await AuthService.GetUserRolesAsync(result.User.Id);
+                    results.Add($"Roles: {string.Join(", ", roles)}");
+                }
+                catch (Exception ex)
+                {
+                    results.Add($"ERROR getting roles: {ex.Message}");
+                }
+            }
+            else
+            {
+                results.Add("User object is null");
+            }
+        }
+        catch (Exception ex)
+        {
+            results.Add($"ERROR: {ex.GetType().Name}: {ex.Message}");
+            if (ex.InnerException != null)
+            {
+                results.Add($"INNER: {ex.InnerException.Message}");
+            }
+            Logger.LogError(ex, "Test login error");
+        }
+    }
+}

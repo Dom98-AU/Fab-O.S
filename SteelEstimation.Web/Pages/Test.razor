@@ -1,0 +1,16 @@
+@page "/test"
+
+<h1>Deployment Test Page</h1>
+<p>If you can see this page, deployment is working!</p>
+<p>Deployed at: @DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") UTC</p>
+<p>Version: 2.0 with Split Screen Login</p>
+
+<hr />
+
+<h2>Login Page Status:</h2>
+<ul>
+    <li>EmptyLayout exists: @System.IO.File.Exists("Shared/EmptyLayout.razor")</li>
+    <li>Logo exists: @System.IO.File.Exists("wwwroot/images/nwi-group-logo-white.png")</li>
+</ul>
+
+<a href="/login" class="btn btn-primary">Go to Login Page</a>

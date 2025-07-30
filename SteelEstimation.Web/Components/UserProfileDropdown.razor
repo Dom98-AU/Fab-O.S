@@ -1,0 +1,187 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using SteelEstimation.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.JSInterop
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+@if (_isAuthenticated)
+{
+    <div class="dropdown">
+        <button class="btn btn-sm btn-outline-secondary dropdown-toggle d-flex align-items-center gap-2" 
+                type="button" 
+                @onclick="ToggleDropdown"
+                @onclick:stopPropagation="true">
+            <i class="fas fa-user-circle"></i>
+            <span class="d-none d-md-inline">@_userName</span>
+        </button>
+        
+        @if (_showDropdown)
+        {
+            <div class="dropdown-menu dropdown-menu-end show profile-dropdown" @onclick:stopPropagation="true">
+                <div class="dropdown-header">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-user-circle fa-3x text-muted"></i>
+                        <div class="ms-3">
+                            <h6 class="mb-0">@_fullName</h6>
+                            <small class="text-muted">@_email</small>
+                            <br />
+                            <small class="text-muted">@_role</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="dropdown-divider"></div>
+                
+                <a class="dropdown-item" href="/profile" @onclick="CloseDropdown">
+                    <i class="fas fa-user me-2"></i> My Profile
+                </a>
+                
+                <a class="dropdown-item" href="/settings" @onclick="CloseDropdown">
+                    <i class="fas fa-cog me-2"></i> Settings
+                </a>
+                
+                @if (_isAdmin)
+                {
+                    <div class="dropdown-divider"></div>
+                    <a class="dropdown-item" href="/admin/settings" @onclick="CloseDropdown">
+                        <i class="fas fa-tools me-2"></i> Administration
+                    </a>
+                }
+                
+                <div class="dropdown-divider"></div>
+                
+                <a class="dropdown-item text-danger" href="/logout" @onclick="CloseDropdown">
+                    <i class="fas fa-sign-out-alt me-2"></i> Logout
+                </a>
+            </div>
+        }
+    </div>
+}
+
+<style>
+    .profile-dropdown {
+        min-width: 280px;
+        margin-top: 0.5rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        animation: fadeIn 0.2s ease-in-out;
+    }
+    
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .dropdown-header {
+        padding: 1rem;
+        background-color: #f8f9fa;
+    }
+    
+    .dropdown-item {
+        padding: 0.5rem 1rem;
+        transition: background-color 0.2s;
+    }
+    
+    .dropdown-item:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .dropdown-item i {
+        width: 20px;
+        text-align: center;
+    }
+</style>
+
+@code {
+    private bool _isAuthenticated;
+    private bool _showDropdown;
+    private string _userName = "User";
+    private string _fullName = "User";
+    private string _email = "";
+    private string _role = "User";
+    private bool _isAdmin;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
+        
+        if (_isAuthenticated)
+        {
+            _userName = authState.User.Identity?.Name ?? "User";
+            _role = authState.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "User";
+            _isAdmin = authState.User.IsInRole("Administrator") || authState.User.IsInRole("Admin");
+            
+            // Get user details from database
+            var userIdClaim = authState.User.FindFirst("UserId")?.Value ?? 
+                             authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            
+            if (int.TryParse(userIdClaim, out var userId))
+            {
+                using var context = await DbContextFactory.CreateDbContextAsync();
+                var user = await context.Users
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(u => u.Id == userId);
+                
+                if (user != null)
+                {
+                    _fullName = user.FullName;
+                    _email = user.Email;
+                }
+            }
+        }
+    }
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                // Define the function inline if it doesn't exist
+                await JSRuntime.InvokeVoidAsync("eval", @"
+                    if (typeof window.addClickOutsideHandler === 'undefined') {
+                        window.addClickOutsideHandler = function(dotNetRef) {
+                            document.addEventListener('click', function(e) {
+                                if (!e.target.closest('.dropdown')) {
+                                    dotNetRef.invokeMethodAsync('CloseDropdownFromJS');
+                                }
+                            });
+                        };
+                    }
+                ");
+                
+                // Add click handler to close dropdown when clicking outside
+                await JSRuntime.InvokeVoidAsync("addClickOutsideHandler", DotNetObjectReference.Create(this));
+            }
+            catch (JSException)
+            {
+                // Function might not be loaded yet, ignore
+            }
+        }
+    }
+    
+    private void ToggleDropdown()
+    {
+        _showDropdown = !_showDropdown;
+    }
+    
+    private void CloseDropdown()
+    {
+        _showDropdown = false;
+    }
+    
+    [JSInvokable]
+    public void CloseDropdownFromJS()
+    {
+        _showDropdown = false;
+        StateHasChanged();
+    }
+}

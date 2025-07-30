@@ -1,0 +1,400 @@
+@page "/estimation-new"
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Core.Services
+@using SteelEstimation.Infrastructure.Data
+@using SteelEstimation.Web.Shared.Components
+@using Microsoft.EntityFrameworkCore
+@using System.ComponentModel.DataAnnotations
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@inject IAuthenticationService AuthService
+@inject ISettingsService SettingsService
+
+<PageTitle>Estimations - Steel Estimation Platform</PageTitle>
+
+<StandardListPage TItem="Project"
+    Title="Estimations"
+    Icon="fas fa-folder-open"
+    Subtitle="Manage all your steel fabrication estimations"
+    ItemName="Estimation"
+    ItemNamePlural="Estimations"
+    Items="@estimations"
+    SearchPlaceholder="Search by job number, name, or customer..."
+    EmptyMessage="No estimations found. Create your first estimation to get started."
+    ShowUniqueId="@showEstimationNumbers"
+    GetUniqueId="@(e => $"EST-{e.Id:D6}")"
+    SearchFilter="@SearchEstimations"
+    OnViewCallback="@(e => { ViewEstimation(e.Id); return Task.CompletedTask; })"
+    OnEditCallback="@(e => { EditEstimation(e.Id); return Task.CompletedTask; })"
+    OnDeleteCallback="@DeleteEstimations"
+    OnRowClickCallback="@(e => { ViewEstimation(e.Id); return Task.CompletedTask; })">
+    
+    <HeaderActions>
+        <button class="btn btn-primary" @onclick="CreateNewEstimation">
+            <i class="fas fa-plus me-2"></i>New Estimation
+        </button>
+        <button class="btn btn-outline-secondary ms-2" @onclick="RefreshData">
+            <i class="fas fa-sync-alt @(_isRefreshing ? "fa-spin" : "")"></i>
+        </button>
+    </HeaderActions>
+    
+    <FilterOptions>
+        <div class="col-md-3">
+            <select class="form-select form-select-sm" @bind="filterStage">
+                <option value="">All Stages</option>
+                <option value="Preliminary">Preliminary</option>
+                <option value="Budget">Budget</option>
+                <option value="Detailed">Detailed</option>
+                <option value="Final">Final</option>
+                <option value="Approved">Approved</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <select class="form-select form-select-sm" @bind="filterCustomer">
+                <option value="">All Customers</option>
+                @foreach (var customer in customers)
+                {
+                    <option value="@customer.Id">@customer.CompanyName</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-3">
+            <select class="form-select form-select-sm" @bind="filterDateRange">
+                <option value="">All Time</option>
+                <option value="today">Today</option>
+                <option value="week">This Week</option>
+                <option value="month">This Month</option>
+                <option value="quarter">This Quarter</option>
+                <option value="year">This Year</option>
+            </select>
+        </div>
+    </FilterOptions>
+    
+    <EmptyActions>
+        <button class="btn btn-primary mt-3" @onclick="CreateNewEstimation">
+            <i class="fas fa-plus me-2"></i>Create Your First Estimation
+        </button>
+    </EmptyActions>
+    
+    <BulkActions>
+        <button class="btn btn-sm btn-outline-primary me-2" @onclick="ExportSelected">
+            <i class="fas fa-download me-1"></i>Export
+        </button>
+        <button class="btn btn-sm btn-outline-secondary" @onclick="ArchiveSelected">
+            <i class="fas fa-archive me-1"></i>Archive
+        </button>
+    </BulkActions>
+    
+    <TableHeaders>
+        <th @onclick="@(() => SortBy("JobNumber"))" style="cursor: pointer;">
+            Job Number
+            @if (sortField == "JobNumber")
+            {
+                <i class="fas fa-sort-@(sortAscending ? "up" : "down") ms-1"></i>
+            }
+        </th>
+        <th @onclick="@(() => SortBy("ProjectName"))" style="cursor: pointer;">
+            Estimation Name
+            @if (sortField == "ProjectName")
+            {
+                <i class="fas fa-sort-@(sortAscending ? "up" : "down") ms-1"></i>
+            }
+        </th>
+        <th>Customer</th>
+        <th>Stage</th>
+        <th>Total Hours</th>
+        <th>Tonnage</th>
+        <th @onclick="@(() => SortBy("LastModified"))" style="cursor: pointer;">
+            Last Modified
+            @if (sortField == "LastModified")
+            {
+                <i class="fas fa-sort-@(sortAscending ? "up" : "down") ms-1"></i>
+            }
+        </th>
+    </TableHeaders>
+    
+    <RowTemplate Context="estimation">
+        <td>
+            <code>@estimation.JobNumber</code>
+        </td>
+        <td>
+            <strong>@estimation.ProjectName</strong>
+            @if (!string.IsNullOrEmpty(estimation.ProjectLocation))
+            {
+                <br />
+                <small class="text-muted">
+                    <i class="fas fa-map-marker-alt me-1"></i>@estimation.ProjectLocation
+                </small>
+            }
+        </td>
+        <td>
+            @if (estimation.Customer != null)
+            {
+                <span>@estimation.Customer.CompanyName</span>
+            }
+            else
+            {
+                <span class="text-muted">-</span>
+            }
+        </td>
+        <td>
+            <span class="badge @GetStageBadgeClass(estimation.EstimationStage)">
+                @estimation.EstimationStage
+            </span>
+        </td>
+        <td class="text-end">
+            @if (GetEstimationHours(estimation) > 0)
+            {
+                <span>@GetEstimationHours(estimation).ToString("N1")h</span>
+            }
+            else
+            {
+                <span class="text-muted">-</span>
+            }
+        </td>
+        <td class="text-end">
+            @if (GetEstimationTonnage(estimation) > 0)
+            {
+                <span>@GetEstimationTonnage(estimation).ToString("N1")t</span>
+            }
+            else
+            {
+                <span class="text-muted">-</span>
+            }
+        </td>
+        <td>
+            <span title="@estimation.LastModified.ToString("yyyy-MM-dd HH:mm")">
+                @estimation.LastModified.ToString("MMM dd, yyyy")
+            </span>
+            @if (estimation.LastModifiedByUser != null)
+            {
+                <br />
+                <small class="text-muted">by @estimation.LastModifiedByUser.FullName</small>
+            }
+        </td>
+    </RowTemplate>
+    
+    <ItemActions Context="estimation">
+        <button class="btn btn-outline-info btn-sm" title="Duplicate"
+                @onclick="() => DuplicateEstimation(estimation)">
+            <i class="fas fa-copy"></i>
+        </button>
+    </ItemActions>
+</StandardListPage>
+
+@code {
+    private List<Project> estimations = new List<Project>();
+    private List<Customer> customers = new List<Customer>();
+    private bool _isRefreshing = false;
+    private bool showEstimationNumbers = false;
+    
+    // Filter properties
+    private string filterStage = "";
+    private string filterCustomer = "";
+    private string filterDateRange = "";
+    
+    // Sort properties
+    private string sortField = "LastModified";
+    private bool sortAscending = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSettings();
+        await LoadData();
+    }
+
+    private async Task LoadSettings()
+    {
+        showEstimationNumbers = await SettingsService.GetBooleanSetting("ShowEstimationNumbers", false);
+    }
+
+    private async Task LoadData()
+    {
+        using var context = await DbContextFactory.CreateDbContextAsync();
+        
+        // Load estimations with related data
+        var query = context.Projects
+            .Include(p => p.Customer)
+            .Include(p => p.Owner)
+            .Include(p => p.LastModifiedByUser)
+            .Include(p => p.Packages)
+                .ThenInclude(pkg => pkg.Worksheets)
+                    .ThenInclude(ws => ws.ProcessingItems)
+            .Include(p => p.Packages)
+                .ThenInclude(pkg => pkg.Worksheets)
+                    .ThenInclude(ws => ws.WeldingItems)
+            .Where(p => !p.IsDeleted);
+
+        // Apply filters
+        if (!string.IsNullOrEmpty(filterStage))
+        {
+            query = query.Where(p => p.EstimationStage == filterStage);
+        }
+
+        if (!string.IsNullOrEmpty(filterCustomer) && int.TryParse(filterCustomer, out var customerId))
+        {
+            query = query.Where(p => p.CustomerId == customerId);
+        }
+
+        if (!string.IsNullOrEmpty(filterDateRange))
+        {
+            var dateFilter = GetDateFilter(filterDateRange);
+            if (dateFilter.HasValue)
+            {
+                query = query.Where(p => p.LastModified >= dateFilter.Value);
+            }
+        }
+
+        // Apply sorting
+        query = sortField switch
+        {
+            "JobNumber" => sortAscending ? query.OrderBy(p => p.JobNumber) : query.OrderByDescending(p => p.JobNumber),
+            "ProjectName" => sortAscending ? query.OrderBy(p => p.ProjectName) : query.OrderByDescending(p => p.ProjectName),
+            "LastModified" => sortAscending ? query.OrderBy(p => p.LastModified) : query.OrderByDescending(p => p.LastModified),
+            _ => query.OrderByDescending(p => p.LastModified)
+        };
+
+        estimations = await query.ToListAsync();
+        
+        // Load customers for filter
+        customers = await context.Customers
+            .Where(c => c.IsActive)
+            .OrderBy(c => c.CompanyName)
+            .ToListAsync();
+    }
+
+    private DateTime? GetDateFilter(string range)
+    {
+        return range switch
+        {
+            "today" => DateTime.Today,
+            "week" => DateTime.Today.AddDays(-7),
+            "month" => DateTime.Today.AddMonths(-1),
+            "quarter" => DateTime.Today.AddMonths(-3),
+            "year" => DateTime.Today.AddYears(-1),
+            _ => null
+        };
+    }
+
+    private bool SearchEstimations(Project estimation, string searchTerm)
+    {
+        if (string.IsNullOrWhiteSpace(searchTerm)) return true;
+        
+        var term = searchTerm.ToLower();
+        return estimation.JobNumber.ToLower().Contains(term) ||
+               estimation.ProjectName.ToLower().Contains(term) ||
+               (estimation.Customer?.CompanyName.ToLower().Contains(term) ?? false) ||
+               (estimation.ProjectLocation?.ToLower().Contains(term) ?? false);
+    }
+
+    private decimal GetEstimationHours(Project estimation)
+    {
+        return estimation.Packages
+            .Where(p => !p.IsDeleted)
+            .SelectMany(p => p.Worksheets)
+            .Sum(ws => 
+                ws.ProcessingItems.Sum(pi => pi.TotalProcessingMinutes) / 60m +
+                ws.WeldingItems.Sum(wi => wi.TotalWeldingMinutes) / 60m
+            );
+    }
+
+    private decimal GetEstimationTonnage(Project estimation)
+    {
+        var processingTonnage = estimation.Packages
+            .Where(p => !p.IsDeleted)
+            .SelectMany(p => p.Worksheets)
+            .SelectMany(ws => ws.ProcessingItems)
+            .Sum(pi => pi.TotalWeight) / 1000m;
+            
+        var weldingTonnage = estimation.Packages
+            .Where(p => !p.IsDeleted)
+            .SelectMany(p => p.Worksheets)
+            .SelectMany(ws => ws.WeldingItems)
+            .Sum(wi => wi.Weight) / 1000m;
+            
+        return processingTonnage + weldingTonnage;
+    }
+
+    private string GetStageBadgeClass(string stage)
+    {
+        return stage switch
+        {
+            "Preliminary" => "bg-secondary",
+            "Budget" => "bg-info",
+            "Detailed" => "bg-primary",
+            "Final" => "bg-warning",
+            "Approved" => "bg-success",
+            _ => "bg-secondary"
+        };
+    }
+
+    private void CreateNewEstimation()
+    {
+        Navigation.NavigateTo("/estimation/new");
+    }
+
+    private void ViewEstimation(int id)
+    {
+        Navigation.NavigateTo($"/estimation/{id}");
+    }
+
+    private void EditEstimation(int id)
+    {
+        Navigation.NavigateTo($"/estimation/{id}/edit");
+    }
+
+    private async Task DeleteEstimations(List<Project> estimationsToDelete)
+    {
+        using var context = await DbContextFactory.CreateDbContextAsync();
+        
+        foreach (var estimation in estimationsToDelete)
+        {
+            var dbEstimation = await context.Projects.FindAsync(estimation.Id);
+            if (dbEstimation != null)
+            {
+                dbEstimation.IsDeleted = true;
+                dbEstimation.LastModified = DateTime.UtcNow;
+            }
+        }
+        
+        await context.SaveChangesAsync();
+        await LoadData();
+    }
+
+    private void DuplicateEstimation(Project estimation)
+    {
+        // Implementation for duplicating estimation
+        Navigation.NavigateTo($"/estimation/duplicate/{estimation.Id}");
+    }
+
+    private async Task RefreshData()
+    {
+        _isRefreshing = true;
+        await LoadData();
+        _isRefreshing = false;
+    }
+
+    private void SortBy(string field)
+    {
+        if (sortField == field)
+        {
+            sortAscending = !sortAscending;
+        }
+        else
+        {
+            sortField = field;
+            sortAscending = true;
+        }
+    }
+
+    private void ExportSelected()
+    {
+        // Implementation for exporting selected estimations
+    }
+
+    private void ArchiveSelected()
+    {
+        // Implementation for archiving selected estimations
+    }
+}

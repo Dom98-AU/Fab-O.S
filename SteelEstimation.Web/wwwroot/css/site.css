@@ -1,0 +1,1748 @@
+/* Steel Estimation Platform Styles */
+
+:root {
+    --primary-color: rgb(13, 26, 128);
+    --primary-hover: rgb(10, 20, 102);
+    --primary-light: rgba(13, 26, 128, 0.1);
+}
+
+/* Global uppercase text input styles */
+.text-uppercase-input {
+    text-transform: uppercase;
+}
+
+.text-uppercase-input::-webkit-input-placeholder {
+    text-transform: uppercase;
+}
+
+.text-uppercase-input::-moz-placeholder {
+    text-transform: uppercase;
+}
+
+.text-uppercase-input::placeholder {
+    text-transform: uppercase;
+}
+
+/* Enhanced Breadcrumb Styles */
+.breadcrumb {
+    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+    padding: 0.75rem 1.25rem;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    font-size: 0.875rem;
+    margin-bottom: 1rem;
+}
+
+.breadcrumb-item {
+    display: flex;
+    align-items: center;
+}
+
+.breadcrumb-item + .breadcrumb-item::before {
+    content: "›";
+    font-size: 1.2rem;
+    color: #6c757d;
+    padding: 0 0.75rem;
+}
+
+.breadcrumb-item a {
+    color: #6c757d;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    position: relative;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+}
+
+.breadcrumb-item a:hover {
+    color: var(--primary-color);
+    background-color: rgba(13, 26, 128, 0.05);
+    transform: translateY(-1px);
+}
+
+.breadcrumb-item a::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    width: 0;
+    height: 2px;
+    background-color: var(--primary-color);
+    transition: all 0.3s ease;
+    transform: translateX(-50%);
+}
+
+.breadcrumb-item a:hover::after {
+    width: 80%;
+}
+
+.breadcrumb-item.active {
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+/* Breadcrumb icon styling */
+.breadcrumb-item i {
+    color: var(--primary-color);
+    opacity: 0.7;
+    transition: opacity 0.3s ease;
+}
+
+.breadcrumb-item a:hover i {
+    opacity: 1;
+}
+
+.breadcrumb-item.active i {
+    opacity: 1;
+}
+
+/* Alternative modern breadcrumb style */
+.breadcrumb.breadcrumb-modern {
+    background: transparent;
+    padding: 0;
+    box-shadow: none;
+    border: none;
+}
+
+.breadcrumb.breadcrumb-modern .breadcrumb-item + .breadcrumb-item::before {
+    content: "→";
+    color: var(--primary-color);
+    font-weight: bold;
+}
+
+/* Ensure sidebar is visible by default */
+.sidebar {
+    display: block !important;
+    visibility: visible !important;
+}
+
+/* Override Bootstrap collapse behavior for sidebar navigation */
+.sidebar .nav-scrollable {
+    display: block !important;
+}
+
+.sidebar .nav-scrollable.collapse {
+    display: block !important;
+}
+
+
+html, body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    overflow-x: hidden;
+    max-width: 100vw;
+}
+
+.page {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    flex: 1;
+}
+
+.sidebar {
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.08);
+    border-right: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.top-row {
+    background-color: #f7f7f7;
+    border-bottom: 1px solid #d6d5d5;
+    justify-content: flex-end;
+    height: 3.5rem;
+    display: flex;
+    align-items: center;
+}
+
+.navbar-brand {
+    font-size: 1.1rem;
+}
+
+.oi {
+    width: 2rem;
+    font-size: 1.1rem;
+    vertical-align: text-top;
+    top: -2px;
+}
+
+.nav-item {
+    font-size: 0.9rem;
+    padding-bottom: 0.5rem;
+}
+
+.nav-item:first-of-type {
+    padding-top: 1rem;
+}
+
+.nav-item:last-of-type {
+    padding-bottom: 1rem;
+}
+
+.nav-item ::deep a {
+    color: #ffffff !important;
+    border-radius: 4px;
+    height: 3rem;
+    display: flex;
+    align-items: center;
+    line-height: 3rem;
+    text-decoration: none;
+}
+
+.nav-item ::deep a.active {
+    background-color: rgba(255,255,255,0.25);
+    color: white !important;
+}
+
+.nav-item ::deep a:hover {
+    background-color: rgba(255,255,255,0.1);
+    color: white !important;
+    text-decoration: none;
+}
+
+/* Modern Navigation Styles */
+.navbar-brand {
+    font-size: 1.4rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    transition: all 0.3s ease;
+}
+
+.navbar-brand:hover {
+    transform: scale(1.02);
+    text-decoration: none;
+}
+
+/* Sidebar header styling */
+.sidebar .top-row {
+    background: linear-gradient(135deg, var(--primary-color) 0%, rgba(13, 26, 128, 0.9) 100%);
+    border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+    padding: 1.2rem;
+    margin-bottom: 1rem;
+}
+
+.sidebar .navbar-brand {
+    color: white !important;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.sidebar .navbar-brand i {
+    color: white !important;
+    font-size: 1.5rem;
+}
+
+.modern-nav-link {
+    color: #495057 !important;
+    border-radius: 12px;
+    padding: 0.875rem 1.25rem !important;
+    display: flex;
+    align-items: center;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    font-weight: 500;
+    margin: 0.25rem 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.modern-nav-link::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: 4px;
+    background: var(--primary-color);
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+}
+
+.modern-nav-link:hover {
+    background: linear-gradient(90deg, rgba(13, 26, 128, 0.05) 0%, rgba(13, 26, 128, 0.02) 100%);
+    color: var(--primary-color) !important;
+    transform: translateX(3px);
+    box-shadow: 0 2px 8px rgba(13, 26, 128, 0.1);
+}
+
+.modern-nav-link:hover::before {
+    transform: translateX(0);
+}
+
+.modern-nav-link.active {
+    background: linear-gradient(90deg, rgba(13, 26, 128, 0.15) 0%, rgba(13, 26, 128, 0.05) 100%);
+    color: var(--primary-color) !important;
+    font-weight: 600;
+    box-shadow: 0 2px 12px rgba(13, 26, 128, 0.15);
+}
+
+.modern-nav-link.active::before {
+    transform: translateX(0);
+    width: 4px;
+}
+
+.nav-icon {
+    width: 24px;
+    margin-right: 14px;
+    font-size: 1.2rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.modern-nav-link:hover .nav-icon {
+    transform: scale(1.1);
+}
+
+.modern-nav-link.active .nav-icon {
+    color: var(--primary-color);
+}
+
+.nav-text {
+    font-size: 0.95rem;
+    letter-spacing: 0.3px;
+}
+
+.nav-divider {
+    height: 2px;
+    background: linear-gradient(90deg, transparent 0%, #e9ecef 50%, transparent 100%);
+    margin: 1.5rem 2rem;
+    position: relative;
+}
+
+/* Enhanced section titles */
+.nav-section-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #6c757d;
+    padding: 0.75rem 1.5rem 0.5rem;
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+    letter-spacing: 1px;
+    position: relative;
+}
+
+.nav-section-title::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 16px;
+    background: var(--primary-color);
+    border-radius: 2px;
+}
+
+.nav-scrollable {
+    padding: 0.5rem 0.75rem 1rem;
+    height: calc(100vh - 80px);
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* Custom scrollbar for sidebar */
+.nav-scrollable::-webkit-scrollbar {
+    width: 6px;
+}
+
+.nav-scrollable::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.nav-scrollable::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 3px;
+}
+
+.nav-scrollable::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+/* Logout link special styling */
+.modern-nav-link.text-danger {
+    color: #dc3545 !important;
+}
+
+.modern-nav-link.text-danger:hover {
+    background: linear-gradient(90deg, rgba(220, 53, 69, 0.05) 0%, rgba(220, 53, 69, 0.02) 100%);
+    color: #dc3545 !important;
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.1);
+}
+
+.modern-nav-link.text-danger:hover::before {
+    background: #dc3545;
+}
+
+.modern-nav-link.text-danger .nav-icon {
+    color: #dc3545;
+}
+
+/* Remove old styles */
+.sidebar .nav-link {
+    color: inherit !important;
+}
+
+.content {
+    padding-top: 1.1rem;
+}
+
+.valid.modified:not([type=checkbox]) {
+    outline: 1px solid #26b050;
+}
+
+.invalid {
+    outline: 1px solid red;
+}
+
+.validation-message {
+    color: red;
+}
+
+/* Custom styles for Steel Estimation */
+.project-header {
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.summary-card {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.table-responsive {
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.btn-icon {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+.nav-section-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: #6c757d;
+    padding: 0.5rem 1rem;
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+@media (max-width: 640.98px) {
+    .top-row:not(.auth) {
+        display: none;
+    }
+
+    .top-row.auth {
+        justify-content: space-between;
+    }
+
+    .top-row ::deep a, .top-row ::deep .btn-link {
+        margin-left: 0;
+    }
+}
+
+/* Menu toggle and pin buttons */
+.menu-toggle-btn, .pin-menu-btn {
+    background: none;
+    border: none;
+    color: var(--primary-color);
+    font-size: 1.2rem;
+    padding: 0.5rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border-radius: 0.25rem;
+}
+
+/* Ensure menu toggle button is always visible */
+.menu-toggle-btn {
+    position: relative;
+    z-index: 1001;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+}
+
+.menu-toggle-btn:hover, .pin-menu-btn:hover {
+    background-color: rgba(13, 26, 128, 0.1);
+    transform: scale(1.1);
+}
+
+.pin-menu-btn {
+    opacity: 0.6;
+}
+
+.pin-menu-btn.pinned {
+    opacity: 1;
+    color: var(--primary-color);
+    transform: rotate(45deg);
+}
+
+@media (min-width: 641px) {
+    .page {
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+    }
+
+    .sidebar {
+        width: 250px;
+        height: 100vh;
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 1000;
+        transition: all 0.3s ease;
+        background-color: white;
+        box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+        transform: translateX(0); /* Visible by default */
+    }
+    
+    /* Hide sidebar when collapsed */
+    .page.sidebar-collapsed .sidebar {
+        transform: translateX(-250px);
+    }
+
+    main .top-row {
+        position: sticky;
+        position: -webkit-sticky;
+        top: 0;
+        z-index: 999;
+        background-color: white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        height: 3.5rem;
+        display: flex;
+        align-items: center;
+        margin-bottom: 0;
+    }
+
+    .top-row.auth ::deep a:first-child {
+        flex: 1;
+        text-align: right;
+        width: 0;
+    }
+
+    main {
+        flex: 1;
+        margin-left: 250px; /* Space for visible sidebar */
+        transition: all 0.3s ease;
+        min-height: 100vh;
+        width: calc(100% - 250px);
+    }
+    
+    /* When sidebar is collapsed, main content takes full width */
+    .page.sidebar-collapsed main {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .top-row, article {
+        padding-left: 2rem !important;
+        padding-right: 1.5rem !important;
+    }
+}
+
+@media (max-width: 640.98px) {
+    .pin-menu-btn {
+        display: none;
+    }
+    
+    .sidebar {
+        position: fixed;
+        top: 56px;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: white;
+        z-index: 1000;
+        transition: transform 0.3s ease;
+        transform: translateX(-100%);
+    }
+    
+    .sidebar.sidebar-open {
+        transform: translateX(0);
+    }
+}
+
+/* Primary color overrides for Bootstrap components */
+.btn-primary {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.btn-primary:hover {
+    background-color: var(--primary-hover);
+    border-color: var(--primary-hover);
+}
+
+.btn-primary:focus, .btn-primary:active {
+    background-color: var(--primary-hover) !important;
+    border-color: var(--primary-hover) !important;
+    box-shadow: 0 0 0 0.2rem var(--primary-light);
+}
+
+.bg-primary {
+    background-color: var(--primary-color) !important;
+}
+
+.text-primary {
+    color: var(--primary-color) !important;
+}
+
+.badge-primary, .badge.bg-primary {
+    background-color: var(--primary-color);
+}
+
+.alert-primary {
+    color: #040a33;
+    background-color: var(--primary-light);
+    border-color: var(--primary-color);
+}
+
+/* Tab styling for estimation page */
+.nav-tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    border-bottom: 1px solid #dee2e6;
+    margin-bottom: 0;
+}
+
+.nav-tabs .nav-item {
+    margin-bottom: -1px;
+}
+
+.nav-tabs .nav-link {
+    color: var(--primary-color);
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-top-left-radius: 0.25rem;
+    border-top-right-radius: 0.25rem;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.nav-tabs .nav-link:hover {
+    border-color: #e9ecef #e9ecef #dee2e6;
+    background-color: #f8f9fa;
+    color: var(--primary-hover);
+}
+
+.nav-tabs .nav-link.active {
+    color: #495057;
+    background-color: #fff;
+    border-color: #dee2e6 #dee2e6 #fff;
+    font-weight: 500;
+}
+
+.nav-tabs .nav-link i {
+    margin-right: 0.5rem;
+}
+
+.tab-content {
+    padding: 1rem 0;
+    background-color: #fff;
+}
+
+/* Card overrides */
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid rgba(0,0,0,.125);
+}
+
+/* Table overrides */
+.table thead th {
+    border-bottom: 2px solid #dee2e6;
+    font-weight: 600;
+}
+
+/* Row and cell hover/click styles */
+.table-wrapper tbody tr {
+    transition: background-color 0.2s ease;
+}
+
+.table-wrapper tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.02); /* Very faint highlight on hover */
+}
+
+.table-wrapper tbody tr:hover td {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+.table-wrapper tbody tr:hover .frozen-col {
+    background-color: rgba(248, 249, 250, 0.8); /* Slightly different for frozen columns */
+}
+
+/* Cell hover effect */
+.table-wrapper tbody td {
+    transition: background-color 0.2s ease;
+    cursor: pointer;
+}
+
+/* Don't show pointer cursor on cells with inputs */
+.table-wrapper tbody td:has(input),
+.table-wrapper tbody td:has(select),
+.table-wrapper tbody td:has(button) {
+    cursor: default;
+}
+
+.table-wrapper tbody td:hover {
+    background-color: rgba(0, 0, 0, 0.04) !important; /* Slightly darker on direct cell hover */
+}
+
+/* Active/clicked row styling */
+.table-wrapper tbody tr.active-row {
+    background-color: rgba(13, 110, 253, 0.1) !important; /* Light blue background */
+    border: 1px solid rgba(13, 110, 253, 0.3);
+}
+
+.table-wrapper tbody tr.active-row td {
+    background-color: rgba(13, 110, 253, 0.1) !important;
+}
+
+.table-wrapper tbody tr.active-row .frozen-col {
+    background-color: rgba(13, 110, 253, 0.15) !important;
+}
+
+/* Active/clicked cell styling */
+.table-wrapper tbody td.active-cell {
+    background-color: rgba(13, 110, 253, 0.2) !important; /* Deeper highlight for clicked cell */
+    outline: 2px solid rgba(13, 110, 253, 0.5);
+    outline-offset: -2px;
+}
+
+/* Maintain hover effects on active elements */
+.table-wrapper tbody tr.active-row:hover {
+    background-color: rgba(13, 110, 253, 0.15) !important;
+}
+
+.table-wrapper tbody tr.active-row td:hover {
+    background-color: rgba(13, 110, 253, 0.25) !important;
+}
+
+/* Special styling for muted rows */
+.table tr.text-muted {
+    opacity: 0.6;
+}
+
+.table tr.text-muted:hover {
+    opacity: 1;
+}
+
+.table input.form-control-sm {
+    height: calc(1.5em + .5rem + 2px);
+    padding: .25rem .5rem;
+    font-size: .875rem;
+}
+
+/* Compact table styles for processing items */
+.table-sm td {
+    padding: 0.25rem;
+    vertical-align: middle;
+}
+
+.table-sm th {
+    padding: 0.5rem 0.25rem;
+    font-size: 0.875rem;
+    vertical-align: middle;
+}
+
+.table-sm input.form-control-sm {
+    padding: 0.1rem 0.25rem;
+    height: 26px;
+    font-size: 0.875rem;
+}
+
+.table-sm .btn-sm {
+    padding: 0.1rem 0.25rem;
+    font-size: 0.75rem;
+    line-height: 1.2;
+}
+
+/* Fixed table layout */
+table.table-fixed {
+    table-layout: fixed;
+}
+
+.text-truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Column resize handles */
+.resize-handle {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 5px;
+    cursor: col-resize;
+    user-select: none;
+    background: transparent;
+}
+
+.resize-handle:hover {
+    background-color: var(--primary-color);
+    opacity: 0.5;
+}
+
+th {
+    position: relative;
+    user-select: none;
+}
+
+/* Resizable table */
+.table-resizable {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.table-resizable th,
+.table-resizable td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Worksheet page container to prevent page-level horizontal scroll */
+.worksheet-page-container {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+    position: relative;
+}
+
+.worksheet-content-wrapper {
+    width: 100%;
+    padding: 0 15px;
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+/* Container specifically for tables to control horizontal scroll */
+.worksheet-table-container {
+    width: 100%;
+    max-width: calc(100vw - 30px);
+    margin: 0 auto;
+    position: relative;
+}
+
+/* Combined vertical and horizontal scrolling container */
+.table-wrapper {
+    max-height: calc(100vh - 300px);
+    overflow-y: auto;
+    overflow-x: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    position: relative;
+    width: 100%;
+    display: block;
+    /* Ensure frozen columns work properly */
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Always show horizontal scrollbar for better accessibility */
+.table-wrapper::-webkit-scrollbar {
+    height: 12px;
+    width: 12px;
+}
+
+.table-wrapper::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 6px;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 6px;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Ensure horizontal scrollbar is always visible when needed */
+.table-wrapper {
+    scrollbar-width: thin;
+    scrollbar-color: #888 #f1f1f1;
+}
+
+/* Ensure table takes full width for scrolling */
+.table-wrapper table {
+    width: max-content;
+    min-width: 100%;
+    margin-bottom: 0;
+}
+
+.table-wrapper thead {
+    position: -webkit-sticky;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: #f8f9fa;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.table-wrapper thead th {
+    background-color: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+}
+
+/* Frozen columns layout */
+.frozen-table-container {
+    display: flex;
+    overflow-x: auto;
+    max-height: calc(100vh - 350px);
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+}
+
+.frozen-columns {
+    flex-shrink: 0;
+    overflow-y: hidden;
+    background-color: white;
+    border-right: 2px solid #dee2e6;
+    position: sticky;
+    left: 0;
+    z-index: 5;
+}
+
+.scrollable-columns {
+    flex: 1;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.frozen-columns table,
+.scrollable-columns table {
+    margin-bottom: 0;
+}
+
+/* Synchronize scrolling */
+.frozen-wrapper {
+    overflow-y: auto;
+    max-height: calc(100vh - 350px);
+}
+
+.frozen-columns thead,
+.scrollable-columns thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: #f8f9fa;
+}
+
+.frozen-columns thead th,
+.scrollable-columns thead th {
+    background-color: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+}
+
+/* Row highlighting for alignment */
+.frozen-columns tbody tr:hover,
+.scrollable-columns tbody tr:hover {
+    background-color: #f8f9fa !important;
+}
+
+/* Ensure input fields work properly in frozen columns */
+.frozen-columns input.form-control-sm,
+.scrollable-columns input.form-control-sm {
+    background-color: white;
+}
+
+/* Sticky columns for horizontal scrolling */
+.frozen-col {
+    position: -webkit-sticky !important;
+    position: sticky !important;
+    background-color: white;
+    z-index: 2;
+    /* Prevent content shifting */
+    box-sizing: border-box;
+    overflow: visible !important; /* Changed to visible for dropdowns */
+}
+
+/* Frozen columns in the header need higher z-index */
+thead .frozen-col {
+    z-index: 11 !important;
+    background-color: #f8f9fa;
+}
+
+/* Ensure table cells maintain their width during updates */
+.table-wrapper table td,
+.table-wrapper table th {
+    box-sizing: border-box;
+    overflow: visible; /* Changed to visible for dropdowns */
+    text-overflow: ellipsis;
+}
+
+/* But keep overflow hidden for td elements to prevent content spillover */
+.table-wrapper table td {
+    overflow: hidden;
+}
+
+.frozen-col-0 {
+    /* left position will be set dynamically by JavaScript */
+    min-width: 30px;
+}
+
+.frozen-col-1 {
+    /* left position will be set dynamically by JavaScript */
+    min-width: 40px;
+}
+
+.frozen-col-2 {
+    /* left position will be set dynamically by JavaScript */
+    min-width: 50px;
+}
+
+.frozen-col-3 {
+    /* left position will be set dynamically by JavaScript */
+    min-width: 120px;
+}
+
+.frozen-col-4 {
+    /* left position will be set dynamically by JavaScript */
+    min-width: 200px;
+}
+
+.frozen-col-5 {
+    /* left position will be set dynamically by JavaScript */
+    min-width: 100px;
+}
+
+.frozen-col-6 {
+    /* left position will be set dynamically by JavaScript */
+    min-width: 100px;
+}
+
+.frozen-col-7 {
+    /* left position will be set dynamically by JavaScript */
+    min-width: 100px;
+    border-right: 2px solid #dee2e6;
+    box-shadow: 2px 0 4px rgba(0,0,0,0.1);
+}
+
+/* Shadow effect for frozen columns when scrolling */
+.table-wrapper.scrolled .frozen-col-7 {
+    box-shadow: 2px 0 4px rgba(0,0,0,0.1);
+}
+
+/* Filter row styling */
+.filter-row th {
+    padding: 4px !important;
+    background-color: #e9ecef !important;
+    border-bottom: 1px solid #dee2e6 !important;
+}
+
+.filter-row input.form-control-sm {
+    height: 24px;
+    font-size: 0.75rem;
+    padding: 2px 4px;
+}
+
+/* Ensure frozen columns work in tbody */
+tbody .frozen-col {
+    background-color: white;
+}
+
+/* Frozen columns with data attribute - highest specificity */
+.frozen-col[data-is-frozen="true"],
+th[data-is-frozen="true"],
+td[data-is-frozen="true"] {
+    position: -webkit-sticky !important;
+    position: sticky !important;
+    background-color: #f0f4f8 !important;
+    border-right: 2px solid #dee2e6;
+}
+
+/* Different background for header frozen columns */
+thead th[data-is-frozen="true"] {
+    background-color: #e8eef5 !important;
+    z-index: 11 !important;
+}
+
+/* Body frozen columns */
+tbody td[data-is-frozen="true"] {
+    background-color: #f0f4f8 !important;
+    z-index: 2 !important;
+}
+
+/* Visual indicator when hovering over frozen columns */
+tbody tr:hover td[data-is-frozen="true"] {
+    background-color: #e2eaf2 !important;
+}
+
+/* Add hover effect that works with frozen columns */
+tbody tr:hover .frozen-col {
+    background-color: #f8f9fa;
+}
+
+/* Dashboard metric cards hover effects */
+.metric-card {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.metric-card:hover {
+    transform: translateY(-3px) scale(1.05);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+    z-index: 10;
+}
+
+.metric-card:active {
+    transform: translateY(-1px) scale(1.02);
+}
+
+/* Fix dropdown positioning in worksheets */
+.worksheet-content-wrapper .dropdown {
+    position: relative;
+}
+
+.worksheet-content-wrapper .dropdown-menu {
+    position: absolute !important;
+    top: 100% !important;
+    left: auto !important;
+    right: 0 !important;
+    margin-top: 0.125rem !important;
+}
+
+/* Column filter dropdown styles */
+.dropdown-menu.show {
+    display: block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    z-index: 9999 !important;
+    pointer-events: auto !important;
+    transform: none !important;
+    transition: none !important;
+}
+
+.dropdown-menu {
+    border: 1px solid #dee2e6;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    background-color: white;
+    z-index: 9999 !important;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+/* Force dropdown visibility when attached to body */
+body > .dropdown-menu.show {
+    display: block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    z-index: 10000 !important;
+}
+
+/* Ensure dropdowns in table headers are on top */
+/* Removed position: static rule that was preventing dropdowns from showing */
+
+.dropdown-header {
+    font-weight: 600;
+    color: #495057;
+}
+
+/* Ensure dropdowns in table headers are visible */
+th .position-relative {
+    display: inline-block;
+    vertical-align: middle;
+    position: relative !important;
+}
+
+th .dropdown-menu {
+    position: absolute !important;
+    top: 100% !important;
+    left: 0 !important;
+    margin-top: 5px !important;
+    z-index: 2000 !important; /* Increased z-index */
+}
+
+/* Ensure dropdown is above frozen columns */
+.position-relative .dropdown-menu.show {
+    z-index: 2000 !important;
+    position: fixed !important; /* Use fixed positioning to escape any overflow constraints */
+}
+
+/* Style for active filter/sort indicators */
+.fas.fa-filter.text-primary,
+.fas.fa-sort-up.text-primary,
+.fas.fa-sort-down.text-primary {
+    font-size: 0.875rem;
+}
+
+/* Ensure dropdown is above sticky headers */
+.table-wrapper thead {
+    z-index: 10;
+}
+
+.table-wrapper .dropdown-menu {
+    z-index: 1050 !important;
+}
+
+/* Bundle selection styles */
+.bundle-select-checkbox {
+    cursor: pointer;
+}
+
+.table-wrapper tr.selected {
+    background-color: #e3f2fd !important;
+}
+
+.table-wrapper tr.selected:hover {
+    background-color: #bbdefb !important;
+}
+
+.selection-summary {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: var(--primary-color);
+    color: white;
+    padding: 15px 25px;
+    border-radius: 50px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    z-index: 1000;
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(100px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.selection-summary .selection-info {
+    font-weight: 500;
+}
+
+.selection-summary .btn {
+    padding: 6px 16px;
+    font-size: 0.875rem;
+}
+
+/* Bundle grouping visual indicators - removed per user request */
+
+/* Bundle badge */
+.bundle-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    background-color: var(--primary-color);
+    color: white;
+    border-radius: 12px;
+    margin-left: 8px;
+}
+
+/* Editable bundle name */
+.bundle-name-edit {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.bundle-name-edit input {
+    border: 1px solid transparent;
+    background: transparent;
+    padding: 2px 6px;
+    font-size: 0.875rem;
+    border-radius: 4px;
+}
+
+.bundle-name-edit input:hover,
+.bundle-name-edit input:focus {
+    border-color: #ddd;
+    background: white;
+}
+
+.bundle-name-edit .btn-link {
+    padding: 0;
+    font-size: 0.75rem;
+    color: #6c757d;
+}
+
+/* Highlight flash animation */
+.highlight-flash {
+    animation: flash 0.6s ease-in-out 3;
+}
+
+@keyframes flash {
+    0%, 100% { background-color: transparent; }
+    50% { background-color: #fff3cd; }
+}
+
+/* Floating horizontal scroll helper */
+.horizontal-scroll-helper {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.875rem;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    z-index: 1000;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.horizontal-scroll-helper:hover {
+    background-color: rgba(0, 0, 0, 0.9);
+    transform: translateX(-50%) scale(1.05);
+}
+
+.horizontal-scroll-helper.show {
+    display: flex;
+}
+
+/* Alternative: Sticky horizontal scrollbar at bottom of viewport */
+.table-wrapper-container {
+    position: relative;
+}
+
+.sticky-horizontal-scroll {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 20px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    background-color: rgba(255, 255, 255, 0.95);
+    border-top: 1px solid #dee2e6;
+    z-index: 100;
+    display: none;
+}
+
+.sticky-horizontal-scroll-inner {
+    height: 1px;
+}
+
+.table-wrapper.has-horizontal-scroll ~ .sticky-horizontal-scroll {
+    display: block;
+}
+
+/* Image upload zone styles */
+.upload-zone {
+    transition: all 0.3s ease;
+    min-height: 200px;
+}
+
+.upload-zone:hover {
+    background-color: #e3f2fd !important;
+    border-color: var(--primary-color) !important;
+}
+
+.upload-zone.dragging {
+    background-color: #e3f2fd !important;
+    border-color: var(--primary-color) !important;
+    box-shadow: 0 0 10px rgba(13, 110, 253, 0.3);
+}
+
+/* Image thumbnail styles */
+.img-thumbnail {
+    object-fit: cover;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.img-thumbnail:hover {
+    transform: scale(1.1);
+}
+
+/* Column reordering styles */
+.column-drag-handle {
+    cursor: grab !important;
+    opacity: 0.5;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    margin-right: 8px;
+    font-size: 14px;
+    color: #6c757d;
+    display: inline-block;
+    width: 24px;
+    text-align: center;
+    flex-shrink: 0;
+    user-select: none;
+    -webkit-user-drag: element;
+    vertical-align: middle;
+    font-weight: bold;
+    letter-spacing: -2px;
+}
+
+.column-drag-handle:hover {
+    opacity: 1;
+    color: #0d6efd;
+}
+
+.column-drag-handle:active {
+    cursor: grabbing !important;
+}
+
+/* Frozen column visual indicators */
+.frozen-col[data-is-frozen="true"],
+th[data-is-frozen="true"],
+td[data-is-frozen="true"] {
+    background-color: #f0f4f8 !important;
+    border-right: 2px solid #dee2e6;
+}
+
+thead .frozen-col[data-is-frozen="true"] {
+    background-color: #e8eef5 !important;
+    font-weight: 600;
+}
+
+/* Frozen column hover effects */
+.frozen-col[data-is-frozen="true"]:hover .column-drag-handle {
+    cursor: not-allowed !important;
+    opacity: 0.3 !important;
+}
+
+.frozen-col[data-is-frozen="true"] .resize-handle:hover {
+    cursor: not-allowed !important;
+    background-color: transparent !important;
+}
+
+th:hover .column-drag-handle {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+th.dragging {
+    opacity: 0.5 !important;
+    background-color: #f5f5f5 !important;
+    position: relative;
+    z-index: 20;
+}
+
+th.dragging::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(13, 110, 253, 0.1);
+    pointer-events: none;
+}
+
+/* Removed drag-over highlighting - using only drop indicator */
+/* th.drag-over {
+    background-color: #e3f2fd !important;
+    transform: scale(1.02);
+} */
+
+.column-drop-indicator {
+    position: fixed;
+    width: 6px;
+    background: #0d6efd;
+    box-shadow: 0 0 10px rgba(13, 110, 253, 0.8), 0 0 20px rgba(13, 110, 253, 0.5);
+    z-index: 10000;
+    pointer-events: none;
+    border-radius: 3px;
+    animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scaleX(1);
+    }
+    50% {
+        opacity: 0.8;
+        transform: scaleX(1.2);
+    }
+}
+
+/* Smooth transitions during drag */
+.table-wrapper.dragging-active th {
+    transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.table-wrapper.dragging-active td {
+    transition: transform 0.2s ease;
+}
+
+/* Visual feedback for auto-scroll zones */
+.table-wrapper.dragging-active::before,
+.table-wrapper.dragging-active::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 100px;
+    pointer-events: none;
+    z-index: 100;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.table-wrapper.dragging-active::before {
+    left: 0;
+    background: linear-gradient(90deg, rgba(13, 110, 253, 0.1) 0%, transparent 100%);
+}
+
+.table-wrapper.dragging-active::after {
+    right: 0;
+    background: linear-gradient(-90deg, rgba(13, 110, 253, 0.1) 0%, transparent 100%);
+}
+
+/* Show scroll zones when dragging near edges */
+.table-wrapper.dragging-active:hover::before,
+.table-wrapper.dragging-active:hover::after {
+    opacity: 1;
+}
+
+/* Disable text selection during drag */
+.dragging * {
+    user-select: none;
+}
+
+/* Style for reorderable headers */
+th[draggable="true"] {
+    position: relative;
+    transition: background-color 0.2s;
+    white-space: nowrap;
+}
+
+th[draggable="true"]:hover {
+    background-color: #f0f0f0;
+}
+
+/* Ensure headers maintain structure during drag */
+.table-wrapper th {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Prevent column expansion during drag */
+.table-wrapper.dragging-active th {
+    width: auto !important;
+    min-width: 0 !important;
+}
+
+/* Mobile touch support */
+@media (max-width: 768px) {
+    .column-drag-handle {
+        font-size: 1em;
+        margin-right: 8px;
+    }
+}
+
+/* Bundle drag and drop styles */
+.row-drag-handle {
+    cursor: grab;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+    margin-right: 5px;
+    font-size: 0.9em;
+    color: #6c757d;
+    display: inline-block;
+    width: 16px;
+    text-align: center;
+}
+
+.row-drag-handle:hover {
+    opacity: 1;
+    color: #0d6efd;
+}
+
+.row-drag-handle:active {
+    cursor: grabbing;
+}
+
+.draggable-row {
+    transition: background-color 0.2s;
+}
+
+.draggable-row:hover .row-drag-handle {
+    opacity: 1;
+}
+
+.draggable-row.dragging {
+    opacity: 0.5;
+    background-color: #e3f2fd !important;
+}
+
+/* Bundle drop zones */
+.bundle-drop-zone {
+    position: relative;
+    transition: all 0.2s;
+}
+
+.bundle-drop-zone.drop-zone-active {
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+.bundle-drop-zone.drop-zone-hover {
+    background-color: rgba(13, 110, 253, 0.15) !important;
+    border: 2px dashed #0d6efd;
+    box-shadow: 0 0 10px rgba(13, 110, 253, 0.3);
+}
+
+.bundle-drop-zone.drop-zone-hover::after {
+    content: "Drop here to assign to bundle";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #0d6efd;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+/* Table view controls */
+.table-view-controls {
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-radius: 0.375rem;
+    border: 1px solid #dee2e6;
+    margin-bottom: 1rem;
+}
+
+.table-view-controls .input-group-sm .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+.table-view-controls .form-select-sm {
+    min-width: 200px;
+}
+
+.table-view-controls .form-check-label {
+    font-size: 0.875rem;
+    user-select: none;
+    cursor: pointer;
+}
+
+/* View selector styling */
+#viewSelector option[value=""] {
+    font-style: italic;
+}
+
+/* Enhanced table class for identification */
+.enhanced-table {
+    position: relative;
+}
+
+/* Toast notification override for view operations */
+.toast-container .toast.bg-success {
+    background-color: rgba(25, 135, 84, 0.95) !important;
+}
+
+.toast-container .toast.bg-danger {
+    background-color: rgba(220, 53, 69, 0.95) !important;
+}
+
+/* Column drag and drop visual feedback */
+.dragging {
+    opacity: 0.5;
+    cursor: move;
+}
+
+.drag-over {
+    background-color: rgba(13, 110, 253, 0.1);
+}
+
+.drag-over-left {
+    border-left: 3px solid #0d6efd;
+}
+
+.drag-over-right {
+    border-right: 3px solid #0d6efd;
+}
+
+/* Frozen column shadow effect */
+.frozen-col.frozen-shadow {
+    box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Ensure frozen columns have proper background */
+.frozen-col {
+    background-color: #fff;
+    position: sticky;
+    z-index: 10;
+}
+
+thead .frozen-col {
+    background-color: #f8f9fa;
+}
+
+/* Column control dropdown */
+#columnControlDropdown {
+    max-height: 500px;
+}
+
+.column-control-list {
+    max-height: 350px;
+    overflow-y: auto;
+}
+
+.column-control-item {
+    transition: background-color 0.2s;
+}
+
+.column-control-item:hover {
+    background-color: #f8f9fa;
+}
+
+.column-control-item .btn-light {
+    border: 1px solid #dee2e6;
+    padding: 0.1rem 0.3rem;
+}
+
+.column-control-item .btn-light:hover:not(:disabled) {
+    background-color: #e9ecef;
+}
+
+.column-control-item .btn-light.active {
+    background-color: #e3f2fd;
+    border-color: #0d6efd;
+}
+
+.column-control-item .form-check {
+    min-width: 20px;
+}
+
+/* Enhanced table button group styling */
+.table-view-controls .btn-group {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.table-view-controls .dropdown {
+    display: inline-block;
+}

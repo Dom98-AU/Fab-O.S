@@ -1,0 +1,92 @@
+@page "/testdb"
+@using Microsoft.EntityFrameworkCore
+@using SteelEstimation.Infrastructure.Data
+@inject ApplicationDbContext DbContext
+@inject IConfiguration Configuration
+
+<h3>Database Connection Test</h3>
+
+<div class="card">
+    <div class="card-body">
+        @if (isLoading)
+        {
+            <p>Testing database connection...</p>
+        }
+        else
+        {
+            <pre class="border p-3">@results</pre>
+        }
+        <a href="/" class="btn btn-primary mt-3">Home</a>
+    </div>
+</div>
+
+@code {
+    private bool isLoading = true;
+    private string results = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var sb = new System.Text.StringBuilder();
+        
+        try
+        {
+            if (DbContext == null)
+            {
+                sb.AppendLine("ERROR: ApplicationDbContext not registered!");
+            }
+            else
+            {
+                sb.AppendLine("1. DbContext: OK");
+                
+                var connectionString = Configuration.GetConnectionString("DefaultConnection");
+                sb.AppendLine($"2. Connection String: {connectionString?.Replace("Password=", "Password=***")}");
+                
+                try
+                {
+                    sb.AppendLine("3. Testing connection...");
+                    var canConnect = await DbContext.Database.CanConnectAsync();
+                    sb.AppendLine($"   Can Connect: {canConnect}");
+                    
+                    if (canConnect)
+                    {
+                        var userCount = await DbContext.Users.CountAsync();
+                        sb.AppendLine($"4. User Count: {userCount}");
+                        
+                        var adminUser = await DbContext.Users.FirstOrDefaultAsync(u => u.Email == "admin@steelestimation.com");
+                        sb.AppendLine($"5. Admin User Exists: {(adminUser != null ? "Yes" : "No")}");
+                        
+                        if (adminUser != null)
+                        {
+                            sb.AppendLine($"   - ID: {adminUser.Id}");
+                            sb.AppendLine($"   - Email: {adminUser.Email}");
+                            sb.AppendLine($"   - IsActive: {adminUser.IsActive}");
+                            sb.AppendLine($"   - Password Hash Length: {adminUser.PasswordHash?.Length ?? 0}");
+                        }
+                    }
+                }
+                catch (Exception dbEx)
+                {
+                    sb.AppendLine($"ERROR: {dbEx.GetType().FullName}");
+                    sb.AppendLine($"Message: {dbEx.Message}");
+                    
+                    var inner = dbEx.InnerException;
+                    int level = 1;
+                    while (inner != null && level <= 3)
+                    {
+                        sb.AppendLine($"Inner {level}: {inner.GetType().FullName}");
+                        sb.AppendLine($"Inner {level} Message: {inner.Message}");
+                        inner = inner.InnerException;
+                        level++;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            sb.AppendLine($"GENERAL ERROR: {ex.Message}");
+        }
+        
+        results = sb.ToString();
+        isLoading = false;
+    }
+}

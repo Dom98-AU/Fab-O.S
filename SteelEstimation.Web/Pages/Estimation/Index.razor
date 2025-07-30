@@ -1,0 +1,1098 @@
+@page "/estimation"
+@page "/estimation/{EstimationId:int}"
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@using System.ComponentModel.DataAnnotations
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@inject IAuthenticationService AuthService
+
+<PageTitle>Estimations - Steel Estimation Platform</PageTitle>
+
+<style>
+    /* Small tiles view */
+    .small-tile .card-body {
+        padding: 0.75rem !important;
+    }
+    
+    .small-tile .card-body h6 {
+        font-size: 0.875rem;
+    }
+    
+    .small-tile .badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+    
+    /* List view hover effect */
+    .table-hover tbody tr:hover {
+        cursor: pointer;
+        background-color: rgba(0,0,0,0.02);
+    }
+    
+    /* View mode buttons */
+    .btn-group .btn {
+        padding: 0.375rem 0.75rem;
+    }
+    
+    /* Package metrics in preview */
+    .metric-column {
+        text-align: right;
+    }
+    
+    /* Make cards clickable looking */
+    .card:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        transition: box-shadow 0.3s ease;
+    }
+</style>
+
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item active" aria-current="page">
+            <i class="fas fa-folder-open me-1"></i>
+            Estimations
+        </li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="mb-0">Estimations</h1>
+    @if (EstimationId == null)
+    {
+        <TimeTracker EstimationId="0" PageName="Estimation List" />
+    }
+</div>
+
+@if (EstimationId == null)
+{
+    <div class="row mb-3">
+        <div class="col">
+            <button class="btn btn-primary" @onclick="CreateNewEstimation">
+                <i class="fas fa-plus me-2"></i>New Estimation
+            </button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        <input type="text" class="form-control" placeholder="Search estimations..."
+                               @bind="searchTerm" @bind:event="oninput" />
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" @bind="filterStage">
+                        <option value="">All Stages</option>
+                        <option value="Preliminary">Preliminary</option>
+                        <option value="Budget">Budget</option>
+                        <option value="Detailed">Detailed</option>
+                        <option value="Final">Final</option>
+                        <option value="Approved">Approved</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" @bind="filterDateRange">
+                        <option value="">All Time</option>
+                        <option value="today">Today</option>
+                        <option value="week">This Week</option>
+                        <option value="month">This Month</option>
+                        <option value="quarter">This Quarter</option>
+                        <option value="year">This Year</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" @bind="filterStatus">
+                        <option value="">All Status</option>
+                        <option value="active">Active</option>
+                        <option value="onhold">On Hold</option>
+                        <option value="completed">Completed</option>
+                    </select>
+                </div>
+                <div class="col-md-2 text-end">
+                    <button class="btn btn-outline-secondary" @onclick="RefreshData" title="Refresh">
+                        <i class="fas fa-sync-alt @(_isRefreshing ? "fa-spin" : "")"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary ms-2" @onclick="ExportData" title="Export" disabled>
+                        <i class="fas fa-download"></i>
+                    </button>
+                </div>
+            </div>
+
+            @if (_isLoading)
+            {
+                <div class="text-center p-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            }
+            else if (!filteredEstimations.Any())
+            {
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    @if (!string.IsNullOrWhiteSpace(searchTerm) || !string.IsNullOrEmpty(filterStage) || !string.IsNullOrEmpty(filterDateRange))
+                    {
+                        <span>No estimations found matching your filters. Try adjusting your search criteria.</span>
+                    }
+                    else
+                    {
+                        <span>No estimations found. Click "New Estimation" to create your first estimation.</span>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th @onclick="@(() => SortBy("JobNumber"))" style="cursor: pointer;">
+                                    Job Number
+                                    @if (sortField == "JobNumber")
+                                    {
+                                        <i class="fas fa-sort-@(sortAscending ? "up" : "down") ms-1"></i>
+                                    }
+                                </th>
+                                <th @onclick="@(() => SortBy("ProjectName"))" style="cursor: pointer;">
+                                    Estimation Name
+                                    @if (sortField == "ProjectName")
+                                    {
+                                        <i class="fas fa-sort-@(sortAscending ? "up" : "down") ms-1"></i>
+                                    }
+                                </th>
+                                <th>Customer</th>
+                                <th>Stage</th>
+                                <th class="text-end">Hours</th>
+                                <th class="text-end">Tonnage</th>
+                                <th @onclick="@(() => SortBy("LastModified"))" style="cursor: pointer;">
+                                    Last Modified
+                                    @if (sortField == "LastModified")
+                                    {
+                                        <i class="fas fa-sort-@(sortAscending ? "up" : "down") ms-1"></i>
+                                    }
+                                </th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var estimation in pagedEstimations)
+                            {
+                                <tr @onclick="() => ViewEstimation(estimation.Id)" style="cursor: pointer;">
+                                    <td>
+                                        <code>@estimation.JobNumber</code>
+                                    </td>
+                                    <td>
+                                        <strong>@estimation.ProjectName</strong>
+                                        @if (!string.IsNullOrEmpty(estimation.Description))
+                                        {
+                                            <br />
+                                            <small class="text-muted">@(estimation.Description.Length > 50 ? estimation.Description.Substring(0, 50) + "..." : estimation.Description)</small>
+                                        }
+                                    </td>
+                                    <td>@(estimation.CustomerName ?? "-")</td>
+                                    <td>
+                                        <span class="badge bg-@GetStageColor(estimation.Stage)">@estimation.Stage</span>
+                                    </td>
+                                    <td class="text-end">
+                                        @if (estimation.TotalHours > 0)
+                                        {
+                                            <span>@estimation.TotalHours.ToString("N1")</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                    <td class="text-end">
+                                        @if (estimation.TotalTonnage > 0)
+                                        {
+                                            <span>@estimation.TotalTonnage.ToString("N1")t</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <span title="@estimation.LastModified.ToString("yyyy-MM-dd HH:mm")">
+                                            @estimation.LastModified.ToString("MMM dd, yyyy")
+                                        </span>
+                                    </td>
+                                    <td @onclick:stopPropagation="true">
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <a href="/estimation/@estimation.Id" class="btn btn-outline-primary" title="Edit">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <button class="btn btn-outline-info" @onclick="() => ViewDashboard(estimation.Id)" title="Dashboard">
+                                                <i class="fas fa-chart-line"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger" @onclick="() => DeleteEstimation(estimation)" title="Delete">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @if (totalPages > 1)
+                {
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <span class="text-muted">
+                            Showing @((currentPage - 1) * pageSize + 1) to @Math.Min(currentPage * pageSize, filteredEstimations.Count()) of @filteredEstimations.Count() estimations
+                        </span>
+                        <nav aria-label="Estimation pagination">
+                            <ul class="pagination mb-0">
+                                <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                                    <button class="page-link" @onclick="() => ChangePage(currentPage - 1)">
+                                        Previous
+                                    </button>
+                                </li>
+                                @for (int i = Math.Max(1, currentPage - 2); i <= Math.Min(totalPages, currentPage + 2); i++)
+                                {
+                                    var pageNum = i;
+                                    <li class="page-item @(currentPage == pageNum ? "active" : "")">
+                                        <button class="page-link" @onclick="() => ChangePage(pageNum)">
+                                            @pageNum
+                                        </button>
+                                    </li>
+                                }
+                                <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                                    <button class="page-link" @onclick="() => ChangePage(currentPage + 1)">
+                                        Next
+                                    </button>
+                                </li>
+                            </ul>
+                        </nav>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+}
+else
+{
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/estimation">Estimations</a></li>
+            <li class="breadcrumb-item active" aria-current="page">@currentEstimation?.ProjectName</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="mb-0">@currentEstimation?.ProjectName</h2>
+        <TimeTracker EstimationId="@EstimationId.Value" PageName="Estimation Details" />
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Estimation Details</h5>
+            <div>
+                @if (isEditingDetails)
+                {
+                    <button class="btn btn-sm btn-success me-2" @onclick="SaveEstimationDetails">
+                        <i class="fas fa-save"></i> Save
+                    </button>
+                    <button class="btn btn-sm btn-secondary" @onclick="CancelEditDetails">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                }
+                else
+                {
+                    <button class="btn btn-sm btn-outline-primary" @onclick="StartEditDetails">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                    <a href="/estimation/@EstimationId/dashboard" class="btn btn-sm btn-outline-info ms-2">
+                        <i class="fas fa-chart-line"></i> Dashboard
+                    </a>
+                }
+            </div>
+        </div>
+        <div class="card-body">
+            @if (isEditingDetails && currentEstimation != null)
+            {
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Project Name</label>
+                        <input type="text" class="form-control" @bind="editProjectName" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Job Number</label>
+                        <input type="text" class="form-control" @bind="editJobNumber" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Customer</label>
+                        <select class="form-select" @bind="editCustomerId">
+                            <option value="">Select Customer</option>
+                            @if (customers != null)
+                            {
+                                @foreach (var customer in customers.OrderBy(c => c.CompanyName))
+                                {
+                                    <option value="@customer.Id">@customer.CompanyName</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Stage</label>
+                        <select class="form-select" @bind="editStage">
+                            <option value="Concept">Concept</option>
+                            <option value="Budget">Budget</option>
+                            <option value="Tender">Tender</option>
+                            <option value="Contract">Contract</option>
+                            <option value="Complete">Complete</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Estimated Hours</label>
+                        <input type="number" class="form-control" @bind="editEstimatedHours" step="0.5" min="0" placeholder="e.g. 40" />
+                        <small class="text-muted">Expected time to complete</small>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Target Completion</label>
+                        <input type="date" class="form-control" @bind="editEstimatedCompletionDate" />
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" @bind="editDescription" rows="2"></textarea>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="row">
+                    <div class="col-md-4">
+                        <strong>Project Name:</strong> @(currentEstimation?.ProjectName ?? "Loading...")
+                    </div>
+                    <div class="col-md-4">
+                        <strong>Job Number:</strong> @(currentEstimation?.JobNumber ?? "Loading...")
+                    </div>
+                    <div class="col-md-4">
+                        <strong>Customer:</strong> @(currentEstimation?.CustomerName ?? "Loading...")
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-md-4">
+                        <strong>Stage:</strong> <span class="badge bg-info">@(currentEstimation?.Stage ?? "Loading...")</span>
+                    </div>
+                    <div class="col-md-4">
+                        @if (currentEstimation?.EstimatedHours.HasValue == true)
+                        {
+                            <strong>Estimated Hours:</strong> @currentEstimation.EstimatedHours.Value.ToString("N1")
+                        }
+                    </div>
+                    <div class="col-md-4">
+                        @if (currentEstimation?.EstimatedCompletionDate.HasValue == true)
+                        {
+                            <strong>Target Date:</strong> @currentEstimation.EstimatedCompletionDate.Value.ToString("yyyy-MM-dd")
+                        }
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-md-12">
+                        @if (!string.IsNullOrWhiteSpace(currentEstimation?.Description))
+                        {
+                            <strong>Description:</strong> @currentEstimation.Description
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3>Packages</h3>
+        <div class="d-flex gap-2">
+            <div class="btn-group" role="group">
+                <button class="btn btn-sm @(packageViewMode == "tiles" ? "btn-secondary" : "btn-outline-secondary")" 
+                        @onclick="@(() => SetViewMode("tiles"))" title="Big Tiles">
+                    <i class="fas fa-th-large"></i>
+                </button>
+                <button class="btn btn-sm @(packageViewMode == "small-tiles" ? "btn-secondary" : "btn-outline-secondary")" 
+                        @onclick="@(() => SetViewMode("small-tiles"))" title="Small Tiles">
+                    <i class="fas fa-th"></i>
+                </button>
+                <button class="btn btn-sm @(packageViewMode == "list" ? "btn-secondary" : "btn-outline-secondary")" 
+                        @onclick="@(() => SetViewMode("list"))" title="List">
+                    <i class="fas fa-list"></i>
+                </button>
+                <button class="btn btn-sm @(packageViewMode == "list-preview" ? "btn-secondary" : "btn-outline-secondary")" 
+                        @onclick="@(() => SetViewMode("list-preview"))" title="List with Preview">
+                    <i class="fas fa-list-ul"></i>
+                </button>
+            </div>
+            <button class="btn btn-primary" @onclick="AddPackage">
+                <i class="fas fa-plus"></i> Create Package
+            </button>
+        </div>
+    </div>
+
+    @if (packages.Count == 0)
+    {
+        <div class="card">
+            <div class="card-body text-center text-muted py-5">
+                <i class="fas fa-box fa-3x mb-3"></i>
+                <p>No packages created yet.</p>
+                <p>Packages help organize your estimation into logical groups with their own worksheets.</p>
+                <button class="btn btn-primary" @onclick="AddPackage">
+                    <i class="fas fa-plus"></i> Create Your First Package
+                </button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            @foreach (var package in packages)
+            {
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">@package.PackageNumber</h6>
+                            <span class="badge bg-@GetStatusColor(package.Status)">@package.Status</span>
+                        </div>
+                        <div class="card-body">
+                            <h5 class="card-title">@package.PackageName</h5>
+                            @if (!string.IsNullOrWhiteSpace(package.Description))
+                            {
+                                <p class="card-text small text-muted">@package.Description</p>
+                            }
+                            <div class="mb-2">
+                                <small class="text-muted d-block">
+                                    <i class="fas fa-file-alt"></i> @package.Worksheets.Count worksheets
+                                </small>
+                                @{
+                                    var processingItems = package.Worksheets.SelectMany(w => w.ProcessingItems).ToList();
+                                    var weldingItems = package.Worksheets.SelectMany(w => w.WeldingItems).ToList();
+                                    var totalItems = processingItems.Count + weldingItems.Count;
+                                    var processingHours = processingItems.Where(p => p.Quantity > 0).Sum(p => p.TotalProcessingMinutes / 60m);
+                                    var weldingHours = weldingItems.Where(w => w.ItemConnections.Any()).Sum(w => w.TotalWeldingMinutes / 60m);
+                                    var totalHours = processingHours + weldingHours;
+                                }
+                                @if (totalItems > 0)
+                                {
+                                    <small class="text-muted d-block">
+                                        <i class="fas fa-list"></i> @totalItems items
+                                    </small>
+                                    <small class="text-muted d-block">
+                                        <i class="fas fa-clock"></i> @totalHours.ToString("N1") hours
+                                    </small>
+                                }
+                            </div>
+                            @if (package.StartDate.HasValue || package.EndDate.HasValue)
+                            {
+                                <div class="mb-2">
+                                    <small class="text-muted">
+                                        @if (package.StartDate.HasValue)
+                                        {
+                                            <span>Start: @package.StartDate.Value.ToString("MMM dd, yyyy")</span>
+                                        }
+                                        @if (package.StartDate.HasValue && package.EndDate.HasValue)
+                                        {
+                                            <span> - </span>
+                                        }
+                                        @if (package.EndDate.HasValue)
+                                        {
+                                            <span>End: @package.EndDate.Value.ToString("MMM dd, yyyy")</span>
+                                        }
+                                    </small>
+                                </div>
+                            }
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-outline-primary" @onclick="() => EditPackage(package)">
+                                    <i class="fas fa-edit"></i> Edit
+                                </button>
+                                <button class="btn btn-primary" @onclick="() => ViewPackageWorksheets(package)">
+                                    <i class="fas fa-file-alt me-1"></i> Worksheets
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeletePackage(package)">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}
+
+<SteelEstimation.Web.Pages.Package.PackageModal IsVisible="showPackageModal"
+                                                IsEdit="isEditPackage" 
+                                                EditPackage="selectedPackage"
+                                                ProjectId="@(EstimationId ?? 0)"
+                                                OnSave="OnPackageSaved"
+                                                OnCancel="ClosePackageModal" />
+
+@code {
+    [Parameter] public int? EstimationId { get; set; }
+    
+    private List<EstimationDto> estimations = new();
+    private EstimationDto? currentEstimation;
+    private List<Package> packages = new();
+    
+    // Package modal state
+    private bool showPackageModal = false;
+    private bool isEditPackage = false;
+    private Package? selectedPackage = null;
+    
+    // Search and filter state
+    private string searchTerm = "";
+    private string filterStage = "";
+    private string filterDateRange = "";
+    private string filterStatus = "";
+    private string sortField = "LastModified";
+    private bool sortAscending = false;
+    private int currentPage = 1;
+    private int pageSize = 20;
+    private bool _isLoading = false;
+    private bool _isRefreshing = false;
+    
+    // Edit details state
+    private bool isEditingDetails = false;
+    private string editProjectName = "";
+    private string editJobNumber = "";
+    private int? editCustomerId;
+    private string editStage = "";
+    private string editDescription = "";
+    private decimal? editEstimatedHours;
+    private DateTime? editEstimatedCompletionDate;
+    private List<Customer>? customers;
+    private int? companyId;
+    
+    // View mode state
+    private string packageViewMode = "tiles";
+    
+    // Filtering and sorting computed properties
+    private IEnumerable<EstimationDto> filteredEstimations => estimations.Where(e =>
+        (string.IsNullOrWhiteSpace(searchTerm) ||
+         e.JobNumber.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+         e.ProjectName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+         e.CustomerName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)) &&
+        (string.IsNullOrEmpty(filterStage) || e.Stage == filterStage) &&
+        (string.IsNullOrEmpty(filterStatus) || 
+         (filterStatus == "active" && e.Status == "Active") ||
+         (filterStatus == "onhold" && e.Status == "On Hold") ||
+         (filterStatus == "completed" && e.Status == "Completed")) &&
+        (string.IsNullOrEmpty(filterDateRange) || IsInDateRange(e.LastModified, filterDateRange))
+    );
+    
+    private IEnumerable<EstimationDto> sortedEstimations => sortField switch
+    {
+        "JobNumber" => sortAscending ? 
+            filteredEstimations.OrderBy(e => e.JobNumber) : 
+            filteredEstimations.OrderByDescending(e => e.JobNumber),
+        "ProjectName" => sortAscending ? 
+            filteredEstimations.OrderBy(e => e.ProjectName) : 
+            filteredEstimations.OrderByDescending(e => e.ProjectName),
+        "LastModified" => sortAscending ? 
+            filteredEstimations.OrderBy(e => e.LastModified) : 
+            filteredEstimations.OrderByDescending(e => e.LastModified),
+        _ => filteredEstimations.OrderByDescending(e => e.LastModified)
+    };
+    
+    private IEnumerable<EstimationDto> pagedEstimations => sortedEstimations
+        .Skip((currentPage - 1) * pageSize)
+        .Take(pageSize);
+    
+    private int totalPages => (int)Math.Ceiling((double)filteredEstimations.Count() / pageSize);
+
+    protected override async Task OnInitializedAsync()
+    {
+        companyId = await AuthService.GetUserCompanyIdAsync();
+        await LoadData();
+        await LoadCustomers();
+    }
+    
+    private async Task LoadCustomers()
+    {
+        using var context = await DbContextFactory.CreateDbContextAsync();
+        customers = await context.Customers
+            .Where(c => c.CompanyId == companyId && c.IsActive)
+            .OrderBy(c => c.CompanyName)
+            .ToListAsync();
+    }
+    
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadData();
+    }
+    
+    private async Task LoadData()
+    {
+        try
+        {
+            using var context = await DbContextFactory.CreateDbContextAsync();
+            
+            if (EstimationId == null)
+            {
+                // Get current user's company ID
+                var companyId = await AuthService.GetUserCompanyIdAsync();
+                
+                // Load all estimations for the list view
+                _isLoading = true;
+                StateHasChanged();
+                
+                var projects = await context.Projects
+                    .Include(p => p.Customer)
+                    .Include(p => p.Packages)
+                        .ThenInclude(pkg => pkg.Worksheets)
+                            .ThenInclude(ws => ws.ProcessingItems)
+                    .Include(p => p.Packages)
+                        .ThenInclude(pkg => pkg.Worksheets)
+                            .ThenInclude(ws => ws.WeldingItems)
+                    .Where(p => !p.IsDeleted)
+                    .OrderByDescending(p => p.LastModified)
+                    .ToListAsync();
+                
+                estimations = projects.Select(p => {
+                    var processingHours = p.Packages
+                        .Where(pkg => !pkg.IsDeleted)
+                        .SelectMany(pkg => pkg.Worksheets)
+                        .SelectMany(ws => ws.ProcessingItems)
+                        .Sum(pi => pi.TotalProcessingMinutes) / 60m;
+                    
+                    var weldingHours = p.Packages
+                        .Where(pkg => !pkg.IsDeleted)
+                        .SelectMany(pkg => pkg.Worksheets)
+                        .SelectMany(ws => ws.WeldingItems)
+                        .Sum(wi => wi.TotalWeldingMinutes) / 60m;
+                    
+                    var processingTonnage = p.Packages
+                        .Where(pkg => !pkg.IsDeleted)
+                        .SelectMany(pkg => pkg.Worksheets)
+                        .SelectMany(ws => ws.ProcessingItems)
+                        .Sum(pi => pi.TotalWeight) / 1000m;
+                    
+                    var weldingTonnage = p.Packages
+                        .Where(pkg => !pkg.IsDeleted)
+                        .SelectMany(pkg => pkg.Worksheets)
+                        .SelectMany(ws => ws.WeldingItems)
+                        .Sum(wi => wi.Weight) / 1000m;
+                    
+                    return new EstimationDto
+                    {
+                        Id = p.Id,
+                        JobNumber = p.JobNumber,
+                        ProjectName = p.ProjectName,
+                        CustomerId = p.CustomerId,
+                        CustomerName = p.Customer != null ? p.Customer.CompanyName : "N/A",
+                        Stage = p.EstimationStage ?? "Preliminary",
+                        Description = p.Description,
+                        Created = p.CreatedDate,
+                        LastModified = p.LastModified,
+                        EstimatedHours = p.EstimatedHours,
+                        EstimatedCompletionDate = p.EstimatedCompletionDate,
+                        TotalHours = processingHours + weldingHours,
+                        TotalTonnage = processingTonnage + weldingTonnage,
+                        Status = DetermineStatus(p)
+                    };
+                }).ToList();
+            }
+            else
+            {
+                // Load specific estimation
+                var project = await context.Projects
+                    .Include(p => p.Customer)
+                    .FirstOrDefaultAsync(p => p.Id == EstimationId.Value && !p.IsDeleted);
+                    
+                if (project != null)
+                {
+                    currentEstimation = new EstimationDto 
+                    { 
+                        Id = project.Id,
+                        JobNumber = project.JobNumber,
+                        ProjectName = project.ProjectName,
+                        CustomerId = project.CustomerId,
+                        CustomerName = project.Customer != null ? project.Customer.CompanyName : "N/A",
+                        Stage = project.EstimationStage ?? "Preliminary",
+                        Description = project.Description,
+                        Created = project.CreatedDate,
+                        EstimatedHours = project.EstimatedHours,
+                        EstimatedCompletionDate = project.EstimatedCompletionDate
+                    };
+                    
+                    // Load packages with worksheets and their items
+                    packages = await context.Packages
+                        .Include(p => p.Worksheets)
+                            .ThenInclude(w => w.ProcessingItems)
+                        .Include(p => p.Worksheets)
+                            .ThenInclude(w => w.WeldingItems)
+                        .Where(p => p.ProjectId == EstimationId.Value && !p.IsDeleted)
+                        .OrderBy(p => p.CreatedDate)
+                        .ToListAsync();
+                }
+                else
+                {
+                    Navigation.NavigateTo("/estimation");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading estimations: {ex.Message}");
+            
+            if (EstimationId == null)
+            {
+                estimations = new List<EstimationDto>();
+            }
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CreateNewEstimation()
+    {
+        Navigation.NavigateTo("/estimation/new");
+    }
+    
+    // Package management methods
+    private void AddPackage()
+    {
+        selectedPackage = null;
+        isEditPackage = false;
+        showPackageModal = true;
+    }
+    
+    private void EditPackage(Package package)
+    {
+        selectedPackage = package;
+        isEditPackage = true;
+        showPackageModal = true;
+    }
+    
+    private async Task DeletePackage(Package package)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", $"Are you sure you want to delete package '{package.PackageName}'?");
+        if (confirmed)
+        {
+            try
+            {
+                using var context = await DbContextFactory.CreateDbContextAsync();
+                var packageToDelete = await context.Packages.FindAsync(package.Id);
+                if (packageToDelete != null)
+                {
+                    packageToDelete.IsDeleted = true;
+                    packageToDelete.LastModified = DateTime.UtcNow;
+                    await context.SaveChangesAsync();
+                    packages.Remove(package);
+                    StateHasChanged();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error deleting package: {ex.Message}");
+            }
+        }
+    }
+    
+    private void ViewPackageWorksheets(Package package)
+    {
+        // Navigate to package worksheet view
+        Navigation.NavigateTo($"/estimation/{EstimationId}/package/{package.Id}/worksheets");
+    }
+    
+    private async Task OnPackageSaved(Package savedPackage)
+    {
+        showPackageModal = false;
+        await LoadData(); // Reload to get updated packages
+    }
+    
+    private void ClosePackageModal()
+    {
+        showPackageModal = false;
+        selectedPackage = null;
+    }
+    
+    private string GetStatusColor(string status)
+    {
+        return status switch
+        {
+            "Active" => "success",
+            "Completed" => "primary",
+            "On Hold" => "warning",
+            "Draft" => "secondary",
+            _ => "secondary"
+        };
+    }
+    
+    private void StartEditDetails()
+    {
+        if (currentEstimation != null)
+        {
+            isEditingDetails = true;
+            editProjectName = currentEstimation.ProjectName;
+            editJobNumber = currentEstimation.JobNumber;
+            editCustomerId = currentEstimation.CustomerId;
+            editStage = currentEstimation.Stage;
+            
+            // Load additional fields from the project entity
+            Task.Run(async () =>
+            {
+                using var context = await DbContextFactory.CreateDbContextAsync();
+                var project = await context.Projects.FindAsync(currentEstimation.Id);
+                if (project != null)
+                {
+                    editDescription = project.Description ?? "";
+                    editEstimatedHours = project.EstimatedHours;
+                    editEstimatedCompletionDate = project.EstimatedCompletionDate;
+                    await InvokeAsync(StateHasChanged);
+                }
+            });
+        }
+    }
+    
+    private void CancelEditDetails()
+    {
+        isEditingDetails = false;
+        editProjectName = "";
+        editJobNumber = "";
+        editCustomerId = null;
+        editStage = "";
+        editDescription = "";
+    }
+    
+    private async Task SaveEstimationDetails()
+    {
+        if (currentEstimation != null && EstimationId.HasValue)
+        {
+            using var context = await DbContextFactory.CreateDbContextAsync();
+            var project = await context.Projects.FindAsync(EstimationId.Value);
+            if (project != null)
+            {
+                project.ProjectName = editProjectName;
+                project.JobNumber = editJobNumber;
+                project.CustomerId = editCustomerId;
+                project.EstimationStage = editStage;
+                project.Description = editDescription;
+                project.EstimatedHours = editEstimatedHours;
+                project.EstimatedCompletionDate = editEstimatedCompletionDate;
+                project.ModifiedDate = DateTime.UtcNow;
+                
+                await context.SaveChangesAsync();
+                
+                // Update the current estimation display
+                currentEstimation.ProjectName = editProjectName;
+                currentEstimation.JobNumber = editJobNumber;
+                currentEstimation.CustomerId = editCustomerId;
+                currentEstimation.CustomerName = customers?.FirstOrDefault(c => c.Id == editCustomerId)?.CompanyName ?? "N/A";
+                currentEstimation.Stage = editStage;
+                currentEstimation.EstimatedHours = editEstimatedHours;
+                currentEstimation.EstimatedCompletionDate = editEstimatedCompletionDate;
+                
+                isEditingDetails = false;
+            }
+        }
+    }
+
+    private class EstimationDto
+    {
+        public int Id { get; set; }
+        public string JobNumber { get; set; } = string.Empty;
+        public string ProjectName { get; set; } = string.Empty;
+        public int? CustomerId { get; set; }
+        public string CustomerName { get; set; } = string.Empty;
+        public string Stage { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public DateTime Created { get; set; }
+        public DateTime LastModified { get; set; }
+        public decimal? EstimatedHours { get; set; }
+        public DateTime? EstimatedCompletionDate { get; set; }
+        public decimal TotalHours { get; set; }
+        public decimal TotalTonnage { get; set; }
+        public string Status { get; set; } = "Active"; // Active, On Hold, Completed
+    }
+    
+    private string GetEstimationStatusColor(string status)
+    {
+        return status switch
+        {
+            "Planning" => "secondary",
+            "In Progress" => "primary",
+            "Review" => "warning",
+            "Complete" => "success",
+            "On Hold" => "danger",
+            _ => "secondary"
+        };
+    }
+    
+    private string GetStageColor(string stage)
+    {
+        return stage switch
+        {
+            "Preliminary" => "secondary",
+            "Budget" => "info",
+            "Detailed" => "primary",
+            "Final" => "warning",
+            "Approved" => "success",
+            _ => "secondary"
+        };
+    }
+    
+    private bool IsInDateRange(DateTime date, string range)
+    {
+        var now = DateTime.Now;
+        return range switch
+        {
+            "today" => date.Date == now.Date,
+            "week" => date >= now.AddDays(-7),
+            "month" => date >= now.AddMonths(-1),
+            "quarter" => date >= now.AddMonths(-3),
+            "year" => date >= now.AddYears(-1),
+            _ => true
+        };
+    }
+    
+    private string DetermineStatus(Project project)
+    {
+        // Simple logic to determine status - can be enhanced based on business rules
+        if (project.EstimationStage == "Approved" || project.EstimationStage == "Complete")
+            return "Completed";
+        
+        // Check if there's recent activity
+        if (project.LastModified < DateTime.Now.AddDays(-30))
+            return "On Hold";
+        
+        return "Active";
+    }
+    
+    private void SortBy(string field)
+    {
+        if (sortField == field)
+        {
+            sortAscending = !sortAscending;
+        }
+        else
+        {
+            sortField = field;
+            sortAscending = true;
+        }
+        currentPage = 1; // Reset to first page when sorting
+    }
+    
+    private void ChangePage(int page)
+    {
+        if (page >= 1 && page <= totalPages)
+        {
+            currentPage = page;
+        }
+    }
+    
+    private async Task RefreshData()
+    {
+        _isRefreshing = true;
+        await LoadData();
+        _isRefreshing = false;
+    }
+    
+    private void ExportData()
+    {
+        // TODO: Implement export functionality
+        Console.WriteLine("Export functionality not yet implemented");
+    }
+    
+    private void ViewEstimation(int id)
+    {
+        Navigation.NavigateTo($"/estimation/{id}");
+    }
+    
+    private void ViewDashboard(int id)
+    {
+        Navigation.NavigateTo($"/estimation/{id}/dashboard");
+    }
+    
+    private async Task DeleteEstimation(EstimationDto estimation)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", 
+            $"Are you sure you want to delete estimation '{estimation.ProjectName}'?");
+        
+        if (confirmed)
+        {
+            try
+            {
+                using var context = await DbContextFactory.CreateDbContextAsync();
+                var project = await context.Projects.FindAsync(estimation.Id);
+                if (project != null)
+                {
+                    project.IsDeleted = true;
+                    project.LastModified = DateTime.UtcNow;
+                    await context.SaveChangesAsync();
+                    estimations.Remove(estimation);
+                    StateHasChanged();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error deleting estimation: {ex.Message}");
+            }
+        }
+    }
+    
+    private void SetViewMode(string mode)
+    {
+        packageViewMode = mode;
+        // Save preference to local storage
+        _ = JSRuntime.InvokeVoidAsync("localStorage.setItem", "packageViewMode", mode);
+    }
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Load saved view mode preference
+            var savedMode = await JSRuntime.InvokeAsync<string?>("localStorage.getItem", "packageViewMode");
+            if (!string.IsNullOrEmpty(savedMode))
+            {
+                packageViewMode = savedMode;
+                StateHasChanged();
+            }
+        }
+    }
+    
+    private PackageMetrics GetPackageMetrics(Package package)
+    {
+        var processingItems = package.Worksheets.SelectMany(w => w.ProcessingItems).ToList();
+        var weldingItems = package.Worksheets.SelectMany(w => w.WeldingItems).ToList();
+        
+        var metrics = new PackageMetrics
+        {
+            TotalItems = processingItems.Count + weldingItems.Count,
+            ProcessingHours = processingItems.Where(p => p.Quantity > 0).Sum(p => p.TotalProcessingMinutes / 60m),
+            WeldingHours = weldingItems.Where(w => w.ItemConnections.Any()).Sum(w => w.TotalWeldingMinutes / 60m),
+            TotalTonnage = processingItems.Where(p => p.Quantity > 0).Sum(p => p.TotalWeight) / 1000m // Convert kg to tonnes
+        };
+        
+        metrics.TotalHours = metrics.ProcessingHours + metrics.WeldingHours;
+        
+        // Apply efficiency if set
+        if (package.ProcessingEfficiency.HasValue && package.ProcessingEfficiency.Value != 100)
+        {
+            var efficiency = package.ProcessingEfficiency.Value / 100m;
+            metrics.ProcessingHours *= efficiency;
+            metrics.WeldingHours *= efficiency;
+            metrics.TotalHours *= efficiency;
+        }
+        
+        return metrics;
+    }
+    
+    private class PackageMetrics
+    {
+        public int TotalItems { get; set; }
+        public decimal ProcessingHours { get; set; }
+        public decimal WeldingHours { get; set; }
+        public decimal TotalHours { get; set; }
+        public decimal TotalTonnage { get; set; }
+    }
+}

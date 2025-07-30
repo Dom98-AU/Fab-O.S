@@ -1,0 +1,138 @@
+@using Microsoft.AspNetCore.Components.Forms
+@using SteelEstimation.Core.Interfaces
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IAuthenticationService AuthService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ILogger<ReAuthenticationModal> Logger
+@inject NavigationManager Navigation
+
+<div class="modal fade @(_showModal ? "show d-block" : "")" tabindex="-1" role="dialog" style="@(_showModal ? "background-color: rgba(0,0,0,0.5);" : "")">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Session Timeout Warning</h5>
+            </div>
+            <div class="modal-body">
+                <p>Your session has been inactive for 10 minutes. Please enter your password to continue.</p>
+                
+                @if (!string.IsNullOrEmpty(_errorMessage))
+                {
+                    <div class="alert alert-danger">@_errorMessage</div>
+                }
+                
+                <EditForm Model="@_model" OnValidSubmit="@HandleReAuthentication">
+                    <DataAnnotationsValidator />
+                    
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <InputText id="password" type="password" class="form-control" @bind-Value="_model.Password" 
+                                   placeholder="Enter your password" disabled="@_isProcessing" />
+                        <ValidationMessage For="@(() => _model.Password)" />
+                    </div>
+                </EditForm>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="HandleLogout" disabled="@_isProcessing">
+                    Logout
+                </button>
+                <button type="button" class="btn btn-primary" @onclick="HandleReAuthentication" disabled="@_isProcessing">
+                    @if (_isProcessing)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        <text>Verifying...</text>
+                    }
+                    else
+                    {
+                        <text>Continue</text>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public EventCallback OnReAuthenticated { get; set; }
+    [Parameter] public EventCallback OnLogout { get; set; }
+    
+    private bool _showModal = false;
+    private bool _isProcessing = false;
+    private string? _errorMessage;
+    private ReAuthModel _model = new();
+    private string? _currentUsername;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _currentUsername = authState.User.Identity?.Name;
+    }
+    
+    public void Show()
+    {
+        _showModal = true;
+        _errorMessage = null;
+        _model = new ReAuthModel();
+        _isProcessing = false;
+        StateHasChanged();
+    }
+    
+    public void Hide()
+    {
+        _showModal = false;
+        _errorMessage = null;
+        _model = new ReAuthModel();
+        _isProcessing = false;
+        StateHasChanged();
+    }
+    
+    private async Task HandleReAuthentication()
+    {
+        if (string.IsNullOrEmpty(_currentUsername))
+        {
+            await HandleLogout();
+            return;
+        }
+        
+        _isProcessing = true;
+        _errorMessage = null;
+        
+        try
+        {
+            var result = await AuthService.LoginAsync(_currentUsername, _model.Password);
+            
+            if (result.Success)
+            {
+                Logger.LogInformation("User re-authenticated successfully");
+                Hide();
+                await OnReAuthenticated.InvokeAsync();
+            }
+            else
+            {
+                _errorMessage = "Invalid password. Please try again.";
+                Logger.LogWarning("Re-authentication failed for user {Username}", _currentUsername);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error during re-authentication");
+            _errorMessage = "An error occurred. Please try again.";
+        }
+        finally
+        {
+            _isProcessing = false;
+        }
+    }
+    
+    private async Task HandleLogout()
+    {
+        Logger.LogInformation("User chose to logout due to inactivity");
+        await OnLogout.InvokeAsync();
+        Navigation.NavigateTo("/Account/Logout", true);
+    }
+    
+    private class ReAuthModel
+    {
+        [Required(ErrorMessage = "Password is required")]
+        public string Password { get; set; } = string.Empty;
+    }
+}

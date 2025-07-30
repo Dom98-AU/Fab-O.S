@@ -1,0 +1,566 @@
+@using SteelEstimation.Core.Entities
+@using System.Linq
+
+@if (IsVisible)
+{
+    <div class="modal fade show d-block" tabindex="-1" role="dialog">
+        <div class="modal-dialog @(IsExpanded ? "modal-xl" : "modal-lg")" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="@GetMetricIcon()"></i> @Title
+                    </h5>
+                    <div>
+                        @if (!IsExpanded)
+                        {
+                            <button type="button" class="btn btn-sm btn-outline-primary me-2" @onclick="ToggleExpand">
+                                <i class="fas fa-expand"></i> Expand
+                            </button>
+                        }
+                        else
+                        {
+                            <button type="button" class="btn btn-sm btn-outline-secondary me-2" @onclick="ToggleExpand">
+                                <i class="fas fa-compress"></i> Collapse
+                            </button>
+                        }
+                        <button type="button" class="btn-close" @onclick="Close" aria-label="Close"></button>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    @if (!IsExpanded)
+                    {
+                        @if (MetricType == "handling" && HandlingTimeBreakdown != null)
+                        {
+                            <!-- Handling Time Summary View -->
+                            <div class="row">
+                                <div class="col-12">
+                                    <div class="card bg-light">
+                                        <div class="card-body">
+                                            <h6 class="card-title">Handling Time by Operation</h6>
+                                            <div class="table-responsive">
+                                                <table class="table table-sm mb-0">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Operation</th>
+                                                            <th class="text-end">Hours</th>
+                                                            <th class="text-end">%</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @{
+                                                            var totalHours = HandlingTimeBreakdown.Values.Sum();
+                                                        }
+                                                        @foreach (var operation in HandlingTimeBreakdown.OrderByDescending(o => o.Value))
+                                                        {
+                                                            var percentage = totalHours > 0 ? (operation.Value / totalHours * 100) : 0;
+                                                            <tr>
+                                                                <td>@operation.Key</td>
+                                                                <td class="text-end">@operation.Value.ToString("N2")</td>
+                                                                <td class="text-end"><text>@(percentage.ToString("N1"))%</text></td>
+                                                            </tr>
+                                                        }
+                                                        <tr class="table-info fw-bold">
+                                                            <td>Total</td>
+                                                            <td class="text-end">@(totalHours.ToString("N2"))</td>
+                                                            <td class="text-end">100.0%</td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                            
+                                            <div class="mt-3">
+                                                <h6 class="card-title">Efficiency Metrics</h6>
+                                                <table class="table table-sm mb-0">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Efficiency Level</th>
+                                                            <th class="text-end">Hours Required</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <tr>
+                                                            <td>At 100% Efficiency</td>
+                                                            <td class="text-end">@(totalHours.ToString("N2"))</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td>At 90% Efficiency</td>
+                                                            <td class="text-end">@((totalHours / 0.90m).ToString("N2"))</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td>At 50% Efficiency</td>
+                                                            <td class="text-end">@((totalHours / 0.50m).ToString("N2"))</td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                        else if (MetricType == "tonnerate" && TonneRateData != null)
+                        {
+                            <!-- Tonne Rate Summary View -->
+                            <div class="row">
+                                <div class="col-12">
+                                    <div class="card bg-light">
+                                        <div class="card-body">
+                                            <h6 class="card-title">Tonne Rate Calculation</h6>
+                                            <div class="mb-3">
+                                                <p><strong>Formula:</strong> ((Total Handling Hours + Total Welding Hours) × Labor Rate) ÷ Total Tonnage</p>
+                                            </div>
+                                            <table class="table table-sm mb-0">
+                                                <tbody>
+                                                    <tr>
+                                                        <td>Total Handling Hours</td>
+                                                        <td class="text-end">@TonneRateData.TotalHandlingHours.ToString("N2") hours</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>Total Welding Hours</td>
+                                                        <td class="text-end">@TonneRateData.TotalWeldingHours.ToString("N2") hours</td>
+                                                    </tr>
+                                                    <tr class="table-secondary">
+                                                        <td><strong>Total Labor Hours</strong></td>
+                                                        <td class="text-end"><strong>@TonneRateData.TotalLaborHours.ToString("N2") hours</strong></td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>Labor Rate per Hour</td>
+                                                        <td class="text-end">$@TonneRateData.LaborRate.ToString("N2")</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>Total Labor Cost</td>
+                                                        <td class="text-end">$@((TonneRateData.TotalLaborHours * TonneRateData.LaborRate).ToString("N2"))</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>Total Tonnage</td>
+                                                        <td class="text-end">@TonneRateData.TotalTonnage.ToString("N2") tonnes</td>
+                                                    </tr>
+                                                    <tr class="table-info fw-bold">
+                                                        <td>Tonne Rate</td>
+                                                        <td class="text-end">$@TonneRateData.TonneRate.ToString("N2") per tonne</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                        else if (MetricType == "welding" && WeldingConnectionBreakdown != null)
+                        {
+                            <!-- Welding Time Summary View -->
+                            <div class="row">
+                                <div class="col-12">
+                                    <div class="card bg-light">
+                                        <div class="card-body">
+                                            <h6 class="card-title">Welding Time by Connection Type</h6>
+                                            <div class="table-responsive">
+                                                <table class="table table-sm mb-0">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Connection Type</th>
+                                                            <th class="text-end">Count</th>
+                                                            <th class="text-end">Total Hours</th>
+                                                            <th class="text-end">%</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @{
+                                                            var totalWeldingHours = WeldingConnectionBreakdown.Values.Sum(s => s.TotalMinutes) / 60m;
+                                                        }
+                                                        @foreach (var conn in WeldingConnectionBreakdown.OrderByDescending(c => c.Value.TotalMinutes))
+                                                        {
+                                                            var hours = conn.Value.TotalMinutes / 60m;
+                                                            var percentage = totalWeldingHours > 0 ? (hours / totalWeldingHours * 100) : 0;
+                                                            <tr>
+                                                                <td>@conn.Key</td>
+                                                                <td class="text-end">@conn.Value.Count</td>
+                                                                <td class="text-end">@hours.ToString("N1")</td>
+                                                                <td class="text-end">@percentage.ToString("N1")%</td>
+                                                            </tr>
+                                                        }
+                                                        <tr class="table-info fw-bold">
+                                                            <td>Total</td>
+                                                            <td class="text-end">@WeldingConnectionBreakdown.Values.Sum(s => s.Count)</td>
+                                                            <td class="text-end">@totalWeldingHours.ToString("N1")</td>
+                                                            <td class="text-end">100.0%</td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                        else if (MetricType == "connections" && WeldingConnectionBreakdown != null)
+                        {
+                            <!-- Connections Summary View -->
+                            <div class="row">
+                                <div class="col-12">
+                                    <div class="card bg-light">
+                                        <div class="card-body">
+                                            <h6 class="card-title">Connection Types Breakdown</h6>
+                                            <div class="table-responsive">
+                                                <table class="table table-sm mb-0">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Connection Type</th>
+                                                            <th class="text-end">Count</th>
+                                                            <th class="text-end">Avg Time</th>
+                                                            <th class="text-end">%</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @{
+                                                            var totalConnections = WeldingConnectionBreakdown.Values.Sum(s => s.Count);
+                                                        }
+                                                        @foreach (var conn in WeldingConnectionBreakdown.OrderByDescending(c => c.Value.Count))
+                                                        {
+                                                            var avgTime = conn.Value.Count > 0 ? conn.Value.TotalMinutes / conn.Value.Count : 0;
+                                                            var percentage = totalConnections > 0 ? ((decimal)conn.Value.Count / totalConnections * 100) : 0;
+                                                            <tr>
+                                                                <td>@conn.Key</td>
+                                                                <td class="text-end">@conn.Value.Count</td>
+                                                                <td class="text-end">@avgTime.ToString("N1") min</td>
+                                                                <td class="text-end">@percentage.ToString("N1")%</td>
+                                                            </tr>
+                                                        }
+                                                        <tr class="table-info fw-bold">
+                                                            <td>Total</td>
+                                                            <td class="text-end">@totalConnections</td>
+                                                            <td class="text-end">-</td>
+                                                            <td class="text-end">100.0%</td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <!-- Regular Summary View -->
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="card bg-light">
+                                        <div class="card-body">
+                                            <h6 class="card-title">Summary</h6>
+                                            <p class="mb-1"><strong>Total Count:</strong> @GetTotalCount()</p>
+                                            <p class="mb-1"><strong>Total Weight:</strong> @GetTotalWeight().ToString("N2") kg</p>
+                                            @if (MetricType == "purlins")
+                                            {
+                                                <p class="mb-1"><strong>Total Length:</strong> @GetTotalLength().ToString("N2") m</p>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card bg-light">
+                                        <div class="card-body">
+                                            <h6 class="card-title">Breakdown</h6>
+                                            <p class="mb-1"><strong>Unique Items:</strong> @GetUniqueItemCount()</p>
+                                            <p class="mb-1"><strong>Avg Weight/Item:</strong> @GetAverageWeight().ToString("N2") kg</p>
+                                            @if (MetricType == "tonnage")
+                                            {
+                                                <p class="mb-1"><strong>Total Tonnage:</strong> <text>@((GetTotalWeight() / 1000m).ToString("N2")) t</text></p>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        @if (MetricType == "handling" && HandlingTimeBreakdown != null)
+                        {
+                            <!-- Handling Time Expanded View -->
+                            <div class="mb-3">
+                                <h5>Operation Time Breakdown</h5>
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Operation</th>
+                                                <th class="text-end">Hours</th>
+                                                <th class="text-end">Percentage</th>
+                                                <th>Visual</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @{
+                                                var totalHandlingHours = HandlingTimeBreakdown.Values.Sum();
+                                            }
+                                            @foreach (var operation in HandlingTimeBreakdown.OrderByDescending(o => o.Value))
+                                            {
+                                                var percentage = totalHandlingHours > 0 ? (operation.Value / totalHandlingHours * 100) : 0;
+                                                <tr>
+                                                    <td>@operation.Key</td>
+                                                    <td class="text-end"><text>@(operation.Value.ToString("N2"))h</text></td>
+                                                    <td class="text-end"><text>@(percentage.ToString("N1"))%</text></td>
+                                                    <td>
+                                                        <div class="progress" style="height: 25px;">
+                                                            <div class="progress-bar bg-info" role="progressbar" 
+                                                                 style="@GetProgressBarStyle(percentage)"
+                                                                 aria-valuenow="@percentage" 
+                                                                 aria-valuemin="0" 
+                                                                 aria-valuemax="100">
+                                                                @if (percentage > 10)
+                                                                {
+                                                                    <text>@(percentage.ToString("N1"))%</text>
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            }
+                                            <tr class="table-info fw-bold">
+                                                <td>Total Handling Time</td>
+                                                <td class="text-end"><text>@(totalHandlingHours.ToString("N2"))h</text></td>
+                                                <td class="text-end">100.0%</td>
+                                                <td></td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                
+                                <div class="mt-4">
+                                    <h5>Efficiency Analysis</h5>
+                                    <div class="table-responsive">
+                                        <table class="table table-striped">
+                                            <thead>
+                                                <tr>
+                                                    <th>Efficiency Level</th>
+                                                    <th class="text-end">Hours Required</th>
+                                                    <th class="text-end">Additional Hours</th>
+                                                    <th class="text-end">Additional Cost (@(Package?.LaborRatePerHour.ToString("C") ?? "$0.00")/hr)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr class="table-success">
+                                                    <td>At 100% Efficiency (Baseline)</td>
+                                                    <td class="text-end">@(totalHandlingHours.ToString("N2"))</td>
+                                                    <td class="text-end">-</td>
+                                                    <td class="text-end">-</td>
+                                                </tr>
+                                                <tr>
+                                                    <td>At 90% Efficiency</td>
+                                                    <td class="text-end">@((totalHandlingHours / 0.90m).ToString("N2"))</td>
+                                                    <td class="text-end">+@(((totalHandlingHours / 0.90m) - totalHandlingHours).ToString("N2"))</td>
+                                                    <td class="text-end">+@((((totalHandlingHours / 0.90m) - totalHandlingHours) * (Package?.LaborRatePerHour ?? 0)).ToString("C"))</td>
+                                                </tr>
+                                                <tr>
+                                                    <td>At 50% Efficiency</td>
+                                                    <td class="text-end">@((totalHandlingHours / 0.50m).ToString("N2"))</td>
+                                                    <td class="text-end">+@(((totalHandlingHours / 0.50m) - totalHandlingHours).ToString("N2"))</td>
+                                                    <td class="text-end">+@((((totalHandlingHours / 0.50m) - totalHandlingHours) * (Package?.LaborRatePerHour ?? 0)).ToString("C"))</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <!-- Regular Expanded View with Table -->
+                            <div class="mb-3">
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        <strong>Total Count:</strong> @GetTotalCount()
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong>Total Weight:</strong> @GetTotalWeight().ToString("N2") kg
+                                    </div>
+                                    @if (MetricType == "purlins")
+                                    {
+                                        <div class="col-md-3">
+                                            <strong>Total Length:</strong> @GetTotalLength().ToString("N2") m
+                                        </div>
+                                    }
+                                    <div class="col-md-3">
+                                        <strong>Unique Items:</strong> @GetUniqueItemCount()
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                <table class="table table-sm table-striped">
+                                    <thead class="sticky-top bg-light">
+                                        <tr>
+                                            <th>MBE ID</th>
+                                            <th>Drawing Number</th>
+                                            <th>Description</th>
+                                            <th>Quantity</th>
+                                            <th>Length (mm)</th>
+                                            <th>Weight (kg)</th>
+                                            <th>Total Weight</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var item in GetFilteredItems())
+                                        {
+                                            <tr>
+                                                <td>@item.MaterialId</td>
+                                                <td>@item.DrawingNumber</td>
+                                                <td>@item.Description</td>
+                                                <td>@item.Quantity</td>
+                                                <td>@item.Length.ToString("N0")</td>
+                                                <td>@item.Weight.ToString("N2")</td>
+                                                <td>@item.TotalWeight.ToString("N2")</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="Close">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public string MetricType { get; set; } = "";
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public List<ProcessingItem> Items { get; set; } = new();
+    [Parameter] public List<WeldingItem>? WeldingItems { get; set; }
+    [Parameter] public Dictionary<string, decimal>? HandlingTimeBreakdown { get; set; }
+    [Parameter] public Dictionary<string, WeldingConnectionStats>? WeldingConnectionBreakdown { get; set; }
+    [Parameter] public TonneRateCalculation? TonneRateData { get; set; }
+    [Parameter] public Package? Package { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    
+    private bool IsExpanded = false;
+    
+    private void ToggleExpand()
+    {
+        IsExpanded = !IsExpanded;
+    }
+    
+    private Task Close()
+    {
+        IsExpanded = false;
+        return OnClose.InvokeAsync();
+    }
+    
+    private string GetMetricIcon()
+    {
+        return MetricType switch
+        {
+            "tonnage" => "fas fa-weight text-primary",
+            "total" => "fas fa-cubes text-info",
+            "beams" => "fas fa-bars text-success",
+            "purlins" => "fas fa-grip-lines text-purple",
+            "plates" => "fas fa-square text-warning",
+            "misc" => "fas fa-cog text-secondary",
+            "handling" => "fas fa-clock text-danger",
+            "tonnerate" => "fas fa-dollar-sign text-warning",
+            "welding" => "fas fa-fire text-danger",
+            "connections" => "fas fa-link text-primary",
+            _ => "fas fa-chart-bar"
+        };
+    }
+    
+    private List<ProcessingItem> GetFilteredItems()
+    {
+        if (Items == null || Items.Count == 0) return new();
+        
+        return MetricType switch
+        {
+            "tonnage" => Items.Where(p => p.Quantity > 0).OrderByDescending(p => p.TotalWeight).ToList(),
+            "total" => Items.Where(p => p.Quantity > 0).OrderByDescending(p => p.TotalWeight).ToList(),
+            "beams" => Items.Where(p => p.Quantity > 0 && IsBeamMaterial(p.MaterialId)).OrderByDescending(p => p.TotalWeight).ToList(),
+            "purlins" => Items.Where(p => p.Quantity > 0 && IsPurlinMaterial(p.MaterialId)).OrderByDescending(p => p.TotalWeight).ToList(),
+            "plates" => Items.Where(p => p.Quantity > 0 && IsPlateMaterial(p.MaterialId)).OrderByDescending(p => p.TotalWeight).ToList(),
+            "misc" => Items.Where(p => p.Quantity > 0 && !string.IsNullOrEmpty(p.MaterialId) && 
+                                    !IsBeamMaterial(p.MaterialId) && !IsPurlinMaterial(p.MaterialId) && !IsPlateMaterial(p.MaterialId))
+                                .OrderByDescending(p => p.TotalWeight).ToList(),
+            _ => new()
+        };
+    }
+    
+    private int GetTotalCount()
+    {
+        return GetFilteredItems().Sum(p => p.Quantity);
+    }
+    
+    private decimal GetTotalWeight()
+    {
+        return GetFilteredItems().Sum(p => p.TotalWeight);
+    }
+    
+    private decimal GetTotalLength()
+    {
+        return GetFilteredItems().Sum(p => (p.Length / 1000m) * p.Quantity);
+    }
+    
+    private int GetUniqueItemCount()
+    {
+        return GetFilteredItems().Count;
+    }
+    
+    private decimal GetAverageWeight()
+    {
+        var items = GetFilteredItems();
+        if (items.Count == 0) return 0;
+        return items.Average(p => p.Weight);
+    }
+    
+    // Material type detection methods (same logic as main component)
+    private bool IsBeamMaterial(string? materialId)
+    {
+        if (string.IsNullOrEmpty(materialId)) return false;
+        var upper = materialId.ToUpper().Trim();
+        return upper.StartsWith("B") || upper.StartsWith("C");
+    }
+    
+    private bool IsPurlinMaterial(string? materialId)
+    {
+        if (string.IsNullOrEmpty(materialId)) return false;
+        var upper = materialId.ToUpper().Trim();
+        return upper.StartsWith("PU");
+    }
+    
+    private bool IsPlateMaterial(string? materialId)
+    {
+        if (string.IsNullOrEmpty(materialId)) return false;
+        var upper = materialId.ToUpper().Trim();
+        return upper.StartsWith("PL") || upper.StartsWith("FLP") || upper.StartsWith("GR") || 
+               upper.StartsWith("ST") || upper.StartsWith("S");
+    }
+    
+    private string GetProgressBarStyle(decimal percentage)
+    {
+        return $"width: {percentage}%";
+    }
+    
+    public class TonneRateCalculation
+    {
+        public decimal TotalHandlingHours { get; set; }
+        public decimal TotalWeldingHours { get; set; }
+        public decimal TotalLaborHours { get; set; }
+        public decimal LaborRate { get; set; }
+        public decimal TotalTonnage { get; set; }
+        public decimal TonneRate { get; set; }
+    }
+    
+    public class WeldingConnectionStats
+    {
+        public int Count { get; set; }
+        public decimal AssembleFitTackMinutes { get; set; }
+        public decimal WeldMinutes { get; set; }
+        public decimal WeldCheckMinutes { get; set; }
+        public decimal WeldTestMinutes { get; set; }
+        public decimal TotalMinutes => AssembleFitTackMinutes + WeldMinutes + WeldCheckMinutes + WeldTestMinutes;
+    }
+}

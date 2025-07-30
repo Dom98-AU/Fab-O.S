@@ -1,0 +1,134 @@
+# Steel Estimation Platform - Development Guide
+
+## Local Development Setup
+
+### Prerequisites
+- SQL Server 2022 (or SQL Server 2019+)
+- .NET 8 SDK
+- Visual Studio 2022 or VS Code
+- PowerShell (Run as Administrator for database setup)
+
+### Quick Start
+
+1. **Set up the database** (run as Administrator):
+   ```powershell
+   .\setup-local-db.ps1
+   ```
+
+2. **Run the application**:
+   ```powershell
+   .\run-local.ps1
+   ```
+
+3. **Access the application**:
+   - URL: https://localhost:5001
+   - Login: admin@steelestimation.com
+   - Password: Admin@123
+
+### Authentication Structure
+
+The application uses **Cookie-based authentication** with the following structure:
+- Session-based authentication (NOT JWT)
+- 8-hour session timeout with sliding expiration
+- Password hashing: PBKDF2 with HMACSHA256
+- Role-based authorization: Administrator, Project Manager, Senior Estimator, Estimator, Viewer
+
+### Key Differences: Local vs Cloud
+
+| Feature | Local Development | Cloud (Azure) |
+|---------|------------------|---------------|
+| Database | SQL Server with Windows Auth | Azure SQL with Managed Identity |
+| Connection String | `Trusted_Connection=True` | `Authentication=Active Directory Default` |
+| Secrets | appsettings.json | Azure Key Vault |
+| SSL Certificate | Self-signed | Azure-managed |
+| Environment | Development | Staging/Production |
+| Migrations | Run automatically | Must be run manually |
+| Logging | Debug level, file output | Information level, Application Insights |
+
+### Important Files
+
+- `appsettings.Development.json` - Local development configuration
+- `appsettings.Staging.json` - Staging environment configuration  
+- `appsettings.Production.json` - Production environment configuration
+- `Program.cs` - Environment-specific configuration logic
+
+### Troubleshooting
+
+1. **Database connection fails**:
+   - Ensure SQL Server service is running
+   - Check Windows Authentication is enabled
+   - Verify database name in connection string
+
+2. **Login fails**:
+   - Check admin user exists in database
+   - Verify password hash is correct
+   - Check roles are properly assigned
+
+3. **Blazor components not loading**:
+   - Clear browser cache
+   - Check browser console for errors
+   - Ensure all NuGet packages are restored
+
+### Deployment Considerations
+
+When deploying to Azure:
+1. Connection string will use Managed Identity
+2. Secrets should be in Key Vault, not appsettings
+3. Run migrations before deployment
+4. Test in Staging environment first
+
+### Common Commands
+
+```powershell
+# Run migrations manually
+cd SteelEstimation.Web
+dotnet ef database update
+
+# Create a new migration
+dotnet ef migrations add MigrationName --project ..\SteelEstimation.Infrastructure
+
+# Run tests
+dotnet test
+
+# Build for production
+dotnet publish -c Release
+```
+
+### Database Migrations
+
+When new features require database changes, run the appropriate migration:
+
+```powershell
+# Run the latest migration (Time Tracking & Efficiency features)
+.\run-migration.ps1
+
+# Or use the batch file
+.\run-migration.bat
+```
+
+#### Recent Migrations:
+- **AddTimeTrackingAndEfficiency.sql** - Adds:
+  - `EstimationTimeLogs` table for time tracking
+  - `WeldingItemConnections` table for multiple welding connections
+  - `ProcessingEfficiency` column to Packages table
+- **AddEfficiencyRates.sql** - Adds:
+  - `EfficiencyRates` table for configurable efficiency presets
+  - `EfficiencyRateId` column to Packages table
+  - Default efficiency rates for all companies
+- **AddPackBundles.sql** - Adds:
+  - `PackBundles` table for grouping processing items
+  - `PackBundleId` and `IsParentInPackBundle` columns to ProcessingItems table
+  - Foreign key relationships and indexes
+
+### New Features (January 2025)
+
+1. **Time Tracking**: Automatically tracks time spent on estimations with pause during inactivity
+2. **Multiple Welding Connections**: Support for multiple connection types per welding item
+3. **Processing Efficiency**: Filter processing hours by efficiency percentage on dashboard
+4. **Configurable Efficiency Rates**: Admin-managed efficiency rates with company-specific presets
+5. **Welding Time Dashboard**: Detailed analytics for welding operations with charts and breakdowns
+6. **Pack Bundles**: Group processing items for handling operations (Move to Assembly & Move After Weld)
+   - Similar to delivery bundles but for pack/handling operations
+   - Only parent items in pack bundles have handling times applied
+   - Separate visual indicators (blue badges) from delivery bundles
+   - Full CRUD operations with collapse/expand functionality

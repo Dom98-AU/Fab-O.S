@@ -1,0 +1,256 @@
+@page "/settings/display"
+@using SteelEstimation.Core.Services
+@inject ISettingsService SettingsService
+@inject IJSRuntime JSRuntime
+@attribute [Authorize(Policy = "Administrator")]
+
+<PageTitle>Display Settings - Steel Estimation Platform</PageTitle>
+
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/settings">Settings</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Display Settings</li>
+    </ol>
+</nav>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-8">
+            <h1 class="mb-4">
+                <i class="fas fa-desktop me-2"></i>Display Settings
+            </h1>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">List Display Options</h5>
+                </div>
+                <div class="card-body">
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="showEstimationNumbers" 
+                               @bind="showEstimationNumbers" @bind:after="SaveSettings">
+                        <label class="form-check-label" for="showEstimationNumbers">
+                            Show Unique Estimation Numbers
+                        </label>
+                        <div class="form-text">
+                            Display unique identifiers (EST-000001) in the estimation list
+                        </div>
+                    </div>
+                    
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="showCustomerNumbers" 
+                               @bind="showCustomerNumbers" @bind:after="SaveSettings">
+                        <label class="form-check-label" for="showCustomerNumbers">
+                            Show Unique Customer Numbers
+                        </label>
+                        <div class="form-text">
+                            Display unique identifiers (CUST-00001) in the customer list
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Default Values</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="defaultEstimationStage" class="form-label">Default Estimation Stage</label>
+                        <select class="form-select" id="defaultEstimationStage" @bind="defaultEstimationStage" @bind:after="SaveSettings">
+                            <option value="Preliminary">Preliminary</option>
+                            <option value="Budget">Budget</option>
+                            <option value="Detailed">Detailed</option>
+                            <option value="Final">Final</option>
+                            <option value="Approved">Approved</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="defaultLaborRate" class="form-label">Default Labor Rate (per hour)</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" id="defaultLaborRate" 
+                                   @bind="defaultLaborRate" @bind:after="SaveSettings"
+                                   min="0" step="0.01">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="defaultContingency" class="form-label">Default Contingency Percentage</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="defaultContingency" 
+                                   @bind="defaultContingencyPercentage" @bind:after="SaveSettings"
+                                   min="0" max="100" step="0.1">
+                            <span class="input-group-text">%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Auto-Save Settings</h5>
+                </div>
+                <div class="card-body">
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="enableAutoSave" 
+                               @bind="enableAutoSave" @bind:after="SaveSettings">
+                        <label class="form-check-label" for="enableAutoSave">
+                            Enable Auto-Save
+                        </label>
+                        <div class="form-text">
+                            Automatically save changes while editing
+                        </div>
+                    </div>
+                    
+                    @if (enableAutoSave)
+                    {
+                        <div class="mb-3">
+                            <label for="autoSaveInterval" class="form-label">Auto-Save Interval</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="autoSaveInterval" 
+                                       @bind="autoSaveInterval" @bind:after="SaveSettings"
+                                       min="10" max="300" step="5">
+                                <span class="input-group-text">seconds</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+            
+            @if (_saveMessage != null)
+            {
+                <div class="alert alert-@(_saveSuccess ? "success" : "danger") alert-dismissible fade show" role="alert">
+                    @_saveMessage
+                    <button type="button" class="btn-close" @onclick="() => _saveMessage = null"></button>
+                </div>
+            }
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Preview</h5>
+                </div>
+                <div class="card-body">
+                    <h6>Estimation List Preview</h6>
+                    <table class="table table-sm mb-3">
+                        <thead>
+                            <tr>
+                                @if (showEstimationNumbers)
+                                {
+                                    <th>ID</th>
+                                }
+                                <th>Job Number</th>
+                                <th>Name</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                @if (showEstimationNumbers)
+                                {
+                                    <td class="text-muted font-monospace">EST-000042</td>
+                                }
+                                <td>J2024-001</td>
+                                <td>Sample Project</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6>Customer List Preview</h6>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                @if (showCustomerNumbers)
+                                {
+                                    <th>ID</th>
+                                }
+                                <th>Company</th>
+                                <th>ABN</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                @if (showCustomerNumbers)
+                                {
+                                    <td class="text-muted font-monospace">CUST-00123</td>
+                                }
+                                <td>ABC Corp</td>
+                                <td>12 345 678 901</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool showEstimationNumbers = false;
+    private bool showCustomerNumbers = false;
+    private string defaultEstimationStage = "Preliminary";
+    private decimal defaultLaborRate = 75.00m;
+    private decimal defaultContingencyPercentage = 10.00m;
+    private bool enableAutoSave = true;
+    private int autoSaveInterval = 30;
+    
+    private string? _saveMessage;
+    private bool _saveSuccess = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSettings();
+    }
+
+    private async Task LoadSettings()
+    {
+        try
+        {
+            showEstimationNumbers = await SettingsService.GetBooleanSetting("ShowEstimationNumbers", false);
+            showCustomerNumbers = await SettingsService.GetBooleanSetting("ShowCustomerNumbers", false);
+            defaultEstimationStage = await SettingsService.GetStringSetting("DefaultEstimationStage", "Preliminary") ?? "Preliminary";
+            defaultLaborRate = await SettingsService.GetDecimalSetting("DefaultLaborRate", 75.00m);
+            defaultContingencyPercentage = await SettingsService.GetDecimalSetting("DefaultContingencyPercentage", 10.00m);
+            enableAutoSave = await SettingsService.GetBooleanSetting("EnableAutoSave", true);
+            autoSaveInterval = await SettingsService.GetIntegerSetting("AutoSaveInterval", 30);
+        }
+        catch (Exception ex)
+        {
+            _saveMessage = $"Error loading settings: {ex.Message}";
+            _saveSuccess = false;
+        }
+    }
+
+    private async Task SaveSettings()
+    {
+        try
+        {
+            await SettingsService.SaveSetting("ShowEstimationNumbers", showEstimationNumbers);
+            await SettingsService.SaveSetting("ShowCustomerNumbers", showCustomerNumbers);
+            await SettingsService.SaveSetting("DefaultEstimationStage", defaultEstimationStage);
+            await SettingsService.SaveSetting("DefaultLaborRate", defaultLaborRate);
+            await SettingsService.SaveSetting("DefaultContingencyPercentage", defaultContingencyPercentage);
+            await SettingsService.SaveSetting("EnableAutoSave", enableAutoSave);
+            await SettingsService.SaveSetting("AutoSaveInterval", autoSaveInterval);
+            
+            _saveMessage = "Settings saved successfully";
+            _saveSuccess = true;
+            
+            // Clear message after 3 seconds
+            _ = Task.Delay(3000).ContinueWith(_ => 
+            {
+                InvokeAsync(() => 
+                {
+                    _saveMessage = null;
+                    StateHasChanged();
+                });
+            });
+        }
+        catch (Exception ex)
+        {
+            _saveMessage = $"Error saving settings: {ex.Message}";
+            _saveSuccess = false;
+        }
+    }
+}

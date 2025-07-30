@@ -1,0 +1,118 @@
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Core.DTOs
+@using Microsoft.Extensions.Configuration
+@inject IConfiguration Configuration
+
+<div class="row g-3">
+    @if (useGoogleAutocomplete && !string.IsNullOrEmpty(googleMapsApiKey))
+    {
+        <div class="col-12">
+            <GoogleAddressAutocomplete Address="Address" 
+                                     AddressChanged="@((addr) => UpdateFullAddress(addr))"
+                                     GoogleMapsApiKey="@googleMapsApiKey" />
+        </div>
+        
+        <div class="col-12">
+            <hr class="my-2" />
+            <small class="text-muted">Or enter address manually:</small>
+        </div>
+    }
+    else
+    {
+        <div class="col-12">
+            <label class="form-label">Postcode Lookup</label>
+            <PostcodeLookup OnLocationSelected="OnLocationSelected" 
+                            InitialPostcode="@Address.PostCode"
+                            InitialSuburb="@Address.Suburb" />
+        </div>
+    }
+
+    <div class="col-12">
+        <label class="form-label">Address Line 1</label>
+        <input type="text" class="form-control" 
+               value="@Address.AddressLine1"
+               @oninput="@((e) => UpdateAddress(a => a.AddressLine1 = e.Value?.ToString()?.ToUpper() ?? ""))"
+               style="text-transform: uppercase;"
+               placeholder="STREET ADDRESS" />
+    </div>
+    
+    <div class="col-12">
+        <label class="form-label">Address Line 2</label>
+        <input type="text" class="form-control" 
+               value="@Address.AddressLine2"
+               @oninput="@((e) => UpdateAddress(a => a.AddressLine2 = e.Value?.ToString()?.ToUpper()))"
+               style="text-transform: uppercase;"
+               placeholder="UNIT, FLOOR, ETC. (OPTIONAL)" />
+    </div>
+    
+    <div class="col-md-6">
+        <label class="form-label">Suburb</label>
+        <input type="text" class="form-control" 
+               value="@Address.Suburb"
+               @oninput="@((e) => UpdateAddress(a => a.Suburb = e.Value?.ToString()?.ToUpper() ?? ""))"
+               style="text-transform: uppercase;" />
+    </div>
+    
+    <div class="col-md-3">
+        <label class="form-label">State</label>
+        <select class="form-select" 
+                value="@Address.State"
+                @onchange="@((e) => UpdateAddress(a => a.State = e.Value?.ToString() ?? ""))">
+            <option value="">Select...</option>
+            <option value="NSW">NSW</option>
+            <option value="VIC">VIC</option>
+            <option value="QLD">QLD</option>
+            <option value="WA">WA</option>
+            <option value="SA">SA</option>
+            <option value="TAS">TAS</option>
+            <option value="ACT">ACT</option>
+            <option value="NT">NT</option>
+        </select>
+    </div>
+    
+    <div class="col-md-3">
+        <label class="form-label">Postcode</label>
+        <input type="text" class="form-control" 
+               value="@Address.PostCode"
+               @oninput="@((e) => UpdateAddress(a => a.PostCode = e.Value?.ToString() ?? ""))"
+               placeholder="0000" maxlength="4" />
+    </div>
+</div>
+
+@code {
+    [Parameter] public Address Address { get; set; } = new();
+    [Parameter] public EventCallback<Address> AddressChanged { get; set; }
+
+    private string? googleMapsApiKey;
+    private bool useGoogleAutocomplete;
+
+    protected override void OnInitialized()
+    {
+        googleMapsApiKey = Configuration["GoogleMaps:ApiKey"];
+        useGoogleAutocomplete = Configuration.GetValue<bool>("GoogleMaps:EnableAutocomplete", false);
+    }
+
+    private async Task UpdateAddress(Action<Address> updateAction)
+    {
+        updateAction(Address);
+        await AddressChanged.InvokeAsync(Address);
+    }
+
+    private async Task UpdateFullAddress(Address updatedAddress)
+    {
+        Address.AddressLine1 = updatedAddress.AddressLine1;
+        Address.AddressLine2 = updatedAddress.AddressLine2;
+        Address.Suburb = updatedAddress.Suburb;
+        Address.State = updatedAddress.State;
+        Address.PostCode = updatedAddress.PostCode;
+        await AddressChanged.InvokeAsync(Address);
+    }
+
+    private async Task OnLocationSelected(PostcodeLookupResult result)
+    {
+        Address.Suburb = result.Suburb;
+        Address.State = result.State;
+        Address.PostCode = result.Postcode;
+        await AddressChanged.InvokeAsync(Address);
+    }
+}

@@ -1,0 +1,274 @@
+@page "/admin/efficiency-rates"
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Core.Services
+@using SteelEstimation.Core.Interfaces
+@inject IEfficiencyRateService EfficiencyRateService
+@inject IAuthenticationService AuthService
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+@attribute [Authorize(Roles = "Administrator")]
+
+<PageTitle>Efficiency Rates - Admin</PageTitle>
+
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/admin/settings">Admin</a></li>
+        <li class="breadcrumb-item active">Efficiency Rates</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Efficiency Rates</h2>
+    <button class="btn btn-primary" @onclick="ShowCreateModal">
+        <i class="fas fa-plus"></i> Add New Rate
+    </button>
+</div>
+
+@if (isLoading)
+{
+    <div class="text-center">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+}
+else
+{
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Efficiency %</th>
+                            <th>Description</th>
+                            <th>Default</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var rate in efficiencyRates)
+                        {
+                            <tr>
+                                <td>@rate.Name</td>
+                                <td>@rate.EfficiencyPercentage%</td>
+                                <td>@(rate.Description ?? "-")</td>
+                                <td>
+                                    @if (rate.IsDefault)
+                                    {
+                                        <span class="badge bg-primary">Default</span>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-sm btn-outline-secondary" @onclick="@(() => SetAsDefault(rate.Id))">
+                                            Set Default
+                                        </button>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="badge bg-@(rate.IsActive ? "success" : "secondary")">
+                                        @(rate.IsActive ? "Active" : "Inactive")
+                                    </span>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" @onclick="@(() => ShowEditModal(rate))">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="@(() => DeleteRate(rate.Id))" disabled="@rate.IsDefault">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Create/Edit Modal -->
+<div class="modal fade @(showModal ? "show" : "")" style="display: @(showModal ? "block" : "none")" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">@(isEditMode ? "Edit" : "Create") Efficiency Rate</h5>
+                <button type="button" class="btn-close" @onclick="CloseModal"></button>
+            </div>
+            <div class="modal-body">
+                <EditForm Model="currentRate" OnValidSubmit="SaveRate">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary class="text-danger" />
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Name <span class="text-danger">*</span></label>
+                        <InputText @bind-Value="currentRate.Name" class="form-control" />
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Efficiency Percentage <span class="text-danger">*</span></label>
+                        <InputNumber @bind-Value="currentRate.EfficiencyPercentage" class="form-control" />
+                        <small class="form-text text-muted">100% = standard, less than 100% = faster, more than 100% = slower</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <InputTextArea @bind-Value="currentRate.Description" class="form-control" rows="3" />
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <InputCheckbox @bind-Value="currentRate.IsDefault" class="form-check-input" id="isDefaultCheck" />
+                            <label class="form-check-label" for="isDefaultCheck">
+                                Set as default rate
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <InputCheckbox @bind-Value="currentRate.IsActive" class="form-check-input" id="isActiveCheck" />
+                            <label class="form-check-label" for="isActiveCheck">
+                                Active
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (showModal)
+{
+    <div class="modal-backdrop fade show"></div>
+}
+
+@code {
+    private List<EfficiencyRate> efficiencyRates = new();
+    private EfficiencyRate currentRate = new();
+    private bool isLoading = true;
+    private bool showModal = false;
+    private bool isEditMode = false;
+    private int? currentUserId;
+    private int? currentCompanyId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        currentUserId = await AuthService.GetCurrentUserIdAsync();
+        currentCompanyId = await AuthService.GetUserCompanyIdAsync();
+        
+        if (!currentCompanyId.HasValue)
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
+        
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            efficiencyRates = await EfficiencyRateService.GetAllAsync(currentCompanyId!.Value);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ShowCreateModal()
+    {
+        currentRate = new EfficiencyRate
+        {
+            CompanyId = currentCompanyId!.Value,
+            EfficiencyPercentage = 100,
+            IsActive = true
+        };
+        isEditMode = false;
+        showModal = true;
+    }
+
+    private void ShowEditModal(EfficiencyRate rate)
+    {
+        currentRate = new EfficiencyRate
+        {
+            Id = rate.Id,
+            Name = rate.Name,
+            EfficiencyPercentage = rate.EfficiencyPercentage,
+            Description = rate.Description,
+            IsDefault = rate.IsDefault,
+            IsActive = rate.IsActive,
+            CompanyId = rate.CompanyId
+        };
+        isEditMode = true;
+        showModal = true;
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        currentRate = new();
+    }
+
+    private async Task SaveRate()
+    {
+        try
+        {
+            if (isEditMode)
+            {
+                await EfficiencyRateService.UpdateAsync(currentRate);
+            }
+            else
+            {
+                await EfficiencyRateService.CreateAsync(currentRate);
+            }
+            
+            CloseModal();
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error: {ex.Message}");
+        }
+    }
+
+    private async Task SetAsDefault(int id)
+    {
+        try
+        {
+            await EfficiencyRateService.SetDefaultAsync(id);
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error: {ex.Message}");
+        }
+    }
+
+    private async Task DeleteRate(int id)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to delete this efficiency rate?");
+        if (!confirmed) return;
+        
+        try
+        {
+            await EfficiencyRateService.DeleteAsync(id);
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error: {ex.Message}");
+        }
+    }
+}

@@ -1,0 +1,339 @@
+@page "/admin/invites"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using SteelEstimation.Core.Interfaces
+@using SteelEstimation.Core.DTOs
+@using SteelEstimation.Core.Entities
+@using System.Security.Claims
+@attribute [Authorize(Roles = "Administrator")]
+@inject IInviteService InviteService
+@inject IAuthenticationService AuthService
+@inject NavigationManager Navigation
+@inject ILogger<InviteManagement> Logger
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Invite Management - Steel Estimation Platform</PageTitle>
+
+<h1>Invite Management</h1>
+
+<div class="row">
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Send New Invite</h5>
+            </div>
+            <div class="card-body">
+                <EditForm Model="@inviteModel" OnValidSubmit="@SendInvite">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary class="text-danger" />
+                    
+                    @if (!string.IsNullOrEmpty(inviteError))
+                    {
+                        <div class="alert alert-danger">@inviteError</div>
+                    }
+                    
+                    @if (!string.IsNullOrEmpty(inviteSuccess))
+                    {
+                        <div class="alert alert-success">
+                            @inviteSuccess
+                            @if (!string.IsNullOrEmpty(inviteUrl))
+                            {
+                                <hr>
+                                <p class="mb-1">Invite URL:</p>
+                                <div class="input-group">
+                                    <input type="text" class="form-control form-control-sm" value="@inviteUrl" readonly />
+                                    <button class="btn btn-sm btn-outline-secondary" type="button" @onclick="CopyInviteUrl">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    }
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <InputText class="form-control" @bind-Value="inviteModel.Email" />
+                        <ValidationMessage For="@(() => inviteModel.Email)" />
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">First Name</label>
+                            <InputText class="form-control" @bind-Value="inviteModel.FirstName" />
+                            <ValidationMessage For="@(() => inviteModel.FirstName)" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Last Name</label>
+                            <InputText class="form-control" @bind-Value="inviteModel.LastName" />
+                            <ValidationMessage For="@(() => inviteModel.LastName)" />
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Company (Optional)</label>
+                        <InputText class="form-control" @bind-Value="inviteModel.CompanyName" />
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Job Title (Optional)</label>
+                        <InputText class="form-control" @bind-Value="inviteModel.JobTitle" />
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Role</label>
+                        <InputSelect class="form-select" @bind-Value="inviteModel.RoleId">
+                            <option value="">Select a role...</option>
+                            @foreach (var role in roles)
+                            {
+                                <option value="@role.Id">@role.RoleName</option>
+                            }
+                        </InputSelect>
+                        <ValidationMessage For="@(() => inviteModel.RoleId)" />
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Personal Message (Optional)</label>
+                        <InputTextArea class="form-control" @bind-Value="inviteModel.Message" rows="3" />
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <InputCheckbox class="form-check-input" @bind-Value="inviteModel.SendWelcomeEmail" id="sendEmail" />
+                        <label class="form-check-label" for="sendEmail">
+                            Send welcome email
+                        </label>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary w-100" disabled="@isSending">
+                        @if (isSending)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                        }
+                        Send Invite
+                    </button>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Sent Invites</h5>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="LoadInvites">
+                        <i class="fas fa-sync"></i> Refresh
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                @if (isLoading)
+                {
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                }
+                else if (invites == null || !invites.Any())
+                {
+                    <p class="text-muted">No invites have been sent yet.</p>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Email</th>
+                                    <th>Name</th>
+                                    <th>Role</th>
+                                    <th>Status</th>
+                                    <th>Invited By</th>
+                                    <th>Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var invite in invites)
+                                {
+                                    <tr>
+                                        <td>@invite.Email</td>
+                                        <td>@invite.FirstName @invite.LastName</td>
+                                        <td>@invite.Role.RoleName</td>
+                                        <td>
+                                            @switch (invite.Status)
+                                            {
+                                                case "Pending":
+                                                    <span class="badge bg-warning">Pending</span>
+                                                    break;
+                                                case "Used":
+                                                    <span class="badge bg-success">Accepted</span>
+                                                    break;
+                                                case "Expired":
+                                                    <span class="badge bg-danger">Expired</span>
+                                                    break;
+                                            }
+                                        </td>
+                                        <td>@invite.InvitedByUser.FullName</td>
+                                        <td>@invite.CreatedDate.ToString("MMM dd, yyyy")</td>
+                                        <td>
+                                            @if (invite.Status == "Pending")
+                                            {
+                                                <button class="btn btn-sm btn-outline-primary" @onclick="() => ResendInvite(invite)">
+                                                    <i class="fas fa-envelope"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-danger" @onclick="() => RevokeInvite(invite)">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            }
+                                            @if (invite.Status == "Used" && invite.User != null)
+                                            {
+                                                <a href="/admin/users/@invite.User.Id" class="btn btn-sm btn-outline-info">
+                                                    <i class="fas fa-user"></i>
+                                                </a>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private CreateInviteRequest inviteModel = new();
+    private List<Role> roles = new();
+    private List<Invite> invites = new();
+    private bool isLoading = true;
+    private bool isSending = false;
+    private string? inviteError;
+    private string? inviteSuccess;
+    private string? inviteUrl;
+    private int currentUserId;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userIdClaim = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (int.TryParse(userIdClaim, out var userId))
+        {
+            currentUserId = userId;
+        }
+        
+        LoadRoles();
+        await LoadInvites();
+    }
+    
+    private void LoadRoles()
+    {
+        // Get roles from the database - for now, hardcode them
+        roles = new List<Role>
+        {
+            new Role { Id = 2, RoleName = "Project Manager" },
+            new Role { Id = 3, RoleName = "Senior Estimator" },
+            new Role { Id = 4, RoleName = "Estimator" },
+            new Role { Id = 5, RoleName = "Viewer" }
+        };
+    }
+    
+    private async Task LoadInvites()
+    {
+        isLoading = true;
+        try
+        {
+            var allInvites = await InviteService.GetInvitesAsync(includeUsed: true);
+            invites = allInvites.ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading invites");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+    
+    private async Task SendInvite()
+    {
+        isSending = true;
+        inviteError = null;
+        inviteSuccess = null;
+        inviteUrl = null;
+        
+        try
+        {
+            var result = await InviteService.CreateInviteAsync(inviteModel, currentUserId);
+            
+            if (result.Success)
+            {
+                inviteSuccess = "Invite sent successfully!";
+                inviteUrl = result.InviteUrl;
+                
+                // Reset form
+                inviteModel = new CreateInviteRequest();
+                
+                // Reload invites
+                await LoadInvites();
+            }
+            else
+            {
+                inviteError = result.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error sending invite");
+            inviteError = "An error occurred while sending the invite.";
+        }
+        finally
+        {
+            isSending = false;
+        }
+    }
+    
+    private async Task ResendInvite(Invite invite)
+    {
+        try
+        {
+            var result = await InviteService.ResendInviteAsync(invite.Id, currentUserId);
+            if (result.Success)
+            {
+                inviteSuccess = $"Invite resent to {invite.Email}";
+                await LoadInvites();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error resending invite");
+        }
+    }
+    
+    private async Task RevokeInvite(Invite invite)
+    {
+        if (await InviteService.RevokeInviteAsync(invite.Id, currentUserId))
+        {
+            await LoadInvites();
+        }
+    }
+    
+    private async Task CopyInviteUrl()
+    {
+        if (!string.IsNullOrEmpty(inviteUrl))
+        {
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("clipboardFunctions.copyToClipboard", inviteUrl);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to copy to clipboard");
+            }
+        }
+    }
+}

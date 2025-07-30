@@ -1,0 +1,1046 @@
+@page "/worksheets/designer/{TemplateId:int?}"
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Authorization
+@using SteelEstimation.Core.Services
+@using SteelEstimation.Core.DTOs
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ILogger<TemplateDesigner> Logger
+@inject IWorksheetFieldService FieldService
+@attribute [Authorize]
+
+<PageTitle>Worksheet Template Designer - Steel Estimation Platform</PageTitle>
+
+<div class="worksheet-designer-container">
+    <!-- Header -->
+    <div class="designer-header">
+        <h3>Worksheet Template Designer</h3>
+        <div class="header-actions">
+            <button class="btn btn-outline-secondary" @onclick="Cancel">
+                <i class="fas fa-times"></i> Cancel
+            </button>
+            <button class="btn btn-primary" @onclick="SaveTemplate" disabled="@(!HasChanges())">
+                <i class="fas fa-save"></i> Save Template
+            </button>
+            @if (!isNewTemplate && template != null && !template.IsGlobal)
+            {
+                <button class="btn btn-success" @onclick="PublishTemplate">
+                    <i class="fas fa-globe"></i> @(template.IsPublished ? "Unpublish" : "Publish")
+                </button>
+            }
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = string.Empty"></button>
+        </div>
+    }
+
+    <!-- Main Designer Area -->
+    <div class="designer-body">
+        <!-- Left Panel: Template Settings & Field Selection -->
+        <div class="designer-left-panel">
+            <!-- Template Info -->
+            <div class="template-info-section">
+                <h5>Template Information</h5>
+                <div class="mb-3">
+                    <label class="form-label">Template Name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" @bind="templateName" 
+                           placeholder="e.g., Quick Processing Entry" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-control" @bind="templateDescription" rows="2"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Base Type</label>
+                    <select class="form-select" @bind="baseType" disabled="@(!isNewTemplate)">
+                        <option value="Processing">Processing & Handling</option>
+                        <option value="Welding">Welding</option>
+                    </select>
+                </div>
+                <div class="form-check mb-3">
+                    <input type="checkbox" class="form-check-input" @bind="allowColumnReorder" id="allowReorder" />
+                    <label class="form-check-label" for="allowReorder">
+                        Allow users to reorder columns
+                    </label>
+                </div>
+            </div>
+
+            <!-- Field Selection -->
+            <div class="field-selection-section">
+                <h5>Available Fields</h5>
+                <div class="field-search mb-2">
+                    <input type="text" class="form-control form-control-sm" 
+                           placeholder="Search fields..." @bind="fieldSearchTerm" @bind:event="oninput" />
+                </div>
+                
+                <!-- Field Categories -->
+                @foreach (var category in GetFieldCategories())
+                {
+                    <div class="field-category mb-3">
+                        <h6 class="category-header" @onclick="() => ToggleCategory(category.Name)">
+                            <i class="fas fa-chevron-@(expandedCategories.Contains(category.Name) ? "down" : "right")"></i>
+                            @category.Name
+                        </h6>
+                        @if (expandedCategories.Contains(category.Name))
+                        {
+                            <div class="field-list">
+                                @foreach (var field in category.Fields.Where(f => MatchesSearch(f)))
+                                {
+                                    <div class="field-item @(IsFieldSelected(field.Name) ? "selected" : "")"
+                                         draggable="true"
+                                         @ondragstart="() => StartDrag(field)"
+                                         @onclick="() => ToggleField(field)">
+                                        <div class="d-flex align-items-center">
+                                            <input type="checkbox" class="form-check-input me-2" 
+                                                   checked="@IsFieldSelected(field.Name)" @onclick:stopPropagation />
+                                            <span class="flex-grow-1">@field.DisplayName</span>
+                                            @if (field.IsCalculated)
+                                            {
+                                                <i class="fas fa-calculator text-info me-1" title="Calculated field"></i>
+                                            }
+                                            @if (field.HasDependencies)
+                                            {
+                                                <i class="fas fa-link text-warning" 
+                                                   title="@GetDependencyTooltip(field)"></i>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Right Panel: Live Preview -->
+        <div class="designer-right-panel">
+            <div class="preview-header">
+                <h5>Live Preview</h5>
+                <div class="preview-controls">
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="RefreshPreview">
+                        <i class="fas fa-sync"></i> Refresh
+                    </button>
+                    <div class="form-check form-check-inline">
+                        <input type="checkbox" class="form-check-input" @bind="showSampleData" id="showSample" />
+                        <label class="form-check-label" for="showSample">Show sample data</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dependency Warnings -->
+            @if (dependencyWarnings.Any())
+            {
+                <div class="alert alert-warning">
+                    <h6><i class="fas fa-exclamation-triangle"></i> Field Dependencies</h6>
+                    <ul class="mb-0">
+                        @foreach (var warning in dependencyWarnings)
+                        {
+                            <li>@warning</li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            <!-- Live Preview Table -->
+            <div class="preview-container">
+                <div class="preview-toolbar mb-2">
+                    <small class="text-muted">Visible Buttons:</small>
+                    @foreach (var button in GetVisibleButtons())
+                    {
+                        <span class="badge bg-secondary me-1">@button</span>
+                    }
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered preview-table">
+                        <thead>
+                            <tr>
+                                @foreach (var field in selectedFields.OrderBy(f => f.DisplayOrder))
+                                {
+                                    <th style="width: @(field.ColumnWidth ?? 100)px"
+                                        class="@(field.IsFrozen ? "frozen-column" : "")">
+                                        @(field.CustomDisplayName ?? field.DisplayName)
+                                        @if (allowColumnReorder)
+                                        {
+                                            <i class="fas fa-grip-vertical float-end text-muted" title="Draggable"></i>
+                                        }
+                                    </th>
+                                }
+                                @if (!selectedFields.Any())
+                                {
+                                    <th class="text-muted">Select fields to preview</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (showSampleData && selectedFields.Any())
+                            {
+                                @for (int i = 1; i <= 3; i++)
+                                {
+                                    <tr>
+                                        @foreach (var field in selectedFields.OrderBy(f => f.DisplayOrder))
+                                        {
+                                            <td>@GetSampleData(field, i)</td>
+                                        }
+                                    </tr>
+                                }
+                            }
+                            else if (selectedFields.Any())
+                            {
+                                <tr>
+                                    <td colspan="@selectedFields.Count" class="text-center text-muted">
+                                        Select "Show sample data" to preview with data
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Selected Fields Configuration -->
+                @if (selectedFields.Any())
+                {
+                    <div class="selected-fields-config mt-3">
+                        <h6>Selected Fields Configuration</h6>
+                        <div class="field-config-list">
+                            @foreach (var field in selectedFields.OrderBy(f => f.DisplayOrder))
+                            {
+                                <div class="field-config-item" draggable="true" 
+                                     @ondragstart="() => StartConfigDrag(field)"
+                                     @ondrop="() => HandleConfigDrop(field)"
+                                     @ondragover:preventDefault="true">
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-grip-lines me-2" style="cursor: move;"></i>
+                                        <span class="flex-grow-1">@field.DisplayName</span>
+                                        <input type="text" class="form-control form-control-sm mx-2" 
+                                               style="width: 150px" @bind="field.CustomDisplayName" 
+                                               placeholder="Custom label" />
+                                        <input type="number" class="form-control form-control-sm mx-2" 
+                                               style="width: 80px" @bind="field.ColumnWidth" 
+                                               placeholder="Width" min="50" />
+                                        <div class="form-check form-check-inline">
+                                            <input type="checkbox" class="form-check-input" 
+                                                   @bind="field.IsFrozen" id="@($"frozen-{field.Name}")" />
+                                            <label class="form-check-label" for="@($"frozen-{field.Name}")">Frozen</label>
+                                        </div>
+                                        <button class="btn btn-sm btn-link text-danger" 
+                                                @onclick="() => RemoveField(field)"
+                                                disabled="@(IsFieldRequired(field))">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                    @if (IsFieldRequired(field))
+                                    {
+                                        <small class="text-muted ms-4">
+                                            <i class="fas fa-info-circle"></i> Required by other fields
+                                        </small>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .worksheet-designer-container {
+        height: calc(100vh - 100px);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .designer-header {
+        padding: 1rem;
+        border-bottom: 1px solid #dee2e6;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background-color: #f8f9fa;
+    }
+
+    .designer-body {
+        flex: 1;
+        display: flex;
+        overflow: hidden;
+    }
+
+    .designer-left-panel {
+        width: 350px;
+        border-right: 1px solid #dee2e6;
+        padding: 1rem;
+        overflow-y: auto;
+        background-color: #fff;
+    }
+
+    .designer-right-panel {
+        flex: 1;
+        padding: 1rem;
+        overflow-y: auto;
+        background-color: #f8f9fa;
+    }
+
+    .field-category {
+        border: 1px solid #e9ecef;
+        border-radius: 0.25rem;
+        padding: 0.5rem;
+        background-color: #fff;
+    }
+
+    .category-header {
+        cursor: pointer;
+        margin-bottom: 0.5rem;
+        user-select: none;
+        font-weight: 600;
+        color: #495057;
+    }
+
+    .category-header:hover {
+        color: #0d6efd;
+    }
+
+    .field-item {
+        padding: 0.5rem;
+        margin: 0.25rem 0;
+        border: 1px solid #e9ecef;
+        border-radius: 0.25rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        background-color: #fff;
+    }
+
+    .field-item:hover {
+        background-color: #e9ecef;
+        border-color: #dee2e6;
+    }
+
+    .field-item.selected {
+        background-color: #d1ecf1;
+        border-color: #bee5eb;
+    }
+
+    .preview-container {
+        background-color: white;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        padding: 1rem;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+
+    .field-config-item {
+        padding: 0.75rem;
+        border: 1px solid #e9ecef;
+        border-radius: 0.25rem;
+        margin-bottom: 0.5rem;
+        background-color: #fff;
+        transition: all 0.2s;
+    }
+
+    .field-config-item:hover {
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+
+    .preview-table {
+        font-size: 0.875rem;
+    }
+
+    .frozen-column {
+        background-color: #f0f8ff !important;
+        font-weight: 600;
+    }
+
+    .template-info-section, .field-selection-section {
+        margin-bottom: 2rem;
+    }
+
+    .preview-toolbar {
+        padding: 0.5rem;
+        background-color: #f8f9fa;
+        border-radius: 0.25rem;
+        margin-bottom: 0.5rem;
+    }
+</style>
+
+@code {
+    [Parameter] public int? TemplateId { get; set; }
+    
+    private bool isNewTemplate => !TemplateId.HasValue;
+    private WorksheetTemplate? template;
+    private string templateName = string.Empty;
+    private string? templateDescription;
+    private string baseType = "Processing";
+    private bool allowColumnReorder = true;
+    private string fieldSearchTerm = string.Empty;
+    private bool showSampleData = true;
+    private string? errorMessage;
+    private int currentUserId;
+    private bool isAdmin = false;
+    
+    private List<FieldDefinition> selectedFields = new();
+    private HashSet<string> expandedCategories = new() { "Basic Fields" };
+    private List<string> dependencyWarnings = new();
+    
+    private FieldDefinition? draggedField;
+    private FieldDefinition? draggedConfigField;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var userEmail = authState.User.Identity?.Name;
+        
+        using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        var user = await dbContext.Users.FirstOrDefaultAsync(u => u.Email == userEmail);
+        if (user == null)
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
+        
+        currentUserId = user.Id;
+        isAdmin = authState.User.IsInRole("Administrator");
+        
+        if (TemplateId.HasValue)
+        {
+            await LoadTemplate();
+        }
+    }
+    
+    private async Task LoadTemplate()
+    {
+        try
+        {
+            using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            template = await dbContext.WorksheetTemplates
+                .Include(t => t.Fields)
+                .FirstOrDefaultAsync(t => t.Id == TemplateId);
+                
+            if (template == null)
+            {
+                errorMessage = "Template not found";
+                return;
+            }
+            
+            // Check permissions
+            if (!template.IsGlobal && template.CreatedByUserId != currentUserId && !isAdmin)
+            {
+                errorMessage = "You don't have permission to edit this template";
+                return;
+            }
+            
+            // Load template data
+            templateName = template.Name;
+            templateDescription = template.Description;
+            baseType = template.BaseType;
+            allowColumnReorder = template.AllowColumnReorder;
+            
+            // Load selected fields
+            selectedFields.Clear();
+            foreach (var field in template.Fields.OrderBy(f => f.DisplayOrder))
+            {
+                var fieldDef = GetFieldDefinition(field.FieldName);
+                if (fieldDef != null)
+                {
+                    fieldDef.DisplayOrder = field.DisplayOrder;
+                    fieldDef.ColumnWidth = field.ColumnWidth;
+                    fieldDef.IsFrozen = field.IsFrozen;
+                    fieldDef.CustomDisplayName = field.DisplayName;
+                    selectedFields.Add(fieldDef);
+                }
+            }
+            
+            CheckFieldDependencies();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading template");
+            errorMessage = "Error loading template";
+        }
+    }
+    
+    private List<FieldCategory> GetFieldCategories()
+    {
+        if (baseType == "Processing")
+        {
+            return ProcessingFieldCategories;
+        }
+        else
+        {
+            return WeldingFieldCategories;
+        }
+    }
+    
+    private static readonly List<FieldCategory> ProcessingFieldCategories = new()
+    {
+        new FieldCategory
+        {
+            Name = "Basic Fields",
+            Fields = new List<FieldDefinition>
+            {
+                new() { Name = "ID", DisplayName = "ID", IsRequired = true },
+                new() { Name = "DrawingNumber", DisplayName = "Drawing Number" },
+                new() { Name = "Description", DisplayName = "Description" },
+                new() { Name = "MaterialId", DisplayName = "Material ID" }
+            }
+        },
+        new FieldCategory
+        {
+            Name = "Quantity Fields",
+            Fields = new List<FieldDefinition>
+            {
+                new() { Name = "Quantity", DisplayName = "Quantity" },
+                new() { Name = "Length", DisplayName = "Length" },
+                new() { Name = "Weight", DisplayName = "Weight" },
+                new() { Name = "TotalWeight", DisplayName = "Total Weight", IsCalculated = true, HasDependencies = true }
+            }
+        },
+        new FieldCategory
+        {
+            Name = "Bundle Fields",
+            Fields = new List<FieldDefinition>
+            {
+                new() { Name = "DeliveryBundle", DisplayName = "Delivery Bundle" },
+                new() { Name = "PackBundle", DisplayName = "Pack Bundle" }
+            }
+        },
+        new FieldCategory
+        {
+            Name = "Time Fields",
+            Fields = new List<FieldDefinition>
+            {
+                new() { Name = "UnloadTime", DisplayName = "Unload Time/Bundle" },
+                new() { Name = "MarkMeasureCut", DisplayName = "Mark/Measure/Cut" },
+                new() { Name = "QualityCheck", DisplayName = "Quality Check/Clean" },
+                new() { Name = "MoveToAssembly", DisplayName = "Move to Assembly" },
+                new() { Name = "MoveAfterWeld", DisplayName = "Move After Weld" },
+                new() { Name = "LoadingTime", DisplayName = "Loading Time/Bundle" },
+                new() { Name = "TotalHours", DisplayName = "Total Hours", IsCalculated = true, HasDependencies = true }
+            }
+        }
+    };
+    
+    private static readonly List<FieldCategory> WeldingFieldCategories = new()
+    {
+        new FieldCategory
+        {
+            Name = "Basic Fields",
+            Fields = new List<FieldDefinition>
+            {
+                new() { Name = "ID", DisplayName = "ID", IsRequired = true },
+                new() { Name = "DrawingNumber", DisplayName = "Drawing Number" },
+                new() { Name = "ItemDescription", DisplayName = "Description" }
+            }
+        },
+        new FieldCategory
+        {
+            Name = "Visual Fields",
+            Fields = new List<FieldDefinition>
+            {
+                new() { Name = "Images", DisplayName = "Images" },
+                new() { Name = "PhotoReference", DisplayName = "Photo Reference" }
+            }
+        },
+        new FieldCategory
+        {
+            Name = "Connection Fields",
+            Fields = new List<FieldDefinition>
+            {
+                new() { Name = "ConnectionType", DisplayName = "Connection Type" },
+                new() { Name = "ConnectionQty", DisplayName = "Connection Quantity" },
+                new() { Name = "ConnectionHours", DisplayName = "Connection Hours", IsCalculated = true, HasDependencies = true }
+            }
+        },
+        new FieldCategory
+        {
+            Name = "Welding Details",
+            Fields = new List<FieldDefinition>
+            {
+                new() { Name = "WeldType", DisplayName = "Weld Type" },
+                new() { Name = "WeldLength", DisplayName = "Weld Length" },
+                new() { Name = "Weight", DisplayName = "Weight (kg)" }
+            }
+        },
+        new FieldCategory
+        {
+            Name = "Time Fields",
+            Fields = new List<FieldDefinition>
+            {
+                new() { Name = "AssembleFitTack", DisplayName = "Assemble/Fit/Tack" },
+                new() { Name = "Weld", DisplayName = "Weld" },
+                new() { Name = "WeldCheck", DisplayName = "Weld Check" },
+                new() { Name = "WeldTest", DisplayName = "Weld Test" },
+                new() { Name = "TotalHours", DisplayName = "Total Hours", IsCalculated = true, HasDependencies = true }
+            }
+        },
+        new FieldCategory
+        {
+            Name = "Additional",
+            Fields = new List<FieldDefinition>
+            {
+                new() { Name = "LocationComments", DisplayName = "Location/Comments" }
+            }
+        }
+    };
+    
+    private FieldDefinition? GetFieldDefinition(string fieldName)
+    {
+        var categories = GetFieldCategories();
+        foreach (var category in categories)
+        {
+            var field = category.Fields.FirstOrDefault(f => f.Name == fieldName);
+            if (field != null)
+            {
+                // Return a copy to avoid modifying the original
+                return new FieldDefinition
+                {
+                    Name = field.Name,
+                    DisplayName = field.DisplayName,
+                    IsRequired = field.IsRequired,
+                    IsCalculated = field.IsCalculated,
+                    HasDependencies = field.HasDependencies
+                };
+            }
+        }
+        return null;
+    }
+    
+    private bool MatchesSearch(FieldDefinition field)
+    {
+        if (string.IsNullOrWhiteSpace(fieldSearchTerm))
+            return true;
+            
+        return field.DisplayName.Contains(fieldSearchTerm, StringComparison.OrdinalIgnoreCase) ||
+               field.Name.Contains(fieldSearchTerm, StringComparison.OrdinalIgnoreCase);
+    }
+    
+    private void ToggleCategory(string categoryName)
+    {
+        if (expandedCategories.Contains(categoryName))
+            expandedCategories.Remove(categoryName);
+        else
+            expandedCategories.Add(categoryName);
+    }
+    
+    private bool IsFieldSelected(string fieldName)
+    {
+        return selectedFields.Any(f => f.Name == fieldName);
+    }
+    
+    private void ToggleField(FieldDefinition field)
+    {
+        if (IsFieldSelected(field.Name))
+        {
+            var toRemove = selectedFields.First(f => f.Name == field.Name);
+            if (!IsFieldRequired(toRemove))
+            {
+                RemoveField(toRemove);
+            }
+        }
+        else
+        {
+            var newField = new FieldDefinition
+            {
+                Name = field.Name,
+                DisplayName = field.DisplayName,
+                IsRequired = field.IsRequired,
+                IsCalculated = field.IsCalculated,
+                HasDependencies = field.HasDependencies,
+                DisplayOrder = selectedFields.Count,
+                ColumnWidth = GetDefaultColumnWidth(field.Name)
+            };
+            selectedFields.Add(newField);
+            
+            // Add dependent fields if needed
+            AddDependentFields(field.Name);
+        }
+        
+        CheckFieldDependencies();
+    }
+    
+    private void AddDependentFields(string fieldName)
+    {
+        var dependencies = GetFieldDependencies(fieldName);
+        foreach (var dep in dependencies)
+        {
+            if (!IsFieldSelected(dep))
+            {
+                var depField = GetFieldDefinition(dep);
+                if (depField != null)
+                {
+                    depField.DisplayOrder = selectedFields.Count;
+                    depField.ColumnWidth = GetDefaultColumnWidth(dep);
+                    selectedFields.Add(depField);
+                }
+            }
+        }
+    }
+    
+    private List<string> GetFieldDependencies(string fieldName)
+    {
+        return baseType switch
+        {
+            "Processing" => fieldName switch
+            {
+                "TotalWeight" => new List<string> { "Quantity", "Weight" },
+                "TotalHours" => new List<string> { "UnloadTime", "MarkMeasureCut", "QualityCheck", 
+                                                   "MoveToAssembly", "MoveAfterWeld", "LoadingTime" },
+                _ => new List<string>()
+            },
+            "Welding" => fieldName switch
+            {
+                "ConnectionHours" => new List<string> { "ConnectionType", "AssembleFitTack", "Weld", "WeldCheck" },
+                "TotalHours" => new List<string> { "AssembleFitTack", "Weld", "WeldCheck", "WeldTest" },
+                _ => new List<string>()
+            },
+            _ => new List<string>()
+        };
+    }
+    
+    private bool IsFieldRequired(FieldDefinition field)
+    {
+        if (field.IsRequired) return true;
+        
+        // Check if any selected field depends on this one
+        foreach (var selected in selectedFields)
+        {
+            var deps = GetFieldDependencies(selected.Name);
+            if (deps.Contains(field.Name))
+                return true;
+        }
+        
+        return false;
+    }
+    
+    private void RemoveField(FieldDefinition field)
+    {
+        selectedFields.Remove(field);
+        
+        // Reorder remaining fields
+        for (int i = 0; i < selectedFields.Count; i++)
+        {
+            selectedFields[i].DisplayOrder = i;
+        }
+        
+        CheckFieldDependencies();
+    }
+    
+    private void CheckFieldDependencies()
+    {
+        dependencyWarnings.Clear();
+        
+        foreach (var field in selectedFields)
+        {
+            var deps = GetFieldDependencies(field.Name);
+            var missingDeps = deps.Where(d => !IsFieldSelected(d)).ToList();
+            
+            if (missingDeps.Any())
+            {
+                dependencyWarnings.Add($"{field.DisplayName} requires: {string.Join(", ", missingDeps)}");
+            }
+        }
+    }
+    
+    private int GetDefaultColumnWidth(string fieldName)
+    {
+        return fieldName switch
+        {
+            "ID" => 50,
+            "DrawingNumber" => 120,
+            "Description" or "ItemDescription" => 200,
+            "MaterialId" => 100,
+            "Quantity" or "ConnectionQty" => 80,
+            "Length" or "Weight" => 80,
+            "TotalWeight" or "TotalHours" => 100,
+            "DeliveryBundle" or "PackBundle" => 150,
+            "Images" => 150,
+            "ConnectionType" => 250,
+            "ConnectionHours" => 250,
+            _ => 100
+        };
+    }
+    
+    private string GetDependencyTooltip(FieldDefinition field)
+    {
+        var deps = GetFieldDependencies(field.Name);
+        if (deps.Any())
+        {
+            return $"Requires: {string.Join(", ", deps)}";
+        }
+        return "";
+    }
+    
+    private List<string> GetVisibleButtons()
+    {
+        var buttons = new List<string>();
+        
+        if (baseType == "Processing")
+        {
+            if (IsFieldSelected("Quantity"))
+                buttons.Add("Split Rows");
+            if (IsFieldSelected("DeliveryBundle"))
+            {
+                buttons.Add("Create Delivery Bundle");
+                buttons.Add("Auto Bundle");
+            }
+            if (IsFieldSelected("PackBundle"))
+                buttons.Add("Create Pack Bundle");
+            if (IsFieldSelected("DeliveryBundle") || IsFieldSelected("PackBundle"))
+                buttons.Add("Manage Bundles");
+            
+            buttons.Add("Bulk Update");
+            buttons.Add("Bulk Delete");
+        }
+        else if (baseType == "Welding")
+        {
+            if (IsFieldSelected("ConnectionType"))
+                buttons.Add("Add Connection");
+            if (IsFieldSelected("Images"))
+                buttons.Add("Upload Image");
+            
+            buttons.Add("Bulk Update");
+            buttons.Add("Bulk Delete");
+        }
+        
+        return buttons;
+    }
+    
+    private string GetSampleData(FieldDefinition field, int row)
+    {
+        return field.Name switch
+        {
+            "ID" => row.ToString(),
+            "DrawingNumber" => $"DWG-{1000 + row}",
+            "Description" => $"Sample Item {row}",
+            "ItemDescription" => $"Welding Item {row}",
+            "MaterialId" => $"MAT-{200 + row}",
+            "Quantity" => (row * 5).ToString(),
+            "ConnectionQty" => row.ToString(),
+            "Length" => $"{row * 1.5:F2}",
+            "Weight" => $"{row * 2.5:F2}",
+            "TotalWeight" => $"{row * 5 * 2.5:F2}",
+            "DeliveryBundle" => row == 1 ? "DB001" : "-",
+            "PackBundle" => row <= 2 ? "PB001" : "-",
+            "ConnectionType" => "Baseplate - Small",
+            "WeldType" => "Fillet",
+            "WeldLength" => $"{row * 10}",
+            "UnloadTime" or "LoadingTime" => row == 1 ? "15" : "-",
+            "MarkMeasureCut" => "30",
+            "QualityCheck" => "15",
+            "MoveToAssembly" or "MoveAfterWeld" => row <= 2 ? "20" : "-",
+            "AssembleFitTack" => "5",
+            "Weld" => "3",
+            "WeldCheck" => "2",
+            "WeldTest" => "0",
+            "TotalHours" => "1.5",
+            "ConnectionHours" => "Baseplate: 10 min",
+            "Images" => "[Image]",
+            "PhotoReference" => $"IMG-{row}",
+            "LocationComments" => $"Location {row}",
+            _ => "-"
+        };
+    }
+    
+    private void StartDrag(FieldDefinition field)
+    {
+        draggedField = field;
+    }
+    
+    private void StartConfigDrag(FieldDefinition field)
+    {
+        draggedConfigField = field;
+    }
+    
+    private void HandleConfigDrop(FieldDefinition targetField)
+    {
+        if (draggedConfigField == null || draggedConfigField == targetField)
+            return;
+            
+        var draggedIndex = selectedFields.IndexOf(draggedConfigField);
+        var targetIndex = selectedFields.IndexOf(targetField);
+        
+        if (draggedIndex >= 0 && targetIndex >= 0)
+        {
+            selectedFields.RemoveAt(draggedIndex);
+            selectedFields.Insert(targetIndex, draggedConfigField);
+            
+            // Update display order
+            for (int i = 0; i < selectedFields.Count; i++)
+            {
+                selectedFields[i].DisplayOrder = i;
+            }
+        }
+        
+        draggedConfigField = null;
+    }
+    
+    private void RefreshPreview()
+    {
+        StateHasChanged();
+    }
+    
+    private bool HasChanges()
+    {
+        if (string.IsNullOrWhiteSpace(templateName))
+            return false;
+            
+        if (!selectedFields.Any())
+            return false;
+            
+        // For new templates, we have changes if we have a name and fields
+        if (isNewTemplate)
+            return true;
+            
+        // For existing templates, check if anything changed
+        // (In a real implementation, we'd compare with original values)
+        return true;
+    }
+    
+    private async Task SaveTemplate()
+    {
+        try
+        {
+            errorMessage = null;
+            
+            if (string.IsNullOrWhiteSpace(templateName))
+            {
+                errorMessage = "Template name is required";
+                return;
+            }
+            
+            if (!selectedFields.Any())
+            {
+                errorMessage = "At least one field must be selected";
+                return;
+            }
+            
+            // Check for dependency errors
+            if (dependencyWarnings.Any())
+            {
+                errorMessage = "Please resolve field dependencies before saving";
+                return;
+            }
+            
+            using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            
+            if (isNewTemplate)
+            {
+                template = new WorksheetTemplate
+                {
+                    Name = templateName,
+                    Description = templateDescription,
+                    BaseType = baseType,
+                    CreatedByUserId = currentUserId,
+                    IsPublished = false,
+                    IsGlobal = false,
+                    IsDefault = false,
+                    AllowColumnReorder = allowColumnReorder,
+                    DisplayOrder = 1000, // User templates at the end
+                    CreatedDate = DateTime.UtcNow,
+                    LastModified = DateTime.UtcNow
+                };
+                
+                dbContext.WorksheetTemplates.Add(template);
+                await dbContext.SaveChangesAsync();
+            }
+            else if (template != null)
+            {
+                template.Name = templateName;
+                template.Description = templateDescription;
+                template.AllowColumnReorder = allowColumnReorder;
+                template.LastModified = DateTime.UtcNow;
+                
+                // Remove existing fields
+                var existingFields = await dbContext.WorksheetTemplateFields
+                    .Where(f => f.WorksheetTemplateId == template.Id)
+                    .ToListAsync();
+                dbContext.WorksheetTemplateFields.RemoveRange(existingFields);
+            }
+            
+            // Add selected fields
+            foreach (var field in selectedFields)
+            {
+                var templateField = new WorksheetTemplateField
+                {
+                    WorksheetTemplateId = template!.Id,
+                    FieldName = field.Name,
+                    DisplayName = string.IsNullOrWhiteSpace(field.CustomDisplayName) ? null : field.CustomDisplayName,
+                    IsVisible = true,
+                    IsRequired = field.IsRequired,
+                    DisplayOrder = field.DisplayOrder,
+                    ColumnWidth = field.ColumnWidth,
+                    IsFrozen = field.IsFrozen
+                };
+                
+                dbContext.WorksheetTemplateFields.Add(templateField);
+            }
+            
+            await dbContext.SaveChangesAsync();
+            
+            Navigation.NavigateTo("/worksheets/templates");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error saving template");
+            errorMessage = "Error saving template";
+        }
+    }
+    
+    private async Task PublishTemplate()
+    {
+        if (template == null) return;
+        
+        try
+        {
+            using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            var dbTemplate = await dbContext.WorksheetTemplates.FindAsync(template.Id);
+            if (dbTemplate != null)
+            {
+                dbTemplate.IsPublished = !dbTemplate.IsPublished;
+                dbTemplate.LastModified = DateTime.UtcNow;
+                await dbContext.SaveChangesAsync();
+                
+                template.IsPublished = dbTemplate.IsPublished;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error publishing template");
+            errorMessage = "Error publishing template";
+        }
+    }
+    
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/worksheets/templates");
+    }
+    
+    private class FieldCategory
+    {
+        public string Name { get; set; } = string.Empty;
+        public List<FieldDefinition> Fields { get; set; } = new();
+    }
+    
+    private class FieldDefinition
+    {
+        public string Name { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
+        public string? CustomDisplayName { get; set; }
+        public bool IsRequired { get; set; }
+        public bool IsCalculated { get; set; }
+        public bool HasDependencies { get; set; }
+        public int DisplayOrder { get; set; }
+        public int? ColumnWidth { get; set; }
+        public bool IsFrozen { get; set; }
+    }
+}

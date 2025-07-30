@@ -1,0 +1,506 @@
+@page "/admin/material-types"
+@using SteelEstimation.Core.Configuration
+@using Microsoft.Extensions.Options
+@using System.Text.Json
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Administrator")]
+@inject IOptions<MaterialMappingSettings> MaterialMappingSettings
+@inject IConfiguration Configuration
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+
+<PageTitle>Material Types Management - Steel Estimation Platform</PageTitle>
+
+<h1>Material Types Management</h1>
+
+<div class="row">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> Manage material types, their properties, and which types appear in the quick filters on worksheets.
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Material Types</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <h6>Add New Material Type</h6>
+                    <div class="row g-2">
+                        <div class="col-3">
+                            <input type="text" class="form-control" @bind="newTypeName" placeholder="Type Name" maxlength="50" />
+                        </div>
+                        <div class="col-2">
+                            <input type="number" class="form-control" @bind="newTypeMaxWeight" placeholder="Max Weight" min="100" max="10000" />
+                        </div>
+                        <div class="col-3">
+                            <select class="form-select" @bind="newTypeColor">
+                                <option value="">Select Color</option>
+                                <option value="primary">Primary (Blue)</option>
+                                <option value="success">Success (Green)</option>
+                                <option value="info">Info (Light Blue)</option>
+                                <option value="warning">Warning (Yellow)</option>
+                                <option value="danger">Danger (Red)</option>
+                                <option value="secondary">Secondary (Gray)</option>
+                                <option value="dark">Dark</option>
+                                <option value="purple">Purple</option>
+                            </select>
+                        </div>
+                        <div class="col-2">
+                            <div class="form-check form-switch mt-2">
+                                <input class="form-check-input" type="checkbox" @bind="newTypeShowInFilter" id="newShowInFilter">
+                                <label class="form-check-label" for="newShowInFilter">
+                                    Show in Filters
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-2">
+                            <button class="btn btn-primary w-100" @onclick="AddMaterialType">
+                                <i class="fas fa-plus"></i> Add Type
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Type Name</th>
+                                <th>Max Bundle Weight</th>
+                                <th>Color</th>
+                                <th>Show in Quick Filters</th>
+                                <th>Order</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var type in materialTypes.OrderBy(t => t.Value.DisplayOrder))
+                            {
+                                <tr>
+                                    <td>
+                                        @if (editingType == type.Key)
+                                        {
+                                            <input type="text" class="form-control form-control-sm" @bind="editingTypeName" />
+                                        }
+                                        else
+                                        {
+                                            <strong>@type.Key</strong>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (editingType == type.Key)
+                                        {
+                                            <input type="number" class="form-control form-control-sm" @bind="editingTypeMaxWeight" min="100" max="10000" />
+                                        }
+                                        else
+                                        {
+                                            @type.Value.MaxBundleWeight<text> kg</text>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (editingType == type.Key)
+                                        {
+                                            <select class="form-select form-select-sm" @bind="editingTypeColor">
+                                                <option value="primary">Primary</option>
+                                                <option value="success">Success</option>
+                                                <option value="info">Info</option>
+                                                <option value="warning">Warning</option>
+                                                <option value="danger">Danger</option>
+                                                <option value="secondary">Secondary</option>
+                                                <option value="dark">Dark</option>
+                                                <option value="purple">Purple</option>
+                                            </select>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-@GetColorClass(type.Value.Color)">@type.Value.Color</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (editingType == type.Key)
+                                        {
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" @bind="editingTypeShowInFilter">
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" checked="@type.Value.ShowInQuickFilter" disabled>
+                                            </div>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-secondary" @onclick="@(() => MoveType(type.Key, -1))" 
+                                                    disabled="@(type.Value.DisplayOrder == 0)">
+                                                <i class="fas fa-arrow-up"></i>
+                                            </button>
+                                            <button class="btn btn-outline-secondary" @onclick="@(() => MoveType(type.Key, 1))"
+                                                    disabled="@(type.Value.DisplayOrder == materialTypes.Count - 1)">
+                                                <i class="fas fa-arrow-down"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        @if (editingType == type.Key)
+                                        {
+                                            <button class="btn btn-sm btn-success me-1" @onclick="SaveEdit">
+                                                <i class="fas fa-check"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-secondary" @onclick="CancelEdit">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-sm btn-primary me-1" @onclick="@(() => StartEdit(type.Key))">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            @if (!IsSystemType(type.Key))
+                                            {
+                                                <button class="btn btn-sm btn-danger" @onclick="@(() => RemoveMaterialType(type.Key))">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            }
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Quick Filter Preview</h5>
+            </div>
+            <div class="card-body">
+                <p>This is how the quick filters will appear on the worksheet pages:</p>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-outline-primary active">
+                        <i class="fas fa-th"></i> All
+                    </button>
+                    @foreach (var type in materialTypes.Where(t => t.Value.ShowInQuickFilter).OrderBy(t => t.Value.DisplayOrder))
+                    {
+                        <button type="button" class="btn btn-outline-@GetColorClass(type.Value.Color)">
+                            <i class="fas @GetIconForType(type.Key)"></i> @type.Key
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">MBE ID Mappings</h5>
+            </div>
+            <div class="card-body">
+                <p>Configure how MBE IDs map to your material types.</p>
+                <a href="/admin/mbe-mappings" class="btn btn-primary">
+                    <i class="fas fa-link"></i> Manage MBE ID Mappings
+                </a>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">System Types</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">The following types are system defaults and cannot be deleted:</p>
+                <ul class="list-unstyled mb-0">
+                    <li><span class="badge bg-primary">Beam</span></li>
+                    <li><span class="badge bg-info">Plate</span></li>
+                    <li><span class="badge bg-success">Purlin</span></li>
+                    <li><span class="badge bg-secondary">Misc</span></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-3">
+    <div class="col-12">
+        <button class="btn btn-success" @onclick="SaveSettings">
+            <i class="fas fa-save"></i> Save All Changes
+        </button>
+        <button class="btn btn-secondary ms-2" @onclick="LoadSettings">
+            <i class="fas fa-undo"></i> Reset to Saved
+        </button>
+        <button class="btn btn-info ms-2" @onclick="ExportConfiguration">
+            <i class="fas fa-download"></i> Export Configuration
+        </button>
+    </div>
+</div>
+
+@if (showAlert)
+{
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+        <div class="toast show" role="alert">
+            <div class="toast-header">
+                <strong class="me-auto">@alertTitle</strong>
+                <button type="button" class="btn-close" @onclick="@(() => showAlert = false)"></button>
+            </div>
+            <div class="toast-body">
+                @alertMessage
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private Dictionary<string, MaterialTypeConfig> materialTypes = new();
+    
+    private string newTypeName = "";
+    private int newTypeMaxWeight = 2000;
+    private string newTypeColor = "secondary";
+    private bool newTypeShowInFilter = true;
+    
+    private string? editingType = null;
+    private string editingTypeName = "";
+    private int editingTypeMaxWeight = 2000;
+    private string editingTypeColor = "secondary";
+    private bool editingTypeShowInFilter = true;
+    
+    private bool showAlert = false;
+    private string alertTitle = "";
+    private string alertMessage = "";
+    
+    private class MaterialTypeConfig
+    {
+        public int MaxBundleWeight { get; set; }
+        public string Color { get; set; } = "secondary";
+        public bool ShowInQuickFilter { get; set; } = true;
+        public int DisplayOrder { get; set; }
+    }
+    
+    protected override void OnInitialized()
+    {
+        LoadSettings();
+    }
+    
+    private void LoadSettings()
+    {
+        // Load from configuration
+        var materialTypesSection = Configuration.GetSection("MaterialMappings:MaterialTypes");
+        var types = materialTypesSection.Get<Dictionary<string, MaterialType>>() ?? new();
+        
+        materialTypes.Clear();
+        int order = 0;
+        
+        // Add system types first
+        var systemTypes = new[] { "Beam", "Plate", "Purlin", "Misc" };
+        foreach (var typeName in systemTypes)
+        {
+            if (types.TryGetValue(typeName, out var type))
+            {
+                materialTypes[typeName] = new MaterialTypeConfig
+                {
+                    MaxBundleWeight = type.MaxBundleWeight,
+                    Color = type.Color,
+                    ShowInQuickFilter = true,
+                    DisplayOrder = order++
+                };
+            }
+        }
+        
+        // Add custom types
+        foreach (var kvp in types.Where(t => !systemTypes.Contains(t.Key)))
+        {
+            materialTypes[kvp.Key] = new MaterialTypeConfig
+            {
+                MaxBundleWeight = kvp.Value.MaxBundleWeight,
+                Color = kvp.Value.Color,
+                ShowInQuickFilter = true,
+                DisplayOrder = order++
+            };
+        }
+    }
+    
+    private void AddMaterialType()
+    {
+        var typeName = newTypeName.Trim();
+        if (string.IsNullOrEmpty(typeName))
+        {
+            ShowAlert("Error", "Please enter a type name.");
+            return;
+        }
+        
+        if (materialTypes.ContainsKey(typeName))
+        {
+            ShowAlert("Error", "A material type with this name already exists.");
+            return;
+        }
+        
+        if (string.IsNullOrEmpty(newTypeColor))
+        {
+            ShowAlert("Error", "Please select a color.");
+            return;
+        }
+        
+        materialTypes[typeName] = new MaterialTypeConfig
+        {
+            MaxBundleWeight = newTypeMaxWeight,
+            Color = newTypeColor,
+            ShowInQuickFilter = newTypeShowInFilter,
+            DisplayOrder = materialTypes.Count
+        };
+        
+        // Clear form
+        newTypeName = "";
+        newTypeMaxWeight = 2000;
+        newTypeColor = "secondary";
+        newTypeShowInFilter = true;
+        
+        ShowAlert("Success", $"Material type '{typeName}' added successfully.");
+    }
+    
+    private void RemoveMaterialType(string typeName)
+    {
+        if (IsSystemType(typeName))
+        {
+            ShowAlert("Error", "System types cannot be removed.");
+            return;
+        }
+        
+        materialTypes.Remove(typeName);
+        
+        // Reorder remaining types
+        var ordered = materialTypes.OrderBy(t => t.Value.DisplayOrder).ToList();
+        for (int i = 0; i < ordered.Count; i++)
+        {
+            ordered[i].Value.DisplayOrder = i;
+        }
+        
+        ShowAlert("Success", $"Material type '{typeName}' removed.");
+    }
+    
+    private void StartEdit(string typeName)
+    {
+        editingType = typeName;
+        var type = materialTypes[typeName];
+        editingTypeName = typeName;
+        editingTypeMaxWeight = type.MaxBundleWeight;
+        editingTypeColor = type.Color;
+        editingTypeShowInFilter = type.ShowInQuickFilter;
+    }
+    
+    private void SaveEdit()
+    {
+        if (editingType == null) return;
+        
+        var type = materialTypes[editingType];
+        type.MaxBundleWeight = editingTypeMaxWeight;
+        type.Color = editingTypeColor;
+        type.ShowInQuickFilter = editingTypeShowInFilter;
+        
+        editingType = null;
+    }
+    
+    private void CancelEdit()
+    {
+        editingType = null;
+    }
+    
+    private void MoveType(string typeName, int direction)
+    {
+        var type = materialTypes[typeName];
+        var newOrder = type.DisplayOrder + direction;
+        
+        if (newOrder < 0 || newOrder >= materialTypes.Count)
+            return;
+            
+        // Find the type to swap with
+        var swapType = materialTypes.FirstOrDefault(t => t.Value.DisplayOrder == newOrder);
+        if (swapType.Key != null)
+        {
+            swapType.Value.DisplayOrder = type.DisplayOrder;
+            type.DisplayOrder = newOrder;
+        }
+    }
+    
+    private bool IsSystemType(string typeName)
+    {
+        return new[] { "Beam", "Plate", "Purlin", "Misc" }.Contains(typeName);
+    }
+    
+    private string GetColorClass(string color)
+    {
+        return color == "purple" ? "secondary" : color;
+    }
+    
+    private string GetIconForType(string typeName)
+    {
+        return typeName.ToLower() switch
+        {
+            "beam" => "fa-bars",
+            "plate" => "fa-square",
+            "purlin" => "fa-grip-lines",
+            "fastener" => "fa-link",
+            _ => "fa-cube"
+        };
+    }
+    
+    private Task SaveSettings()
+    {
+        try
+        {
+            ShowAlert("Success", "Material type settings have been updated. Note: These changes are only applied to the current session. Export configuration to update appsettings.json.");
+        }
+        catch (Exception ex)
+        {
+            ShowAlert("Error", $"Failed to save settings: {ex.Message}");
+        }
+        return Task.CompletedTask;
+    }
+    
+    private async Task ExportConfiguration()
+    {
+        try
+        {
+            // Convert to the format expected in appsettings.json
+            var materialTypesDict = materialTypes.ToDictionary(
+                kvp => kvp.Key,
+                kvp => new
+                {
+                    MaxBundleWeight = kvp.Value.MaxBundleWeight,
+                    Color = kvp.Value.Color
+                }
+            );
+            
+            var json = JsonSerializer.Serialize(new
+            {
+                MaterialMappings = new
+                {
+                    MaterialTypes = materialTypesDict,
+                    MbeIdMappings = MaterialMappingSettings.Value.MbeIdMappings,
+                    MaterialIdPatterns = MaterialMappingSettings.Value.MaterialIdPatterns
+                }
+            }, new JsonSerializerOptions { WriteIndented = true });
+            
+            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", json);
+            ShowAlert("Success", "Configuration copied to clipboard. Paste this into your appsettings.json file.");
+        }
+        catch (Exception ex)
+        {
+            ShowAlert("Error", $"Failed to export: {ex.Message}");
+        }
+    }
+    
+    private void ShowAlert(string title, string message)
+    {
+        alertTitle = title;
+        alertMessage = message;
+        showAlert = true;
+    }
+}

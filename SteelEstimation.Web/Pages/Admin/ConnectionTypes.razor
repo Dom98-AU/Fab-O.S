@@ -1,0 +1,391 @@
+@page "/admin/connection-types"
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Authorization
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject IJSRuntime JSRuntime
+@inject ILogger<ConnectionTypes> Logger
+@attribute [Authorize(Roles = "Administrator")]
+
+<PageTitle>Connection Types - Steel Estimation Platform</PageTitle>
+
+<div class="container-fluid px-4">
+    <h1 class="mt-4">Connection Types Management</h1>
+    <ol class="breadcrumb mb-4">
+        <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="/admin/settings">Admin</a></li>
+        <li class="breadcrumb-item active">Connection Types</li>
+    </ol>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = string.Empty"></button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @successMessage
+            <button type="button" class="btn-close" @onclick="() => successMessage = string.Empty"></button>
+        </div>
+    }
+
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="fas fa-plug"></i> Global Connection Types</span>
+            <button class="btn btn-primary btn-sm" @onclick="ShowAddModal">
+                <i class="fas fa-plus"></i> Add Connection Type
+            </button>
+        </div>
+        <div class="card-body">
+            @if (isLoading)
+            {
+                <div class="text-center">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            }
+            else if (connectionTypes.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Order</th>
+                                <th>Name</th>
+                                <th>Category</th>
+                                <th>Size</th>
+                                <th>Assemble/Fit/Tack</th>
+                                <th>Weld</th>
+                                <th>Weld Check</th>
+                                <th>Weld Test</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var conn in connectionTypes)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-secondary" @onclick="() => MoveUp(conn)" 
+                                                    disabled="@(conn.DisplayOrder == connectionTypes.Min(c => c.DisplayOrder))">
+                                                <i class="fas fa-arrow-up"></i>
+                                            </button>
+                                            <button class="btn btn-outline-secondary" @onclick="() => MoveDown(conn)"
+                                                    disabled="@(conn.DisplayOrder == connectionTypes.Max(c => c.DisplayOrder))">
+                                                <i class="fas fa-arrow-down"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                    <td>@conn.Name</td>
+                                    <td>@conn.Category</td>
+                                    <td>@conn.Size</td>
+                                    <td>@conn.DefaultAssembleFitTack min</td>
+                                    <td>@conn.DefaultWeld min</td>
+                                    <td>@conn.DefaultWeldCheck min</td>
+                                    <td>@conn.DefaultWeldTest min</td>
+                                    <td>
+                                        @if (conn.IsActive)
+                                        {
+                                            <span class="badge bg-success">Active</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">Inactive</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => ShowEditModal(conn)">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteConnection(conn)">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <p class="text-muted text-center">No connection types defined. Click "Add Connection Type" to create one.</p>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Modal -->
+@if (showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <EditForm Model="@editingConnection" OnValidSubmit="SaveConnection">
+                    <DataAnnotationsValidator />
+                    <div class="modal-header">
+                        <h5 class="modal-title">@(editingConnection.Id == 0 ? "Add" : "Edit") Connection Type</h5>
+                        <button type="button" class="btn-close" @onclick="HideModal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <ValidationSummary class="text-danger" />
+                        
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Name</label>
+                                <InputText class="form-control" @bind-Value="editingConnection.Name" />
+                                <ValidationMessage For="@(() => editingConnection.Name)" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Category</label>
+                                <InputSelect class="form-select" @bind-Value="editingConnection.Category">
+                                    <option value="">-- Select --</option>
+                                    <option value="Baseplate">Baseplate</option>
+                                    <option value="Stiffener">Stiffener</option>
+                                    <option value="Gusset">Gusset</option>
+                                    <option value="Purlin">Purlin</option>
+                                    <option value="Bracket">Bracket</option>
+                                    <option value="Cleat">Cleat</option>
+                                    <option value="Other">Other</option>
+                                </InputSelect>
+                                <ValidationMessage For="@(() => editingConnection.Category)" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Size</label>
+                                <InputSelect class="form-select" @bind-Value="editingConnection.Size">
+                                    <option value="Small">Small</option>
+                                    <option value="Large">Large</option>
+                                </InputSelect>
+                            </div>
+                        </div>
+                        
+                        <hr />
+                        <h6>Default Time Values (minutes)</h6>
+                        
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label">Assemble/Fit/Tack</label>
+                                <InputNumber class="form-control" @bind-Value="editingConnection.DefaultAssembleFitTack" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Weld</label>
+                                <InputNumber class="form-control" @bind-Value="editingConnection.DefaultWeld" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Weld Check</label>
+                                <InputNumber class="form-control" @bind-Value="editingConnection.DefaultWeldCheck" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Weld Test</label>
+                                <InputNumber class="form-control" @bind-Value="editingConnection.DefaultWeldTest" />
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <div class="form-check">
+                                <InputCheckbox class="form-check-input" @bind-Value="editingConnection.IsActive" id="isActive" />
+                                <label class="form-check-label" for="isActive">
+                                    Active (available for selection)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="HideModal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Connection Type</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<WeldingConnection> connectionTypes = new();
+    private WeldingConnection editingConnection = new();
+    private bool showModal = false;
+    private bool isLoading = true;
+    private string? errorMessage;
+    private string? successMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadConnectionTypes();
+    }
+
+    private async Task LoadConnectionTypes()
+    {
+        try
+        {
+            using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            connectionTypes = await dbContext.WeldingConnections
+                .Where(wc => wc.PackageId == null) // Global connections only
+                .OrderBy(wc => wc.DisplayOrder)
+                .ThenBy(wc => wc.Category)
+                .ThenBy(wc => wc.Name)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading connection types");
+            errorMessage = "Error loading connection types";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ShowAddModal()
+    {
+        editingConnection = new WeldingConnection
+        {
+            DisplayOrder = connectionTypes.Any() ? connectionTypes.Max(c => c.DisplayOrder) + 10 : 10,
+            IsActive = true
+        };
+        showModal = true;
+    }
+
+    private void ShowEditModal(WeldingConnection connection)
+    {
+        editingConnection = new WeldingConnection
+        {
+            Id = connection.Id,
+            Name = connection.Name,
+            Category = connection.Category,
+            Size = connection.Size,
+            DefaultAssembleFitTack = connection.DefaultAssembleFitTack,
+            DefaultWeld = connection.DefaultWeld,
+            DefaultWeldCheck = connection.DefaultWeldCheck,
+            DefaultWeldTest = connection.DefaultWeldTest,
+            DisplayOrder = connection.DisplayOrder,
+            IsActive = connection.IsActive,
+            CreatedDate = connection.CreatedDate
+        };
+        showModal = true;
+    }
+
+    private void HideModal()
+    {
+        showModal = false;
+        editingConnection = new();
+    }
+
+    private async Task SaveConnection()
+    {
+        try
+        {
+            using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            
+            if (editingConnection.Id == 0)
+            {
+                // Add new
+                editingConnection.CreatedDate = DateTime.UtcNow;
+                editingConnection.LastModified = DateTime.UtcNow;
+                dbContext.WeldingConnections.Add(editingConnection);
+                successMessage = "Connection type created successfully";
+            }
+            else
+            {
+                // Update existing
+                var existing = await dbContext.WeldingConnections.FindAsync(editingConnection.Id);
+                if (existing != null)
+                {
+                    existing.Name = editingConnection.Name;
+                    existing.Category = editingConnection.Category;
+                    existing.Size = editingConnection.Size;
+                    existing.DefaultAssembleFitTack = editingConnection.DefaultAssembleFitTack;
+                    existing.DefaultWeld = editingConnection.DefaultWeld;
+                    existing.DefaultWeldCheck = editingConnection.DefaultWeldCheck;
+                    existing.DefaultWeldTest = editingConnection.DefaultWeldTest;
+                    existing.IsActive = editingConnection.IsActive;
+                    existing.LastModified = DateTime.UtcNow;
+                    successMessage = "Connection type updated successfully";
+                }
+            }
+            
+            await dbContext.SaveChangesAsync();
+            HideModal();
+            await LoadConnectionTypes();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error saving connection type");
+            errorMessage = "Error saving connection type";
+        }
+    }
+
+    private async Task DeleteConnection(WeldingConnection connection)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", 
+            $"Are you sure you want to delete '{connection.Name}'? This action cannot be undone.");
+        
+        if (confirmed)
+        {
+            try
+            {
+                using var dbContext = await DbContextFactory.CreateDbContextAsync();
+                dbContext.WeldingConnections.Remove(connection);
+                await dbContext.SaveChangesAsync();
+                successMessage = "Connection type deleted successfully";
+                await LoadConnectionTypes();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error deleting connection type");
+                errorMessage = "Error deleting connection type. It may be in use by existing welding items.";
+            }
+        }
+    }
+
+    private async Task MoveUp(WeldingConnection connection)
+    {
+        var index = connectionTypes.IndexOf(connection);
+        if (index > 0)
+        {
+            await SwapDisplayOrder(connection, connectionTypes[index - 1]);
+        }
+    }
+
+    private async Task MoveDown(WeldingConnection connection)
+    {
+        var index = connectionTypes.IndexOf(connection);
+        if (index < connectionTypes.Count - 1)
+        {
+            await SwapDisplayOrder(connection, connectionTypes[index + 1]);
+        }
+    }
+
+    private async Task SwapDisplayOrder(WeldingConnection conn1, WeldingConnection conn2)
+    {
+        try
+        {
+            using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            var db1 = await dbContext.WeldingConnections.FindAsync(conn1.Id);
+            var db2 = await dbContext.WeldingConnections.FindAsync(conn2.Id);
+            
+            if (db1 != null && db2 != null)
+            {
+                var temp = db1.DisplayOrder;
+                db1.DisplayOrder = db2.DisplayOrder;
+                db2.DisplayOrder = temp;
+                
+                await dbContext.SaveChangesAsync();
+                await LoadConnectionTypes();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error reordering connection types");
+            errorMessage = "Error reordering connection types";
+        }
+    }
+}

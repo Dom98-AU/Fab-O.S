@@ -1,0 +1,247 @@
+@page "/welcome"
+@using Microsoft.AspNetCore.Components.Forms
+@using SteelEstimation.Core.Interfaces
+@using SteelEstimation.Core.DTOs
+@using SteelEstimation.Core.Entities
+@inject NavigationManager Navigation
+@inject IInviteService InviteService
+@inject ILogger<Welcome> Logger
+
+<PageTitle>Welcome - Steel Estimation Platform</PageTitle>
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+            @if (isLoading)
+            {
+                <div class="text-center">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Validating your invitation...</p>
+                </div>
+            }
+            else if (invite == null || errorMessage != null)
+            {
+                <div class="alert alert-danger">
+                    <h4 class="alert-heading">Invalid Invitation</h4>
+                    <p>@(errorMessage ?? "The invitation link is invalid or has expired.")</p>
+                    <hr>
+                    <p class="mb-0">Please contact your administrator for a new invitation.</p>
+                </div>
+            }
+            else
+            {
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h3 class="mb-0">Welcome to Steel Estimation Platform!</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-4">
+                            <h5>Hello @invite.FirstName @invite.LastName,</h5>
+                            <p>You've been invited to join the Steel Estimation Platform as a <strong>@invite.Role.RoleName</strong>.</p>
+                            @if (!string.IsNullOrEmpty(invite.Message))
+                            {
+                                <div class="alert alert-info">
+                                    <small>Message from @invite.InvitedByUser.FullName:</small>
+                                    <p class="mb-0">@invite.Message</p>
+                                </div>
+                            }
+                        </div>
+
+                        <h5>Complete Your Account Setup</h5>
+                        <EditForm Model="@setupModel" OnValidSubmit="@HandleSetup">
+                            <DataAnnotationsValidator />
+                            <ValidationSummary class="text-danger" />
+                            
+                            @if (!string.IsNullOrEmpty(setupError))
+                            {
+                                <div class="alert alert-danger">@setupError</div>
+                            }
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Email</label>
+                                <input type="email" class="form-control" value="@invite.Email" readonly />
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Username</label>
+                                <InputText class="form-control" @bind-Value="setupModel.Username" placeholder="Choose a username" />
+                                <ValidationMessage For="@(() => setupModel.Username)" />
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Password</label>
+                                <InputText type="password" class="form-control" @bind-Value="setupModel.Password" />
+                                <ValidationMessage For="@(() => setupModel.Password)" />
+                                <small class="text-muted">Must be at least 8 characters with mix of letters and numbers</small>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Confirm Password</label>
+                                <InputText type="password" class="form-control" @bind-Value="setupModel.ConfirmPassword" />
+                                <ValidationMessage For="@(() => setupModel.ConfirmPassword)" />
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Phone Number (Optional)</label>
+                                <InputText class="form-control" @bind-Value="setupModel.PhoneNumber" placeholder="+1 (555) 123-4567" />
+                            </div>
+                            
+                            <div class="form-check mb-3">
+                                <InputCheckbox class="form-check-input" @bind-Value="setupModel.AcceptTerms" id="acceptTerms" />
+                                <label class="form-check-label" for="acceptTerms">
+                                    I accept the <a href="/terms" target="_blank">Terms of Service</a> and <a href="/privacy" target="_blank">Privacy Policy</a>
+                                </label>
+                                <ValidationMessage For="@(() => setupModel.AcceptTerms)" />
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary w-100" disabled="@isSubmitting">
+                                @if (isSubmitting)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                }
+                                Create Account
+                            </button>
+                        </EditForm>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    public string? Token { get; set; }
+    
+    private Invite? invite;
+    private SetupAccountModel setupModel = new();
+    private bool isLoading = true;
+    private bool isSubmitting = false;
+    private string? errorMessage;
+    private string? setupError;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadInvite();
+    }
+    
+    private async Task LoadInvite()
+    {
+        if (string.IsNullOrEmpty(Token))
+        {
+            errorMessage = "No invitation token provided.";
+            isLoading = false;
+            return;
+        }
+        
+        try
+        {
+            invite = await InviteService.GetInviteByTokenAsync(Token);
+            
+            if (invite == null)
+            {
+                errorMessage = "Invalid invitation token.";
+            }
+            else if (invite.IsUsed)
+            {
+                errorMessage = "This invitation has already been used.";
+            }
+            else if (invite.ExpiryDate < DateTime.UtcNow)
+            {
+                errorMessage = "This invitation has expired.";
+            }
+            else
+            {
+                // Pre-fill username suggestion
+                setupModel.Username = invite.Email.Split('@')[0];
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading invite");
+            errorMessage = "An error occurred while loading your invitation.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+    
+    private async Task HandleSetup()
+    {
+        if (invite == null || string.IsNullOrEmpty(Token))
+            return;
+            
+        isSubmitting = true;
+        setupError = null;
+        
+        try
+        {
+            // First check if username is available
+            var usernameAvailable = await CheckUsernameAvailable(setupModel.Username);
+            if (!usernameAvailable)
+            {
+                setupError = "Username is already taken. Please choose another.";
+                isSubmitting = false;
+                return;
+            }
+            
+            // Accept the invite and create account
+            var result = await InviteService.AcceptInviteAsync(Token, setupModel.Password);
+            
+            if (result.Success)
+            {
+                // Update the username (since we used email as default)
+                // This would require updating the user after creation
+                // For now, navigate to setup completion
+                Navigation.NavigateTo($"/setup-complete?email={Uri.EscapeDataString(invite.Email)}");
+            }
+            else
+            {
+                setupError = result.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error setting up account");
+            setupError = "An error occurred while creating your account. Please try again.";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+    
+    private async Task<bool> CheckUsernameAvailable(string username)
+    {
+        // TODO: Implement actual username check
+        // For now, return true
+        return await Task.FromResult(true);
+    }
+    
+    public class SetupAccountModel
+    {
+        [Required]
+        [MinLength(3)]
+        [RegularExpression(@"^[a-zA-Z0-9_]+$", ErrorMessage = "Username can only contain letters, numbers, and underscores")]
+        public string Username { get; set; } = string.Empty;
+        
+        [Required]
+        [MinLength(8)]
+        [RegularExpression(@"^(?=.*[A-Za-z])(?=.*\d).{8,}$", ErrorMessage = "Password must contain at least one letter and one number")]
+        public string Password { get; set; } = string.Empty;
+        
+        [Required]
+        [Compare(nameof(Password), ErrorMessage = "Passwords do not match")]
+        public string ConfirmPassword { get; set; } = string.Empty;
+        
+        [Phone]
+        public string? PhoneNumber { get; set; }
+        
+        [Required]
+        [Range(typeof(bool), "true", "true", ErrorMessage = "You must accept the terms to continue")]
+        public bool AcceptTerms { get; set; }
+    }
+}

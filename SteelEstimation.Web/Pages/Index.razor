@@ -1,0 +1,334 @@
+@page "/"
+@using Microsoft.AspNetCore.Components.Authorization
+@using SteelEstimation.Core.Services
+@using SteelEstimation.Core.DTOs
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+@inject IDashboardMetricsService DashboardMetricsService
+
+<PageTitle>Steel Estimation Platform</PageTitle>
+
+<div class="container-fluid">
+    <h1 class="mb-4">Steel Estimation Platform</h1>
+    
+    <!-- DEPLOYMENT TEST: Version 3.0 - Updated @DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") UTC -->
+    
+    <AuthorizeView>
+        <Authorized>
+            @if (dashboardMetrics == null)
+            {
+                <div class="text-center">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p>Loading dashboard metrics...</p>
+                </div>
+            }
+            else
+            {
+                <!-- Primary Metrics Row -->
+                <div class="row mb-4">
+                    <div class="col-md-3 mb-4">
+                        <div class="card text-white bg-primary">
+                            <div class="card-body">
+                                <h5 class="card-title">Active Estimations</h5>
+                                <p class="card-text display-4">@dashboardMetrics.TotalActiveEstimations</p>
+                                <a href="/estimation" class="btn btn-light btn-sm">View All</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-4">
+                        <div class="card text-white bg-success">
+                            <div class="card-body">
+                                <h5 class="card-title">Total Estimated Hours</h5>
+                                <p class="card-text display-4">@dashboardMetrics.TotalEstimatedHours.ToString("N0")</p>
+                                <small>Processing + Welding</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-4">
+                        <div class="card text-white bg-info">
+                            <div class="card-body">
+                                <h5 class="card-title">Total Tonnage</h5>
+                                <p class="card-text display-4">@dashboardMetrics.TotalTonnage.ToString("N1")t</p>
+                                <small>All estimations</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-4">
+                        <div class="card text-white bg-warning">
+                            <div class="card-body">
+                                <h5 class="card-title">Fabrication Tonne Rate</h5>
+                                <p class="card-text display-4">$@dashboardMetrics.FabricationTonneRate.ToString("N2")</p>
+                                <small>Company-wide average</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Secondary Metrics Row -->
+                <div class="row mb-4">
+                    <div class="col-md-3 mb-4">
+                        <div class="card text-white bg-secondary">
+                            <div class="card-body">
+                                <h5 class="card-title">Active Estimators</h5>
+                                <p class="card-text display-4">@dashboardMetrics.ActiveEstimators</p>
+                                <small>Last 30 days</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-4">
+                        <div class="card text-white bg-dark">
+                            <div class="card-body">
+                                <h5 class="card-title">Avg Time/Tonne</h5>
+                                <p class="card-text display-4">@dashboardMetrics.AverageTimePerTonne.ToString("N1")h</p>
+                                <small>Processing efficiency</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-4">
+                        <div class="card text-white" style="background-color: #6f42c1;">
+                            <div class="card-body">
+                                <h5 class="card-title">Adjusted Tonne Rate</h5>
+                                <p class="card-text display-4">$@GetAdjustedTonneRate().ToString("N2")</p>
+                                <small>@selectedEfficiency% efficiency</small>
+                                <div class="mt-2">
+                                    <select class="form-select form-select-sm text-dark" @onchange="OnEfficiencyChanged">
+                                        <option value="50" selected="@(selectedEfficiency == 50)">50%</option>
+                                        <option value="60" selected="@(selectedEfficiency == 60)">60%</option>
+                                        <option value="70" selected="@(selectedEfficiency == 70)">70%</option>
+                                        <option value="80" selected="@(selectedEfficiency == 80)">80%</option>
+                                        <option value="90" selected="@(selectedEfficiency == 90)">90%</option>
+                                        <option value="100" selected="@(selectedEfficiency == 100)">100%</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-4">
+                        <div class="card text-white" style="background-color: #fd7e14;">
+                            <div class="card-body">
+                                <h5 class="card-title">Estimation Value</h5>
+                                <p class="card-text display-4">$@dashboardMetrics.TotalEstimationValue.ToString("N0")</p>
+                                <small>Total labor cost</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+            
+            <div class="row mt-4">
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Recent Estimations</h5>
+                        </div>
+                        <div class="card-body">
+                            @if (recentEstimations != null && recentEstimations.Any())
+                            {
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Project</th>
+                                                <th>Customer</th>
+                                                <th>Status</th>
+                                                <th>Hours</th>
+                                                <th>Tonnage</th>
+                                                <th>Tonne Rate</th>
+                                                <th>Updated</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var estimation in recentEstimations)
+                                            {
+                                                <tr style="cursor: pointer;" @onclick="(() => NavigateToEstimation(estimation.Id))">
+                                                    <td>
+                                                        <strong>@estimation.ProjectName</strong>
+                                                        <br><small class="text-muted">@estimation.JobNumber</small>
+                                                    </td>
+                                                    <td>@estimation.CustomerName</td>
+                                                    <td>
+                                                        <span class="badge bg-info">@estimation.Status</span>
+                                                    </td>
+                                                    <td>@estimation.TotalHours.ToString("N1")h</td>
+                                                    <td>@estimation.TotalTonnage.ToString("N1")t</td>
+                                                    <td>$@estimation.TonneRate.ToString("N2")/t</td>
+                                                    <td>@estimation.LastModified.ToString("MMM dd")</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                            else
+                            {
+                                <p class="text-muted">No recent estimations found</p>
+                            }
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Quick Actions</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-grid gap-2">
+                                <a href="/estimation" class="btn btn-primary">
+                                    <i class="fas fa-plus"></i> New Estimation
+                                </a>
+                                <a href="/import" class="btn btn-secondary">
+                                    <i class="fas fa-file-import"></i> Import Data
+                                </a>
+                                <a href="/reports" class="btn btn-info">
+                                    <i class="fas fa-chart-bar"></i> Generate Report
+                                </a>
+                                <button class="btn btn-outline-primary" @onclick="RefreshDashboard">
+                                    <i class="fas fa-sync-alt @(_isRefreshing ? "fa-spin" : "")"></i> Refresh
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    @if (timeMetrics != null)
+                    {
+                        <div class="card mt-3">
+                            <div class="card-header">
+                                <h5 class="mb-0">Time Metrics</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-6">
+                                        <small class="text-muted">Processing vs Welding</small>
+                                        <div class="progress mb-2" style="height: 20px;">
+                                            <div class="progress-bar bg-success" style="width: @(GetProcessingPercentage())%">
+                                                @(GetProcessingPercentage().ToString("N0"))%
+                                            </div>
+                                            <div class="progress-bar bg-warning" style="width: @(GetWeldingPercentage())%">
+                                                @(GetWeldingPercentage().ToString("N0"))%
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <small class="text-muted">Avg Est. Time</small>
+                                        <h4 class="mb-0">@timeMetrics.AverageEstimationTime.ToString("N1")h</h4>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </Authorized>
+        <NotAuthorized>
+            <div class="text-center mt-5">
+                <h2>Welcome to Steel Estimation Platform</h2>
+                <p class="lead">Professional steel fabrication estimation tool</p>
+                <div class="mt-4">
+                    <a href="/login" class="btn btn-primary btn-lg">Sign In</a>
+                </div>
+            </div>
+        </NotAuthorized>
+    </AuthorizeView>
+</div>
+
+@code {
+    private bool isAuthenticated = false;
+    private string? userName;
+    private bool _isRefreshing = false;
+    private int selectedEfficiency = 80; // Default to 80% efficiency
+    
+    private DashboardMetrics? dashboardMetrics;
+    private TimeEstimationMetrics? timeMetrics;
+    private List<SteelEstimation.Core.Services.EstimationSummary>? recentEstimations;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
+        userName = authState.User.Identity?.Name;
+        
+        if (isAuthenticated)
+        {
+            await LoadDashboardData();
+        }
+        
+        // Force a re-render to ensure UI updates
+        StateHasChanged();
+    }
+
+    private async Task LoadDashboardData()
+    {
+        try
+        {
+            dashboardMetrics = await DashboardMetricsService.GetHomeDashboardMetricsAsync();
+            timeMetrics = await DashboardMetricsService.GetTimeEstimationMetricsAsync();
+            recentEstimations = await DashboardMetricsService.GetRecentEstimationsAsync(10);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading dashboard data: {ex.Message}");
+            // Initialize with empty data to prevent null reference errors
+            dashboardMetrics = new DashboardMetrics();
+            timeMetrics = new TimeEstimationMetrics();
+            recentEstimations = new List<SteelEstimation.Core.Services.EstimationSummary>();
+        }
+    }
+
+    private async Task RefreshDashboard()
+    {
+        _isRefreshing = true;
+        StateHasChanged();
+        
+        try
+        {
+            await LoadDashboardData();
+        }
+        finally
+        {
+            _isRefreshing = false;
+            StateHasChanged();
+        }
+    }
+
+    private void NavigateToEstimation(int estimationId)
+    {
+        Navigation.NavigateTo($"/estimation/{estimationId}");
+    }
+
+    private decimal GetProcessingPercentage()
+    {
+        if (timeMetrics == null) return 0;
+        var total = timeMetrics.TotalProcessingHours + timeMetrics.TotalWeldingHours;
+        return total > 0 ? (timeMetrics.TotalProcessingHours / total) * 100 : 0;
+    }
+
+    private decimal GetWeldingPercentage()
+    {
+        if (timeMetrics == null) return 0;
+        var total = timeMetrics.TotalProcessingHours + timeMetrics.TotalWeldingHours;
+        return total > 0 ? (timeMetrics.TotalWeldingHours / total) * 100 : 0;
+    }
+    
+    private decimal GetAdjustedTonneRate()
+    {
+        if (dashboardMetrics == null || dashboardMetrics.TotalTonnage == 0) return 0;
+        
+        // Calculate adjusted rate based on selected efficiency
+        // Higher efficiency = lower cost (divide by efficiency)
+        var efficiencyFactor = selectedEfficiency / 100m;
+        var adjustedLaborCost = dashboardMetrics.TotalEstimationValue / efficiencyFactor;
+        
+        return adjustedLaborCost / dashboardMetrics.TotalTonnage;
+    }
+    
+    private void OnEfficiencyChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var efficiency))
+        {
+            selectedEfficiency = efficiency;
+            StateHasChanged(); // Refresh the UI to show new calculation
+        }
+    }
+}

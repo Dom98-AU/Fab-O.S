@@ -1,0 +1,349 @@
+@page "/estimation/{EstimationId:int}/summary"
+@page "/company/{CompanyId:int}/summary"
+@page "/summary"
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@using SteelEstimation.Core.Interfaces
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject NavigationManager Navigation
+@inject IAuthenticationService AuthService
+
+<PageTitle>Estimation Summary Statistics</PageTitle>
+
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        @if (EstimationId.HasValue)
+        {
+            <li class="breadcrumb-item"><a href="/estimation">Estimations</a></li>
+            <li class="breadcrumb-item"><a href="/estimation/@EstimationId">@estimationName</a></li>
+            <li class="breadcrumb-item active">Summary</li>
+        }
+        else if (CompanyId.HasValue)
+        {
+            <li class="breadcrumb-item"><a href="/">Home</a></li>
+            <li class="breadcrumb-item active">Company Summary</li>
+        }
+        else
+        {
+            <li class="breadcrumb-item"><a href="/">Home</a></li>
+            <li class="breadcrumb-item active">Summary</li>
+        }
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        @if (EstimationId.HasValue)
+        {
+            @($"{estimationName} - Summary Statistics")
+        }
+        else if (CompanyId.HasValue)
+        {
+            @($"{companyName} - Summary Statistics")
+        }
+        else
+        {
+            @("Estimation Summary Statistics")
+        }
+    </h2>
+    <div class="d-flex gap-2">
+        <div class="btn-group" role="group">
+            <input type="checkbox" class="btn-check" id="showDetailedStats" @bind="showDetailedStats" />
+            <label class="btn btn-outline-secondary" for="showDetailedStats">
+                <i class="fas fa-chart-line"></i> Detailed Stats
+            </label>
+        </div>
+        
+        @if (!EstimationId.HasValue)
+        {
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
+                    <i class="fas fa-calendar"></i> Date Range
+                </button>
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" @onclick="() => SetDateRange(7)">Last 7 days</a></li>
+                    <li><a class="dropdown-item" @onclick="() => SetDateRange(30)">Last 30 days</a></li>
+                    <li><a class="dropdown-item" @onclick="() => SetDateRange(90)">Last 90 days</a></li>
+                    <li><a class="dropdown-item" @onclick="() => SetDateRange(365)">Last year</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" @onclick="() => SetDateRange(0)">All time</a></li>
+                </ul>
+            </div>
+        }
+        
+        <button class="btn btn-primary" @onclick="RefreshData">
+            <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+    </div>
+</div>
+
+@if (startDate.HasValue || endDate.HasValue)
+{
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
+        <i class="fas fa-info-circle"></i>
+        Showing data 
+        @if (startDate.HasValue && endDate.HasValue)
+        {
+            @($"from {startDate.Value:MMM dd, yyyy} to {endDate.Value:MMM dd, yyyy}")
+        }
+        else if (startDate.HasValue)
+        {
+            @($"from {startDate.Value:MMM dd, yyyy}")
+        }
+        else
+        {
+            @($"until {endDate.Value:MMM dd, yyyy}")
+        }
+        <button type="button" class="btn-close" @onclick="ClearDateRange"></button>
+    </div>
+}
+
+<!-- Main Summary Statistics Component -->
+<EstimationSummaryStats @ref="summaryStatsComponent"
+                        EstimationId="@EstimationId"
+                        CompanyId="@CompanyId"
+                        StartDate="@startDate"
+                        EndDate="@endDate"
+                        ShowDetailedStats="@showDetailedStats"
+                        ShowTrends="@(!EstimationId.HasValue)"
+                        EfficiencyPercentage="@efficiencyPercentage"
+                        EfficiencyPercentageChanged="@OnEfficiencyChanged" />
+
+<!-- Additional Options for Multi-Estimation View -->
+@if (!EstimationId.HasValue && estimationList.Any())
+{
+    <div class="mt-4">
+        <h4>Estimation Breakdown</h4>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                <thead>
+                    <tr>
+                        <th>Project</th>
+                        <th>Customer</th>
+                        <th>Status</th>
+                        <th>Tonnage</th>
+                        <th>Labor Hours</th>
+                        <th>Tonne Rate</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var est in estimationList)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@est.ProjectName</strong><br />
+                                <small class="text-muted">@est.CreatedDate.ToString("MMM dd, yyyy")</small>
+                            </td>
+                            <td>@est.Customer?.CompanyName</td>
+                            <td>
+                                <span class="badge bg-@GetStatusColor(est.EstimationStage)">@est.EstimationStage</span>
+                            </td>
+                            <td>@est.TotalTonnage.ToString("N2") t</td>
+                            <td>@est.TotalHours.ToString("N1") hrs</td>
+                            <td>$@est.TonneRate.ToString("N2")/t</td>
+                            <td>
+                                <a href="/estimation/@est.EstimationId/summary" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-chart-bar"></i> View
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int? EstimationId { get; set; }
+    [Parameter] public int? CompanyId { get; set; }
+    
+    private EstimationSummaryStats? summaryStatsComponent;
+    private string? estimationName;
+    private string? companyName;
+    private bool showDetailedStats = false;
+    private DateTime? startDate;
+    private DateTime? endDate;
+    private decimal? efficiencyPercentage;
+    
+    private List<EstimationListItem> estimationList = new();
+    
+    protected override async Task OnInitializedAsync()
+    {
+        // Get current user's company if not specified
+        if (!CompanyId.HasValue && !EstimationId.HasValue)
+        {
+            CompanyId = await AuthService.GetUserCompanyIdAsync();
+        }
+        
+        await LoadMetadata();
+        await LoadEstimationList();
+    }
+    
+    private async Task LoadMetadata()
+    {
+        using var context = await DbContextFactory.CreateDbContextAsync();
+        
+        if (EstimationId.HasValue)
+        {
+            var estimation = await context.Projects
+                .Where(p => p.Id == EstimationId.Value && !p.IsDeleted)
+                .Include(p => p.Customer)
+                .Select(p => new { p.ProjectName, CompanyId = p.Customer != null ? p.Customer.CompanyId : 0 })
+                .FirstOrDefaultAsync();
+                
+            if (estimation != null)
+            {
+                estimationName = estimation.ProjectName;
+                CompanyId = estimation.CompanyId;
+            }
+            else
+            {
+                Navigation.NavigateTo("/estimation");
+                return;
+            }
+        }
+        
+        if (CompanyId.HasValue)
+        {
+            companyName = await context.Companies
+                .Where(c => c.Id == CompanyId.Value && c.IsActive)
+                .Select(c => c.Name)
+                .FirstOrDefaultAsync();
+        }
+    }
+    
+    private async Task LoadEstimationList()
+    {
+        if (EstimationId.HasValue) return; // Don't load list for single estimation view
+        
+        using var context = await DbContextFactory.CreateDbContextAsync();
+        
+        var query = context.Projects
+            .Include(p => p.Customer)
+            .Include(p => p.Packages)
+                .ThenInclude(pkg => pkg.Worksheets)
+            .Where(p => !p.IsDeleted);
+        
+        if (CompanyId.HasValue)
+        {
+            query = query.Where(p => p.Customer != null && p.Customer.CompanyId == CompanyId.Value);
+        }
+        
+        if (startDate.HasValue)
+        {
+            query = query.Where(p => p.CreatedDate >= startDate.Value);
+        }
+        
+        if (endDate.HasValue)
+        {
+            query = query.Where(p => p.CreatedDate <= endDate.Value);
+        }
+        
+        var projects = await query.ToListAsync();
+        
+        estimationList.Clear();
+        
+        foreach (var project in projects)
+        {
+            var item = new EstimationListItem
+            {
+                EstimationId = project.Id,
+                ProjectName = project.ProjectName,
+                Customer = project.Customer,
+                EstimationStage = project.EstimationStage,
+                CreatedDate = project.CreatedDate
+            };
+            
+            // Calculate metrics
+            foreach (var package in project.Packages.Where(p => !p.IsDeleted))
+            {
+                var processingItems = await context.ProcessingItems
+                    .Include(p => p.PackageWorksheet)
+                    .Where(p => p.PackageWorksheet != null && p.PackageWorksheet.PackageId == package.Id)
+                    .ToListAsync();
+                
+                var weldingItems = await context.WeldingItems
+                    .Include(w => w.PackageWorksheet)
+                    .Where(w => w.PackageWorksheet != null && w.PackageWorksheet.PackageId == package.Id)
+                    .ToListAsync();
+                
+                item.TotalTonnage += processingItems.Sum(p => p.TotalWeight) / 1000m;
+                item.TotalHours += processingItems.Sum(p => p.TotalProcessingMinutes) / 60m;
+                item.TotalHours += weldingItems.Sum(w => w.TotalWeldingMinutes) / 60m;
+                item.TotalCost += item.TotalHours * package.LaborRatePerHour;
+            }
+            
+            item.TonneRate = item.TotalTonnage > 0 ? item.TotalCost / item.TotalTonnage : 0;
+            
+            estimationList.Add(item);
+        }
+        
+        estimationList = estimationList.OrderByDescending(e => e.CreatedDate).ToList();
+    }
+    
+    private async Task RefreshData()
+    {
+        await LoadEstimationList();
+        if (summaryStatsComponent != null)
+        {
+            await summaryStatsComponent.RefreshAsync();
+        }
+    }
+    
+    private async Task SetDateRange(int days)
+    {
+        if (days == 0)
+        {
+            startDate = null;
+            endDate = null;
+        }
+        else
+        {
+            endDate = DateTime.Now;
+            startDate = DateTime.Now.AddDays(-days);
+        }
+        
+        await RefreshData();
+    }
+    
+    private async Task ClearDateRange()
+    {
+        startDate = null;
+        endDate = null;
+        await RefreshData();
+    }
+    
+    private void OnEfficiencyChanged(decimal? newValue)
+    {
+        efficiencyPercentage = newValue;
+        StateHasChanged();
+    }
+    
+    private string GetStatusColor(string status)
+    {
+        return status switch
+        {
+            "Preliminary" => "secondary",
+            "Detailed" => "primary",
+            "Final" => "success",
+            "Approved" => "info",
+            _ => "secondary"
+        };
+    }
+    
+    private class EstimationListItem
+    {
+        public int EstimationId { get; set; }
+        public string ProjectName { get; set; } = "";
+        public Customer? Customer { get; set; }
+        public string EstimationStage { get; set; } = "";
+        public DateTime CreatedDate { get; set; }
+        public decimal TotalTonnage { get; set; }
+        public decimal TotalHours { get; set; }
+        public decimal TotalCost { get; set; }
+        public decimal TonneRate { get; set; }
+    }
+}

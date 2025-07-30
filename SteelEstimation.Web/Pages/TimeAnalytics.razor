@@ -1,0 +1,628 @@
+@page "/time-analytics"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using SteelEstimation.Core.Services
+@using SteelEstimation.Core.DTOs
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IDashboardMetricsService DashboardMetricsService
+@inject IJSRuntime JSRuntime
+@attribute [Authorize]
+
+<PageTitle>Time Analytics - Steel Estimation Platform</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="mb-0">Time Analytics Dashboard</h1>
+                <button class="btn btn-primary" @onclick="RefreshData">
+                    <i class="fas fa-sync-alt @(_isRefreshing ? "fa-spin" : "")"></i> Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="text-center">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading analytics...</span>
+            </div>
+            <p>Loading time analytics data...</p>
+        </div>
+    }
+    else
+    {
+        <!-- Time Calculation Velocity Section -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-tachometer-alt me-2"></i>Time Calculation Velocity
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        @if (_velocity != null)
+                        {
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="card bg-primary text-white">
+                                        <div class="card-body text-center">
+                                            <h6>Avg Days to Complete</h6>
+                                            <h3>@_velocity.AverageTimeToCompleteEstimation.ToString("N1")</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card bg-success text-white">
+                                        <div class="card-body text-center">
+                                            <h6>Avg Time per Package</h6>
+                                            <h3>@_velocity.AverageTimePerPackage.ToString("N1")h</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card bg-info text-white">
+                                        <div class="card-body text-center">
+                                            <h6>Items per Hour</h6>
+                                            <h3>@_velocity.AverageItemsPerHour.ToString("N1")</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card bg-warning text-white">
+                                        <div class="card-body text-center">
+                                            <h6>Estimations Completed</h6>
+                                            <h3>@_velocity.TotalEstimationsCompleted</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row mt-3">
+                                <div class="col-md-6">
+                                    <h6>Velocity by User</h6>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>User</th>
+                                                    <th>Avg Hours/Estimation</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var user in _velocity.VelocityByUser.OrderBy(u => u.Value))
+                                                {
+                                                    <tr>
+                                                        <td>@user.Key</td>
+                                                        <td>@user.Value.ToString("N1")h</td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>Velocity by Material Type</h6>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>Material</th>
+                                                    <th>Avg Minutes/Item</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var material in _velocity.VelocityByMaterialType.OrderBy(m => m.Value))
+                                                {
+                                                    <tr>
+                                                        <td>@material.Key</td>
+                                                        <td>@material.Value.ToString("N1")min</td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Time Accuracy Analysis Section -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-bullseye me-2"></i>Time Accuracy Analysis
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        @if (_accuracy != null)
+                        {
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="card bg-dark text-white">
+                                        <div class="card-body text-center">
+                                            <h6>Overall Accuracy Score</h6>
+                                            <h3>@_accuracy.OverallAccuracyScore.ToString("N1")%</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card bg-secondary text-white">
+                                        <div class="card-body text-center">
+                                            <h6>Processing Variance</h6>
+                                            <h3>@_accuracy.ProcessingTimeVariance.ToString("N1")%</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card bg-info text-white">
+                                        <div class="card-body text-center">
+                                            <h6>Welding Variance</h6>
+                                            <h3>@_accuracy.WeldingTimeVariance.ToString("N1")%</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card bg-success text-white">
+                                        <div class="card-body text-center">
+                                            <h6>Improvement Trend</h6>
+                                            <h3>@_accuracy.ImprovementTrend.ToString("N1")%</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row mt-3">
+                                <div class="col-md-6">
+                                    <h6>Accuracy by User</h6>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>User</th>
+                                                    <th>Accuracy Score</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var user in _accuracy.AccuracyByUser.OrderByDescending(u => u.Value))
+                                                {
+                                                    <tr>
+                                                        <td>@user.Key</td>
+                                                        <td>@user.Value.ToString("N1")%</td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>Accuracy by Material Type</h6>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>Material</th>
+                                                    <th>Accuracy Score</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var material in _accuracy.AccuracyByMaterialType.OrderByDescending(m => m.Value))
+                                                {
+                                                    <tr>
+                                                        <td>@material.Key</td>
+                                                        <td>@material.Value.ToString("N1")%</td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Time Efficiency Trends Section -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-line me-2"></i>Time Efficiency Trends (Last 30 Days)
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        @if (_trends != null && _trends.Any())
+                        {
+                            <div class="row mb-3">
+                                <div class="col-md-12">
+                                    <canvas id="trendsChart" width="400" height="200"></canvas>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <h6>Daily Metrics</h6>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>Date</th>
+                                                    <th>Estimations</th>
+                                                    <th>Processing Hours</th>
+                                                    <th>Welding Hours</th>
+                                                    <th>Tonnage</th>
+                                                    <th>Hours/Tonne</th>
+                                                    <th>Tonne Rate</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var trend in _trends.OrderByDescending(t => t.Date))
+                                                {
+                                                    <tr>
+                                                        <td>@trend.Date.ToString("MMM dd")</td>
+                                                        <td>@trend.EstimationsCompleted</td>
+                                                        <td>@trend.ProcessingHours.ToString("N1")</td>
+                                                        <td>@trend.WeldingHours.ToString("N1")</td>
+                                                        <td>@trend.Tonnage.ToString("N1")t</td>
+                                                        <td>@trend.HoursPerTonne.ToString("N1")</td>
+                                                        <td>$@trend.TonneRate.ToString("N2")</td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="text-muted">No trend data available for the last 30 days.</p>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bundle Efficiency Analysis Section -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-boxes me-2"></i>Bundle Efficiency Analysis
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        @if (_bundleAnalysis != null)
+                        {
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="card bg-primary text-white">
+                                        <div class="card-body text-center">
+                                            <h6>Bundle Utilization</h6>
+                                            <h3>@_bundleAnalysis.BundleUtilizationRate.ToString("N1")%</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card bg-success text-white">
+                                        <div class="card-body text-center">
+                                            <h6>Time Savings</h6>
+                                            <h3>@_bundleAnalysis.TimeSavingsPercentage.ToString("N1")%</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card bg-info text-white">
+                                        <div class="card-body text-center">
+                                            <h6>Avg Delivery Bundle Size</h6>
+                                            <h3>@_bundleAnalysis.AverageDeliveryBundleSize.ToString("N1")</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card bg-warning text-white">
+                                        <div class="card-body text-center">
+                                            <h6>Avg Pack Bundle Size</h6>
+                                            <h3>@_bundleAnalysis.AveragePackBundleSize.ToString("N1")</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row mt-3">
+                                <div class="col-md-6">
+                                    <h6>Bundle Efficiency by Material</h6>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>Material</th>
+                                                    <th>Bundle Efficiency</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var material in _bundleAnalysis.BundleEfficiencyByMaterial.OrderByDescending(m => m.Value))
+                                                {
+                                                    <tr>
+                                                        <td>@material.Key</td>
+                                                        <td>@material.Value.ToString("N1")%</td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>Time Savings Breakdown</h6>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <div class="card">
+                                                <div class="card-body text-center">
+                                                    <h6>Delivery Bundle Savings</h6>
+                                                    <h4>@_bundleAnalysis.DeliveryBundleTimeSavings.ToString("N0") min</h4>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="card">
+                                                <div class="card-body text-center">
+                                                    <h6>Pack Bundle Savings</h6>
+                                                    <h4>@_bundleAnalysis.PackBundleTimeSavings.ToString("N0") min</h4>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- User Performance Section -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-users me-2"></i>User Time Performance
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        @if (_userPerformances != null && _userPerformances.Any())
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>User</th>
+                                            <th>Efficiency Rating</th>
+                                            <th>Accuracy Score</th>
+                                            <th>Velocity Score</th>
+                                            <th>Estimations Completed</th>
+                                            <th>Items Processed</th>
+                                            <th>Avg Time/Item</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var user in _userPerformances)
+                                        {
+                                            <tr>
+                                                <td>@user.UserName</td>
+                                                <td>
+                                                    <div class="d-flex align-items-center">
+                                                        <div class="progress flex-grow-1 me-2" style="height: 20px;">
+                                                            <div class="progress-bar @GetEfficiencyColor(user.EfficiencyRating)" 
+                                                                 style="width: @(user.EfficiencyRating)%">
+                                                                @user.EfficiencyRating.ToString("N0")%
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td>@user.AccuracyScore.ToString("N1")%</td>
+                                                <td>@user.VelocityScore.ToString("N1")%</td>
+                                                <td>@user.EstimationsCompleted</td>
+                                                <td>@user.ItemsProcessed</td>
+                                                <td>@user.AverageTimePerItem.ToString("N1")min</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="text-muted">No user performance data available.</p>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _isLoading = true;
+    private bool _isRefreshing = false;
+    
+    private TimeCalculationVelocity? _velocity;
+    private TimeAccuracyAnalysis? _accuracy;
+    private List<TimeEfficiencyTrend>? _trends;
+    private BundleEfficiencyAnalysis? _bundleAnalysis;
+    private List<UserTimePerformance>? _userPerformances;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+        StateHasChanged();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _trends != null && _trends.Any())
+        {
+            await RenderTrendsChart();
+        }
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            _isLoading = true;
+            StateHasChanged();
+
+            var tasks = new List<Task>
+            {
+                LoadVelocityData(),
+                LoadAccuracyData(),
+                LoadTrendsData(),
+                LoadBundleAnalysisData(),
+                LoadUserPerformanceData()
+            };
+
+            await Task.WhenAll(tasks);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading analytics data: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadVelocityData()
+    {
+        try
+        {
+            _velocity = await DashboardMetricsService.GetTimeCalculationVelocityAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading velocity data: {ex.Message}");
+        }
+    }
+
+    private async Task LoadAccuracyData()
+    {
+        try
+        {
+            _accuracy = await DashboardMetricsService.GetTimeAccuracyAnalysisAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading accuracy data: {ex.Message}");
+        }
+    }
+
+    private async Task LoadTrendsData()
+    {
+        try
+        {
+            _trends = await DashboardMetricsService.GetTimeEfficiencyTrendsAsync(30);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading trends data: {ex.Message}");
+        }
+    }
+
+    private async Task LoadBundleAnalysisData()
+    {
+        try
+        {
+            _bundleAnalysis = await DashboardMetricsService.GetBundleEfficiencyAnalysisAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading bundle analysis data: {ex.Message}");
+        }
+    }
+
+    private async Task LoadUserPerformanceData()
+    {
+        try
+        {
+            _userPerformances = await DashboardMetricsService.GetAllUserTimePerformanceAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading user performance data: {ex.Message}");
+        }
+    }
+
+    private async Task RefreshData()
+    {
+        _isRefreshing = true;
+        await LoadData();
+        
+        if (_trends != null && _trends.Any())
+        {
+            await RenderTrendsChart();
+        }
+        
+        _isRefreshing = false;
+    }
+
+    private async Task RenderTrendsChart()
+    {
+        if (_trends == null || !_trends.Any()) return;
+
+        var chartData = new
+        {
+            labels = _trends.OrderBy(t => t.Date).Select(t => t.Date.ToString("MMM dd")).ToArray(),
+            datasets = new object[]
+            {
+                new
+                {
+                    label = "Processing Hours",
+                    data = _trends.OrderBy(t => t.Date).Select(t => t.ProcessingHours).ToArray(),
+                    backgroundColor = "rgba(54, 162, 235, 0.2)",
+                    borderColor = "rgba(54, 162, 235, 1)",
+                    borderWidth = 2
+                },
+                new
+                {
+                    label = "Welding Hours",
+                    data = _trends.OrderBy(t => t.Date).Select(t => t.WeldingHours).ToArray(),
+                    backgroundColor = "rgba(255, 206, 86, 0.2)",
+                    borderColor = "rgba(255, 206, 86, 1)",
+                    borderWidth = 2
+                },
+                new
+                {
+                    label = "Hours per Tonne",
+                    data = _trends.OrderBy(t => t.Date).Select(t => t.HoursPerTonne).ToArray(),
+                    backgroundColor = "rgba(255, 99, 132, 0.2)",
+                    borderColor = "rgba(255, 99, 132, 1)",
+                    borderWidth = 2,
+                    yAxisID = "y1"
+                }
+            }
+        };
+
+        await JSRuntime.InvokeVoidAsync("renderTrendsChart", chartData);
+    }
+
+    private string GetEfficiencyColor(decimal efficiency)
+    {
+        if (efficiency >= 80) return "bg-success";
+        if (efficiency >= 60) return "bg-warning";
+        return "bg-danger";
+    }
+}

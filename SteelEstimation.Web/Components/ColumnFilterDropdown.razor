@@ -1,0 +1,367 @@
+@using System.Linq
+@using Microsoft.AspNetCore.Components.Web
+@inject IJSRuntime JSRuntime
+@implements IDisposable
+
+<div class="d-inline-block position-relative" @ref="dropdownElement" data-column-key="@ColumnKey">
+    <button class="btn btn-sm btn-link text-dark p-0 ms-1" @onclick="@(async () => await ToggleDropdown())" @onclick:stopPropagation="true">
+        @if (HasActiveFilter || HasActiveSort)
+        {
+            <i class="fas fa-filter text-primary"></i>
+        }
+        else
+        {
+            <i class="fas fa-caret-down text-muted"></i>
+        }
+        @if (SortDirection == "asc")
+        {
+            <i class="fas fa-sort-up text-primary"></i>
+        }
+        else if (SortDirection == "desc")
+        {
+            <i class="fas fa-sort-down text-primary"></i>
+        }
+    </button>
+</div>
+
+@* Render dropdown inline for testing *@
+@if (IsOpen)
+{
+    <div class="position-absolute" style="top: 100%; left: 0; z-index: 9999;">
+        <div class="dropdown-menu show" @ref="dropdownMenuElement" style="min-width: 250px; display: block !important; position: relative !important;" @onclick:stopPropagation="true">
+            <div class="dropdown-header">@ColumnName</div>
+            
+            <!-- Sort Options -->
+            <h6 class="dropdown-header">Sort</h6>
+            <button class="dropdown-item" @onclick="@(() => ApplySort("asc"))">
+                <i class="fas fa-sort-up me-2"></i> Sort Ascending
+            </button>
+            <button class="dropdown-item" @onclick="@(() => ApplySort("desc"))">
+                <i class="fas fa-sort-down me-2"></i> Sort Descending
+            </button>
+            
+            <div class="dropdown-divider"></div>
+            
+            <!-- Filter Options -->
+            <h6 class="dropdown-header">Filter</h6>
+            
+            @if (ColumnType == "text")
+            {
+                <div class="px-3 py-2">
+                    <input type="text" class="form-control form-control-sm" placeholder="Contains..." 
+                           @bind="FilterText" @bind:event="oninput" />
+                </div>
+                
+                @if (UniqueValues.Any())
+                {
+                    <div class="px-3 py-2" style="max-height: 200px; overflow-y: auto;">
+                        <div class="form-check form-check-sm">
+                            <input class="form-check-input" type="checkbox" id="@($"{ColumnKey}_all")" 
+                                   checked="@(SelectedValues.Count == UniqueValues.Count)" 
+                                   @onchange="ToggleAllValues" />
+                            <label class="form-check-label small" for="@($"{ColumnKey}_all")">
+                                (Select All)
+                            </label>
+                        </div>
+                        @foreach (var value in FilteredUniqueValues.Take(50))
+                        {
+                            var valueId = $"{ColumnKey}_{value}";
+                            <div class="form-check form-check-sm">
+                                <input class="form-check-input" type="checkbox" id="@valueId" 
+                                       checked="@SelectedValues.Contains(value)"
+                                       @onchange="@((e) => ToggleValue(value, e))" />
+                                <label class="form-check-label small" for="@valueId">
+                                    @(string.IsNullOrEmpty(value) ? "(Empty)" : value)
+                                </label>
+                            </div>
+                        }
+                        @if (FilteredUniqueValues.Count() > 50)
+                        {
+                            <small class="text-muted">Showing first 50 values...</small>
+                        }
+                    </div>
+                }
+            }
+            else if (ColumnType == "number")
+            {
+                <div class="px-3 py-2">
+                    <div class="mb-2">
+                        <label class="small">Min:</label>
+                        <input type="number" class="form-control form-control-sm" @bind="MinValue" step="any" />
+                    </div>
+                    <div>
+                        <label class="small">Max:</label>
+                        <input type="number" class="form-control form-control-sm" @bind="MaxValue" step="any" />
+                    </div>
+                </div>
+            }
+            
+            <div class="dropdown-divider"></div>
+            
+            <!-- Action Buttons -->
+            <div class="px-3 py-2 d-flex justify-content-between">
+                <button class="btn btn-sm btn-outline-secondary" @onclick="ClearFilter">
+                    Clear
+                </button>
+                <button class="btn btn-sm btn-primary" @onclick="ApplyFilter">
+                    Apply
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string ColumnKey { get; set; } = "";
+    [Parameter] public string ColumnName { get; set; } = "";
+    [Parameter] public string ColumnType { get; set; } = "text"; // text, number
+    [Parameter] public List<string> UniqueValues { get; set; } = new();
+    [Parameter] public EventCallback<FilterConfig?> OnFilterChanged { get; set; }
+    [Parameter] public EventCallback<string> OnSortChanged { get; set; }
+    
+    private bool IsOpen = false;
+    private string FilterText = "";
+    private HashSet<string> SelectedValues = new();
+    private decimal? MinValue;
+    private decimal? MaxValue;
+    private string SortDirection = "";
+    private bool HasActiveFilter => !string.IsNullOrEmpty(FilterText) || SelectedValues.Count < UniqueValues.Count || MinValue.HasValue || MaxValue.HasValue;
+    private bool HasActiveSort => !string.IsNullOrEmpty(SortDirection);
+    private bool _isAfterRender = false;
+    
+    private IEnumerable<string> FilteredUniqueValues => 
+        string.IsNullOrWhiteSpace(FilterText) 
+            ? UniqueValues 
+            : UniqueValues.Where(v => v?.Contains(FilterText, StringComparison.OrdinalIgnoreCase) ?? false);
+    
+    protected override void OnParametersSet()
+    {
+        // Select all values by default when UniqueValues changes
+        if (UniqueValues != null && UniqueValues.Any() && SelectedValues.Count == 0)
+        {
+            SelectedValues = new HashSet<string>(UniqueValues);
+        }
+    }
+    
+    private async Task ToggleDropdown()
+    {
+        Console.WriteLine($"ColumnFilterDropdown.ToggleDropdown BEFORE: IsOpen={IsOpen}, ColumnKey={ColumnKey}");
+        
+        // Prevent rapid toggling
+        if (_isToggling) return;
+        _isToggling = true;
+        
+        try
+        {
+            if (!IsOpen)
+            {
+                // Opening the dropdown
+                IsOpen = true;
+                Console.WriteLine($"Setting IsOpen=true for {ColumnKey}");
+                await InvokeAsync(StateHasChanged);
+                
+                // Force a second render to ensure dropdown is in DOM
+                await Task.Delay(50);
+                await InvokeAsync(StateHasChanged);
+                
+                // Wait for dropdown to be rendered and position it
+                await Task.Delay(100);
+                await PositionDropdown();
+                
+                // Setup click outside handler
+                await SetupClickOutside();
+            }
+            else
+            {
+                // Closing the dropdown
+                await CleanupClickOutside();
+                IsOpen = false;
+                await InvokeAsync(StateHasChanged);
+            }
+            
+            Console.WriteLine($"ColumnFilterDropdown.ToggleDropdown AFTER: IsOpen={IsOpen}");
+        }
+        finally
+        {
+            // Reset toggle flag after a short delay
+            await Task.Delay(100);
+            _isToggling = false;
+        }
+    }
+    
+    private bool _isToggling = false;
+    
+    private void ToggleAllValues(ChangeEventArgs e)
+    {
+        if (e.Value is bool isChecked && isChecked)
+        {
+            SelectedValues = new HashSet<string>(UniqueValues);
+        }
+        else
+        {
+            SelectedValues.Clear();
+        }
+    }
+    
+    private void ToggleValue(string value, ChangeEventArgs e)
+    {
+        if (e.Value is bool isChecked)
+        {
+            if (isChecked)
+                SelectedValues.Add(value);
+            else
+                SelectedValues.Remove(value);
+        }
+    }
+    
+    private async Task ApplySort(string direction)
+    {
+        SortDirection = direction;
+        await OnSortChanged.InvokeAsync(direction);
+        IsOpen = false;
+    }
+    
+    private async Task ApplyFilter()
+    {
+        var config = new FilterConfig
+        {
+            ColumnKey = ColumnKey,
+            FilterType = ColumnType,
+            TextFilter = FilterText,
+            SelectedValues = SelectedValues.ToList(),
+            MinValue = MinValue,
+            MaxValue = MaxValue
+        };
+        
+        await OnFilterChanged.InvokeAsync(config);
+        IsOpen = false;
+    }
+    
+    private async Task ClearFilter()
+    {
+        FilterText = "";
+        SelectedValues = new HashSet<string>(UniqueValues);
+        MinValue = null;
+        MaxValue = null;
+        SortDirection = "";
+        
+        await OnFilterChanged.InvokeAsync(null);
+        await OnSortChanged.InvokeAsync("");
+        IsOpen = false;
+    }
+    
+    public class FilterConfig
+    {
+        public string ColumnKey { get; set; } = "";
+        public string FilterType { get; set; } = "";
+        public string TextFilter { get; set; } = "";
+        public List<string> SelectedValues { get; set; } = new();
+        public decimal? MinValue { get; set; }
+        public decimal? MaxValue { get; set; }
+    }
+    
+    private ElementReference dropdownElement;
+    private ElementReference dropdownMenuElement;
+    private DotNetObjectReference<ColumnFilterDropdown>? objRef;
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            objRef = DotNetObjectReference.Create(this);
+            _isAfterRender = true;
+        }
+        
+        // Position dropdown menu after render
+        if (IsOpen && dropdownMenuElement.Id != null)
+        {
+            await PositionDropdown();
+        }
+    }
+    
+    private async Task PositionDropdown()
+    {
+        // No need to position for inline dropdowns
+        // Just verify it's visible
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("eval", $@"
+                (() => {{
+                    const container = document.querySelector('[data-column-key=""{ColumnKey}""]');
+                    const dropdown = container ? container.querySelector('.dropdown-menu') : null;
+                    
+                    if (dropdown) {{
+                        console.log('Dropdown found for {ColumnKey}');
+                        console.log('Dropdown display:', window.getComputedStyle(dropdown).display);
+                        console.log('Dropdown visibility:', window.getComputedStyle(dropdown).visibility);
+                        
+                        // Force display
+                        dropdown.style.setProperty('display', 'block', 'important');
+                        dropdown.style.setProperty('visibility', 'visible', 'important');
+                        dropdown.style.setProperty('opacity', '1', 'important');
+                    }} else {{
+                        console.error('Dropdown not found for column {ColumnKey}');
+                    }}
+                }})();
+            ");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error checking dropdown: {ex.Message}");
+        }
+    }
+    
+    private async Task SetupClickOutside()
+    {
+        if (objRef != null)
+        {
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("setupClickOutside", dropdownElement, objRef);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error setting up click outside handler: {ex.Message}");
+            }
+        }
+    }
+    
+    private async Task CleanupClickOutside()
+    {
+        try
+        {
+            if (_isAfterRender)
+            {
+                await JSRuntime.InvokeVoidAsync("cleanupClickOutside", dropdownElement);
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // Circuit has disconnected, ignore
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("JavaScript interop calls cannot be issued at this time"))
+        {
+            // Component is being statically rendered, ignore
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error cleaning up click outside handler: {ex.Message}");
+        }
+    }
+    
+    [JSInvokable]
+    public void CloseDropdown()
+    {
+        if (IsOpen)
+        {
+            IsOpen = false;
+            StateHasChanged();
+        }
+    }
+    
+    public void Dispose()
+    {
+        _ = CleanupClickOutside();
+        objRef?.Dispose();
+    }
+}

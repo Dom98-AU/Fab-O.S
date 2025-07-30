@@ -1,0 +1,52 @@
+@page "/setup-complete"
+@inject NavigationManager Navigation
+
+<PageTitle>Setup Complete - Steel Estimation Platform</PageTitle>
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+            <div class="card">
+                <div class="card-body text-center">
+                    <div class="mb-4">
+                        <i class="fas fa-check-circle text-success" style="font-size: 4rem;"></i>
+                    </div>
+                    
+                    <h3 class="mb-3">Account Created Successfully!</h3>
+                    
+                    <p class="mb-4">
+                        Your account has been set up successfully. You can now log in with your credentials.
+                    </p>
+                    
+                    @if (!string.IsNullOrEmpty(Email))
+                    {
+                        <div class="alert alert-info">
+                            <strong>Email:</strong> @Email
+                        </div>
+                    }
+                    
+                    <div class="d-grid gap-2">
+                        <a href="/login" class="btn btn-primary">
+                            <i class="fas fa-sign-in-alt me-2"></i>Go to Login
+                        </a>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <h5>What's Next?</h5>
+                    <ul class="text-start">
+                        <li>Log in with your username and password</li>
+                        <li>Explore the dashboard and available features</li>
+                        <li>Start creating or viewing estimation projects</li>
+                        <li>Contact your administrator if you need help</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    public string? Email { get; set; }
+}

@@ -1,0 +1,351 @@
+@page "/customers/{CustomerId:int}"
+@using Microsoft.EntityFrameworkCore
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Infrastructure.Data
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager Navigation
+@inject IAuthenticationService AuthService
+@inject IJSRuntime JS
+@attribute [Authorize(Policy = "Viewer")]
+
+<PageTitle>@(customer?.CompanyName ?? "Customer") - Steel Estimation Platform</PageTitle>
+
+@if (customer == null)
+{
+    <div class="text-center p-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+}
+else
+{
+    <div class="container-fluid">
+        <div class="row mb-3">
+            <div class="col">
+                <h1>
+                    <i class="fas fa-building me-2"></i>@customer.CompanyName
+                    @if (!customer.IsActive)
+                    {
+                        <span class="badge bg-danger ms-2">Inactive</span>
+                    }
+                </h1>
+                @if (!string.IsNullOrEmpty(customer.TradingName))
+                {
+                    <p class="text-muted mb-0">Trading as: @customer.TradingName</p>
+                }
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-primary" @onclick="EditCustomer">
+                    <i class="fas fa-edit me-2"></i>Edit
+                </button>
+                <button class="btn btn-outline-secondary ms-2" @onclick="GoBack">
+                    <i class="fas fa-arrow-left me-2"></i>Back
+                </button>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-lg-8">
+                <!-- Company Details -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">Company Details</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="text-muted small">ABN</label>
+                                <p class="mb-0"><code>@FormatABN(customer.ABN)</code></p>
+                            </div>
+                            @if (!string.IsNullOrEmpty(customer.ACN))
+                            {
+                                <div class="col-md-6 mb-3">
+                                    <label class="text-muted small">ACN</label>
+                                    <p class="mb-0"><code>@FormatACN(customer.ACN)</code></p>
+                                </div>
+                            }
+                            <div class="col-12 mb-3">
+                                <label class="text-muted small">Created</label>
+                                <p class="mb-0">
+                                    @customer.CreatedDate.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                                    by @(customer.CreatedBy?.FullName ?? "Unknown")
+                                </p>
+                            </div>
+                            @if (customer.ModifiedById.HasValue)
+                            {
+                                <div class="col-12">
+                                    <label class="text-muted small">Last Modified</label>
+                                    <p class="mb-0">
+                                        @customer.ModifiedDate.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                                        by @(customer.ModifiedBy?.FullName ?? "Unknown")
+                                    </p>
+                                </div>
+                            }
+                        </div>
+                        @if (!string.IsNullOrEmpty(customer.Notes))
+                        {
+                            <hr />
+                            <label class="text-muted small">Notes</label>
+                            <p class="mb-0">@customer.Notes</p>
+                        }
+                    </div>
+                </div>
+
+                <!-- Contacts -->
+                <div class="card mb-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            Contacts
+                            <span class="badge bg-secondary ms-2">@customer.Contacts.Count(c => c.IsActive)</span>
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        @if (!customer.Contacts.Any())
+                        {
+                            <p class="text-muted mb-0">
+                                <i class="fas fa-info-circle me-2"></i>
+                                No contacts added yet.
+                            </p>
+                        }
+                        else
+                        {
+                            <div class="row">
+                                @foreach (var contact in customer.Contacts.Where(c => c.IsActive).OrderByDescending(c => c.IsPrimary))
+                                {
+                                    <div class="col-md-6 mb-3">
+                                        <div class="card h-100">
+                                            <div class="card-body">
+                                                <h6 class="card-title">
+                                                    @contact.FullName
+                                                    @if (contact.IsPrimary)
+                                                    {
+                                                        <span class="badge bg-primary ms-2">Primary</span>
+                                                    }
+                                                    @if (contact.IsBillingContact)
+                                                    {
+                                                        <span class="badge bg-info ms-2">Billing</span>
+                                                    }
+                                                </h6>
+                                                @if (!string.IsNullOrEmpty(contact.Position))
+                                                {
+                                                    <p class="text-muted small mb-2">@contact.Position</p>
+                                                }
+                                                @if (!string.IsNullOrEmpty(contact.Email))
+                                                {
+                                                    <p class="mb-1">
+                                                        <i class="fas fa-envelope me-2 text-muted"></i>
+                                                        <a href="mailto:@contact.Email">@contact.Email</a>
+                                                    </p>
+                                                }
+                                                @if (!string.IsNullOrEmpty(contact.Phone))
+                                                {
+                                                    <p class="mb-1">
+                                                        <i class="fas fa-phone me-2 text-muted"></i>
+                                                        <a href="tel:@contact.Phone">@contact.Phone</a>
+                                                    </p>
+                                                }
+                                                @if (!string.IsNullOrEmpty(contact.Mobile))
+                                                {
+                                                    <p class="mb-0">
+                                                        <i class="fas fa-mobile-alt me-2 text-muted"></i>
+                                                        <a href="tel:@contact.Mobile">@contact.Mobile</a>
+                                                    </p>
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Projects -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            Projects
+                            <span class="badge bg-primary ms-2">@customer.Projects.Count(p => !p.IsDeleted)</span>
+                        </h5>
+                        <button class="btn btn-sm btn-primary" @onclick="CreateProject">
+                            <i class="fas fa-plus me-1"></i>Create Estimation
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        @if (!customer.Projects.Any(p => !p.IsDeleted))
+                        {
+                            <p class="text-muted mb-0">
+                                <i class="fas fa-info-circle me-2"></i>
+                                No projects for this customer yet.
+                            </p>
+                        }
+                        else
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Job Number</th>
+                                            <th>Project Name</th>
+                                            <th>Location</th>
+                                            <th>Stage</th>
+                                            <th>Created</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var project in customer.Projects.Where(p => !p.IsDeleted).OrderByDescending(p => p.CreatedDate))
+                                        {
+                                            <tr>
+                                                <td><code>@project.JobNumber</code></td>
+                                                <td>@project.ProjectName</td>
+                                                <td>@(project.ProjectLocation ?? "-")</td>
+                                                <td>
+                                                    <span class="badge bg-info">@project.EstimationStage</span>
+                                                </td>
+                                                <td>@project.CreatedDate.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-outline-primary" 
+                                                            @onclick="@(() => ViewProject(project.Id))">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <!-- Addresses -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">Billing Address</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (customer.BillingAddress != null)
+                        {
+                            <address class="mb-0">
+                                @customer.BillingAddress.AddressLine1<br />
+                                @if (!string.IsNullOrEmpty(customer.BillingAddress.AddressLine2))
+                                {
+                                    @customer.BillingAddress.AddressLine2<br />
+                                }
+                                @customer.BillingAddress.Suburb @customer.BillingAddress.State @customer.BillingAddress.PostCode<br />
+                                @customer.BillingAddress.Country
+                            </address>
+                        }
+                        else
+                        {
+                            <p class="text-muted mb-0">No billing address set</p>
+                        }
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Shipping Address</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (customer.ShippingAddressId == customer.BillingAddressId && customer.BillingAddress != null)
+                        {
+                            <p class="text-muted mb-0">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Same as billing address
+                            </p>
+                        }
+                        else if (customer.ShippingAddress != null)
+                        {
+                            <address class="mb-0">
+                                @customer.ShippingAddress.AddressLine1<br />
+                                @if (!string.IsNullOrEmpty(customer.ShippingAddress.AddressLine2))
+                                {
+                                    @customer.ShippingAddress.AddressLine2<br />
+                                }
+                                @customer.ShippingAddress.Suburb @customer.ShippingAddress.State @customer.ShippingAddress.PostCode<br />
+                                @customer.ShippingAddress.Country
+                            </address>
+                        }
+                        else
+                        {
+                            <p class="text-muted mb-0">No shipping address set</p>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int CustomerId { get; set; }
+
+    private Customer? customer;
+    private int? companyId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        companyId = await AuthService.GetUserCompanyIdAsync();
+        await LoadCustomer();
+    }
+
+    private async Task LoadCustomer()
+    {
+        using var context = await DbFactory.CreateDbContextAsync();
+        
+        customer = await context.Customers
+            .Include(c => c.BillingAddress)
+            .Include(c => c.ShippingAddress)
+            .Include(c => c.Contacts.OrderByDescending(ct => ct.IsPrimary).ThenBy(ct => ct.FirstName))
+            .Include(c => c.Projects)
+            .Include(c => c.CreatedBy)
+            .Include(c => c.ModifiedBy)
+            .FirstOrDefaultAsync(c => c.Id == CustomerId && c.CompanyId == companyId);
+
+        if (customer == null)
+        {
+            Navigation.NavigateTo("/customers");
+        }
+    }
+
+    private void EditCustomer()
+    {
+        Navigation.NavigateTo($"/customers/edit/{CustomerId}");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/customers");
+    }
+
+    private void CreateProject()
+    {
+        Navigation.NavigateTo($"/projects/new?customerId={CustomerId}");
+    }
+
+    private void ViewProject(int projectId)
+    {
+        Navigation.NavigateTo($"/projects/{projectId}");
+    }
+
+    private string FormatABN(string abn)
+    {
+        if (string.IsNullOrEmpty(abn) || abn.Length != 11)
+            return abn;
+            
+        return $"{abn.Substring(0, 2)} {abn.Substring(2, 3)} {abn.Substring(5, 3)} {abn.Substring(8, 3)}";
+    }
+
+    private string FormatACN(string acn)
+    {
+        if (string.IsNullOrEmpty(acn) || acn.Length != 9)
+            return acn;
+            
+        return $"{acn.Substring(0, 3)} {acn.Substring(3, 3)} {acn.Substring(6, 3)}";
+    }
+}

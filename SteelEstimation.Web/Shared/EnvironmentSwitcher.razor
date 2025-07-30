@@ -1,0 +1,54 @@
+@inject IWebHostEnvironment Environment
+@inject NavigationManager Navigation
+@inject IConfiguration Configuration
+
+<div class="dropdown">
+    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="envDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="fas fa-globe"></i> @GetEnvironmentDisplay()
+    </button>
+    <ul class="dropdown-menu" aria-labelledby="envDropdown">
+        <li>
+            <h6 class="dropdown-header">Switch Environment</h6>
+        </li>
+        <li><hr class="dropdown-divider"></li>
+        <li>
+            <a class="dropdown-item @(IsProduction() ? "active" : "")" href="https://app-steel-estimation-prod.azurewebsites.net" target="_blank">
+                <i class="fas fa-rocket text-danger"></i> Production
+                @if (IsProduction())
+                {
+                    <i class="fas fa-check ms-2"></i>
+                }
+            </a>
+        </li>
+        <li>
+            <a class="dropdown-item @(IsStaging() ? "active" : "")" href="https://app-steel-estimation-prod-staging.azurewebsites.net" target="_blank">
+                <i class="fas fa-flask text-warning"></i> Sandbox/Staging
+                @if (IsStaging())
+                {
+                    <i class="fas fa-check ms-2"></i>
+                }
+            </a>
+        </li>
+        <li><hr class="dropdown-divider"></li>
+        <li>
+            <a class="dropdown-item" href="/health" target="_blank">
+                <i class="fas fa-heartbeat text-success"></i> Health Check
+            </a>
+        </li>
+    </ul>
+</div>
+
+@code {
+    private string GetEnvironmentDisplay()
+    {
+        return Environment.EnvironmentName switch
+        {
+            "Production" => "Production",
+            "Staging" => "Sandbox",
+            _ => "Development"
+        };
+    }
+    
+    private bool IsProduction() => Environment.IsProduction();
+    private bool IsStaging() => Environment.IsStaging();
+}

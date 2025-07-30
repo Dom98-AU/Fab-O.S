@@ -1,0 +1,70 @@
+.login-container {
+    display: flex;
+    min-height: 100vh;
+    margin: 0;
+    padding: 0;
+}
+
+.login-left {
+    flex: 1;
+    background: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+
+.login-right {
+    flex: 1;
+    background: rgb(13, 26, 128);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+
+.login-content {
+    width: 100%;
+    max-width: 400px;
+}
+
+.logo-container {
+    text-align: center;
+}
+
+.nwi-logo {
+    max-width: 300px;
+    width: 100%;
+    height: auto;
+}
+
+@media (max-width: 768px) {
+    .login-container {
+        flex-direction: column;
+    }
+    
+    .login-right {
+        order: -1;
+        flex: 0 0 200px;
+    }
+    
+    .nwi-logo {
+        max-width: 200px;
+    }
+}
+
+/* Hide the main layout elements on login page */
+body:has(.login-container) .sidebar,
+body:has(.login-container) .top-row {
+    display: none !important;
+}
+
+body:has(.login-container) main {
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+body:has(.login-container) .page {
+    margin: 0 !important;
+    padding: 0 !important;
+}

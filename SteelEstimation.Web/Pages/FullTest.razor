@@ -1,0 +1,195 @@
+@page "/fulltest"
+@using Microsoft.EntityFrameworkCore
+@using SteelEstimation.Infrastructure.Data
+@using SteelEstimation.Core.Interfaces
+@using Microsoft.Extensions.Configuration
+@inject IServiceProvider ServiceProvider
+@inject IConfiguration Configuration
+
+<h3>Full Database and Authentication Test</h3>
+
+<button class="btn btn-primary" @onclick="RunAllTests" disabled="@isRunning">
+    @if (isRunning)
+    {
+        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+        <text>Running tests...</text>
+    }
+    else
+    {
+        <text>Run All Tests</text>
+    }
+</button>
+
+<div class="mt-4">
+    <pre class="@(hasError ? "text-danger" : "")">@output</pre>
+</div>
+
+@code {
+    private string output = "Click 'Run All Tests' to begin...";
+    private bool isRunning = false;
+    private bool hasError = false;
+
+    private async Task RunAllTests()
+    {
+        isRunning = true;
+        hasError = false;
+        output = "";
+        
+        try
+        {
+            // Test 1: Configuration
+            output += "=== CONFIGURATION TEST ===\n";
+            output += $"Environment: {Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Not set"}\n";
+            
+            var connString = Configuration.GetConnectionString("DefaultConnection");
+            if (!string.IsNullOrEmpty(connString))
+            {
+                output += "Connection string found:\n";
+                var parts = connString.Split(';');
+                foreach (var part in parts)
+                {
+                    output += $"  {part}\n";
+                }
+            }
+            else
+            {
+                output += "ERROR: No connection string found!\n";
+                hasError = true;
+            }
+            
+            // Test 2: DbContext
+            output += "\n=== DBCONTEXT TEST ===\n";
+            var dbContext = ServiceProvider.GetService<ApplicationDbContext>();
+            if (dbContext == null)
+            {
+                output += "ERROR: ApplicationDbContext not registered!\n";
+                hasError = true;
+                return;
+            }
+            output += "DbContext: OK\n";
+            
+            // Test 3: Database Connection
+            output += "\n=== DATABASE CONNECTION TEST ===\n";
+            try
+            {
+                output += "Testing CanConnectAsync...\n";
+                var canConnect = await dbContext.Database.CanConnectAsync();
+                output += $"CanConnect result: {canConnect}\n";
+                
+                if (!canConnect)
+                {
+                    output += "ERROR: Cannot connect to database!\n";
+                    hasError = true;
+                    return;
+                }
+            }
+            catch (Exception dbEx)
+            {
+                output += $"ERROR: Connection test threw exception!\n";
+                output += $"Type: {dbEx.GetType().FullName}\n";
+                output += $"Message: {dbEx.Message}\n";
+                
+                var innerEx = dbEx.InnerException;
+                int depth = 1;
+                while (innerEx != null && depth <= 3)
+                {
+                    output += $"\nInner Exception Level {depth}:\n";
+                    output += $"Type: {innerEx.GetType().FullName}\n";
+                    output += $"Message: {innerEx.Message}\n";
+                    innerEx = innerEx.InnerException;
+                    depth++;
+                }
+                
+                hasError = true;
+                return;
+            }
+            
+            // Test 4: Query Test
+            output += "\n=== QUERY TEST ===\n";
+            try
+            {
+                output += "Counting users...\n";
+                var userCount = await dbContext.Users.CountAsync();
+                output += $"User count: {userCount}\n";
+                
+                output += "Looking for admin user...\n";
+                var adminUser = await dbContext.Users
+                    .Where(u => u.Email == "admin@steelestimation.com")
+                    .Select(u => new { u.Id, u.Username, u.Email, u.IsActive })
+                    .FirstOrDefaultAsync();
+                    
+                if (adminUser != null)
+                {
+                    output += $"Admin found: ID={adminUser.Id}, Username={adminUser.Username}, Active={adminUser.IsActive}\n";
+                }
+                else
+                {
+                    output += "ERROR: Admin user not found!\n";
+                    hasError = true;
+                }
+            }
+            catch (Exception queryEx)
+            {
+                output += $"ERROR: Query failed!\n";
+                output += $"Type: {queryEx.GetType().FullName}\n";
+                output += $"Message: {queryEx.Message}\n";
+                if (queryEx.InnerException != null)
+                {
+                    output += $"Inner: {queryEx.InnerException.Message}\n";
+                }
+                hasError = true;
+            }
+            
+            // Test 5: Authentication Service
+            output += "\n=== AUTHENTICATION SERVICE TEST ===\n";
+            var authService = ServiceProvider.GetService<IAuthenticationService>();
+            if (authService == null)
+            {
+                output += "ERROR: IAuthenticationService not registered!\n";
+                hasError = true;
+                return;
+            }
+            output += $"AuthService type: {authService.GetType().FullName}\n";
+            
+            // Test 6: Login Test
+            output += "\n=== LOGIN TEST ===\n";
+            try
+            {
+                output += "Calling LoginAsync('admin@steelestimation.com', 'Admin@123')...\n";
+                var result = await authService.LoginAsync("admin@steelestimation.com", "Admin@123");
+                output += $"Success: {result.Success}\n";
+                output += $"Message: {result.Message}\n";
+                
+                if (!result.Success)
+                {
+                    hasError = true;
+                }
+            }
+            catch (Exception loginEx)
+            {
+                output += $"ERROR: Login threw exception!\n";
+                output += $"Type: {loginEx.GetType().FullName}\n";
+                output += $"Message: {loginEx.Message}\n";
+                if (loginEx.InnerException != null)
+                {
+                    output += $"Inner: {loginEx.InnerException.Message}\n";
+                }
+                hasError = true;
+            }
+            
+            output += "\n=== TEST COMPLETE ===\n";
+        }
+        catch (Exception ex)
+        {
+            output += $"\n=== UNHANDLED EXCEPTION ===\n";
+            output += $"Type: {ex.GetType().FullName}\n";
+            output += $"Message: {ex.Message}\n";
+            output += $"Stack:\n{ex.StackTrace}\n";
+            hasError = true;
+        }
+        finally
+        {
+            isRunning = false;
+        }
+    }
+}

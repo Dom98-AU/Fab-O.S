@@ -1,0 +1,98 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_deployment:
+        description: 'Type "DEPLOY" to confirm production deployment'
+        required: true
+        default: ''
+      deployment_notes:
+        description: 'Deployment notes (optional)'
+        required: false
+        default: ''
+
+env:
+  AZURE_WEBAPP_NAME: app-steel-estimation-prod
+  DOTNET_VERSION: '8.0.x'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.check.outputs.should_deploy }}
+    steps:
+    - name: Validate confirmation
+      id: check
+      run: |
+        if [ "${{ github.event.inputs.confirm_deployment }}" != "DEPLOY" ]; then
+          echo "❌ Deployment cancelled - confirmation text did not match"
+          echo "should_deploy=false" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        echo "✅ Deployment confirmed"
+        echo "should_deploy=true" >> $GITHUB_OUTPUT
+
+  deploy:
+    needs: validate
+    if: needs.validate.outputs.should_deploy == 'true'
+    runs-on: windows-latest
+    environment: 
+      name: Production
+      url: https://app-steel-estimation-prod.azurewebsites.net
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        ref: master
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+
+    - name: Run tests
+      run: dotnet test --no-build --configuration Release --logger "trx;LogFileName=test-results.trx"
+
+    - name: Publish
+      run: dotnet publish SteelEstimation.Web/SteelEstimation.Web.csproj -c Release -o ./publish
+
+    - name: Deploy to Azure Web App
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_PRODUCTION }}
+        package: ./publish
+
+    - name: Create deployment summary
+      if: success()
+      run: |
+        echo "## 🚀 Production Deployment Successful!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Environment:** PRODUCTION 🔴" >> $GITHUB_STEP_SUMMARY
+        echo "**URL:** https://app-steel-estimation-prod.azurewebsites.net" >> $GITHUB_STEP_SUMMARY
+        echo "**Branch:** master" >> $GITHUB_STEP_SUMMARY
+        echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Deployed by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Time:** $(date)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Deployment Notes" >> $GITHUB_STEP_SUMMARY
+        echo "${{ github.event.inputs.deployment_notes }}" >> $GITHUB_STEP_SUMMARY
+
+    - name: Create release tag
+      if: success()
+      run: |
+        $date = Get-Date -Format "yyyy.MM.dd-HHmm"
+        $tag = "release-$date"
+        echo "Release tag would be: $tag"
+        echo "Note: Automatic tagging requires additional permissions"
+        echo "You can manually tag this release with:"
+        echo "git tag -a $tag -m 'Production release $date'"
+        echo "git push origin $tag"

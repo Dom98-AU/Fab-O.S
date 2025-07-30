@@ -1,0 +1,216 @@
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Core.Interfaces
+@inject IWorksheetColumnService ColumnService
+@inject IJSRuntime JSRuntime
+@inject SteelEstimation.Core.Interfaces.IAuthenticationService AuthenticationService
+
+<div class="column-view-manager">
+    <div class="btn-group" role="group">
+        <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+            <i class="fas fa-columns me-1"></i>
+            Column Views
+        </button>
+        <div class="dropdown-menu dropdown-menu-end">
+            <h6 class="dropdown-header">Saved Views</h6>
+            @if (views.Any())
+            {
+                @foreach (var view in views)
+                {
+                    <button class="dropdown-item d-flex justify-content-between align-items-center" 
+                            @onclick="@(() => LoadView(view))">
+                        <span>
+                            @view.ViewName
+                            @if (view.IsDefault)
+                            {
+                                <span class="badge bg-primary ms-1">Default</span>
+                            }
+                        </span>
+                        @if (!view.IsDefault)
+                        {
+                            <div class="btn-group btn-group-sm ms-2">
+                                <button class="btn btn-link btn-sm p-0 me-1" 
+                                        @onclick:stopPropagation="true"
+                                        @onclick="@(() => SetAsDefault(view))"
+                                        title="Set as default">
+                                    <i class="fas fa-star text-warning"></i>
+                                </button>
+                                <button class="btn btn-link btn-sm p-0 text-danger" 
+                                        @onclick:stopPropagation="true"
+                                        @onclick="@(() => DeleteView(view))"
+                                        title="Delete view">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        }
+                    </button>
+                }
+                <div class="dropdown-divider"></div>
+            }
+            <button class="dropdown-item" @onclick="ShowSaveDialog">
+                <i class="fas fa-save me-1"></i>
+                Save Current View
+            </button>
+            <button class="dropdown-item" @onclick="ResetToDefault">
+                <i class="fas fa-undo me-1"></i>
+                Reset to Default
+            </button>
+        </div>
+    </div>
+</div>
+
+@if (showSaveDialog)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Save Column View</h5>
+                    <button type="button" class="btn-close" @onclick="HideSaveDialog"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">View Name</label>
+                        <input type="text" class="form-control" @bind="newViewName" 
+                               placeholder="Enter a name for this view" />
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="setAsDefault" @bind="setAsDefaultOnSave">
+                        <label class="form-check-label" for="setAsDefault">
+                            Set as default view
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="HideSaveDialog">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveView" 
+                            disabled="@string.IsNullOrWhiteSpace(newViewName)">
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string WorksheetType { get; set; } = "Processing";
+    [Parameter] public EventCallback<WorksheetColumnView> OnViewLoaded { get; set; }
+    [Parameter] public EventCallback<List<WorksheetColumnOrder>> OnColumnOrderChanged { get; set; }
+    [Parameter] public Func<List<WorksheetColumnOrder>>? GetCurrentColumnOrder { get; set; }
+    
+    private List<WorksheetColumnView> views = new();
+    private bool showSaveDialog = false;
+    private string newViewName = "";
+    private bool setAsDefaultOnSave = false;
+    private int userId;
+    private int companyId;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        var user = await AuthenticationService.GetCurrentUserAsync();
+        if (user != null)
+        {
+            userId = user.Id;
+            companyId = user.CompanyId;
+            await LoadViews();
+        }
+    }
+    
+    private async Task LoadViews()
+    {
+        views = await ColumnService.GetUserViewsAsync(userId, companyId, WorksheetType);
+    }
+    
+    private async Task LoadView(WorksheetColumnView view)
+    {
+        var columnOrders = await ColumnService.GetColumnOrdersAsync(view.Id);
+        await OnColumnOrderChanged.InvokeAsync(columnOrders);
+        await OnViewLoaded.InvokeAsync(view);
+    }
+    
+    private async Task SaveView()
+    {
+        if (string.IsNullOrWhiteSpace(newViewName) || GetCurrentColumnOrder == null)
+            return;
+        
+        var currentOrder = GetCurrentColumnOrder();
+        var newView = await ColumnService.CreateViewAsync(userId, companyId, newViewName, WorksheetType, currentOrder);
+        
+        if (setAsDefaultOnSave)
+        {
+            await ColumnService.SetDefaultViewAsync(userId, companyId, newView.Id);
+        }
+        
+        await LoadViews();
+        HideSaveDialog();
+        
+        // Show success notification
+        await JSRuntime.InvokeVoidAsync("showToast", "Column view saved successfully", "success");
+    }
+    
+    private async Task SetAsDefault(WorksheetColumnView view)
+    {
+        await ColumnService.SetDefaultViewAsync(userId, companyId, view.Id);
+        await LoadViews();
+        await JSRuntime.InvokeVoidAsync("showToast", $"'{view.ViewName}' set as default view", "success");
+    }
+    
+    private async Task DeleteView(WorksheetColumnView view)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", $"Are you sure you want to delete the view '{view.ViewName}'?");
+        if (confirmed)
+        {
+            await ColumnService.DeleteViewAsync(view.Id);
+            await LoadViews();
+            await JSRuntime.InvokeVoidAsync("showToast", "Column view deleted", "info");
+        }
+    }
+    
+    private async Task ResetToDefault()
+    {
+        var defaultOrder = await ColumnService.GetDefaultColumnOrderAsync(WorksheetType);
+        var columnOrders = defaultOrder.Select(kvp => new WorksheetColumnOrder
+        {
+            ColumnName = kvp.Key,
+            DisplayOrder = kvp.Value,
+            IsVisible = true,
+            IsFrozen = false
+        }).ToList();
+        
+        await OnColumnOrderChanged.InvokeAsync(columnOrders);
+        await JSRuntime.InvokeVoidAsync("showToast", "Columns reset to default order", "info");
+    }
+    
+    private void ShowSaveDialog()
+    {
+        showSaveDialog = true;
+        newViewName = "";
+        setAsDefaultOnSave = false;
+    }
+    
+    private void HideSaveDialog()
+    {
+        showSaveDialog = false;
+        newViewName = "";
+        setAsDefaultOnSave = false;
+    }
+}
+
+<style>
+    .column-view-manager {
+        display: inline-block;
+    }
+    
+    .dropdown-menu {
+        min-width: 300px;
+    }
+    
+    .dropdown-item .btn-group {
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+    
+    .dropdown-item:hover .btn-group {
+        opacity: 1;
+    }
+</style>

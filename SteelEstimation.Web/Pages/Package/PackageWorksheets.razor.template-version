@@ -1,0 +1,2266 @@
+@page "/estimation/{estimationId:int}/package/{packageId:int}/worksheets"
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@using System.Text.Json
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
+@using SteelEstimation.Core.Services
+@using SteelEstimation.Web.Services
+@inject ApplicationDbContext DbContext
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject IJSRuntime JSRuntime
+@inject NavigationManager NavigationManager
+@inject IWorksheetFieldService WorksheetFieldService
+@inject ILogger<PackageWorksheets> Logger
+
+<PageTitle>Worksheets - @package?.PackageName</PageTitle>
+
+<style>
+    .worksheet-page-container {
+        padding: 20px;
+        background-color: #f8f9fa;
+        min-height: 100vh;
+    }
+
+    .worksheet-content-wrapper {
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        padding: 20px;
+    }
+
+    .worksheet-tabs {
+        border-bottom: 2px solid #dee2e6;
+        margin-bottom: 20px;
+    }
+
+    .worksheet-tabs .nav-link {
+        color: #495057;
+        border: none;
+        border-bottom: 3px solid transparent;
+        padding: 0.5rem 1rem;
+        margin-right: 1rem;
+        transition: all 0.3s;
+    }
+
+    .worksheet-tabs .nav-link:hover {
+        color: #007bff;
+        border-bottom-color: #bee5eb;
+    }
+
+    .worksheet-tabs .nav-link.active {
+        color: #007bff;
+        border-bottom-color: #007bff;
+        font-weight: 600;
+    }
+
+    .table-wrapper {
+        overflow-x: auto;
+        max-width: 100%;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+    }
+
+    .worksheet-table {
+        margin-bottom: 0;
+    }
+
+    .worksheet-table th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+        font-size: 0.875rem;
+        color: #495057;
+        white-space: nowrap;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .frozen-col {
+        position: sticky;
+        background-color: white;
+        z-index: 5;
+    }
+
+    th.frozen-col {
+        background-color: #f8f9fa;
+        z-index: 11;
+    }
+
+    .editable-cell {
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .editable-cell:hover {
+        background-color: #e9ecef;
+    }
+
+    .editable-cell.editing {
+        padding: 0;
+    }
+
+    .bundle-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 12px;
+        font-weight: 500;
+    }
+
+    .pack-bundle-badge {
+        background-color: #17a2b8;
+        color: white;
+    }
+
+    .delivery-bundle-badge {
+        background-color: #28a745;
+        color: white;
+    }
+
+    /* Toast notifications */
+    .toast-container {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1050;
+        max-width: 400px;
+    }
+
+    .field-change-toast {
+        margin-bottom: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        animation: slideInRight 0.3s ease-out;
+    }
+
+    .field-change-toast.removing {
+        animation: slideOutRight 0.3s ease-out;
+    }
+
+    @@keyframes slideInRight {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    @@keyframes slideOutRight {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+    }
+
+    /* Loading spinner */
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #6c757d;
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        margin-bottom: 20px;
+        opacity: 0.3;
+    }
+    
+    /* Image paste cell styling */
+    .image-paste-cell:focus {
+        background-color: #e3f2fd !important;
+        box-shadow: inset 0 0 0 2px #2196F3;
+    }
+    
+    .image-paste-cell:hover {
+        background-color: #f5f5f5;
+    }
+    
+    .welding-thumbnail {
+        transition: transform 0.2s;
+    }
+    
+    .welding-thumbnail:hover {
+        transform: scale(1.1);
+        z-index: 10;
+        position: relative;
+    }
+</style>
+
+@if (!_isDataLoaded || package == null || estimation == null)
+{
+    <div class="text-center p-5">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-3">Loading package data...</p>
+    </div>
+}
+else
+{
+    <div class="worksheet-page-container" @onclick="HandlePageClick">
+        <div class="worksheet-content-wrapper">
+            <!-- Breadcrumb -->
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="/estimation">
+                            <i class="fas fa-folder-open me-1"></i>
+                            Estimations
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a href="/estimation/@EstimationId">
+                            <i class="fas fa-project-diagram me-1"></i>
+                            @estimation.ProjectName
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a href="/estimation/@EstimationId/package/@PackageId">
+                            <i class="fas fa-box me-1"></i>
+                            @package.PackageName
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item active" aria-current="page">
+                        <i class="fas fa-table me-1"></i>
+                        Worksheets
+                    </li>
+                </ol>
+            </nav>
+
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="d-flex align-items-center gap-3">
+                    <h4 class="mb-0">@package.PackageName - Worksheets</h4>
+                    <TimeTracker EstimationId="@EstimationId" PageName="Package Worksheets" @ref="timeTracker" />
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary" @onclick="GoBack">
+                        <i class="fas fa-arrow-left me-1"></i>
+                        Back to Package
+                    </button>
+                </div>
+            </div>
+
+            <!-- Worksheet Tabs -->
+            <ul class="nav nav-tabs worksheet-tabs" role="tablist">
+                @foreach (var worksheet in worksheets.OrderBy(w => w.DisplayOrder))
+                {
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link @(activeWorksheet?.Id == worksheet.Id ? "active" : "")"
+                                @onclick="() => SelectWorksheet(worksheet)"
+                                type="button" role="tab">
+                            <i class="@GetWorksheetIcon(worksheet) me-1"></i>
+                            @worksheet.Name
+                        </button>
+                    </li>
+                }
+            </ul>
+
+            <!-- Tab Content -->
+            <div class="tab-content">
+                @if (activeWorksheet != null)
+                {
+                    <div class="tab-pane fade show active">
+                        @if (activeWorksheet.WorksheetType == "Processing")
+                        {
+                            <!-- Processing Worksheet -->
+                            <div class="worksheet-header-toolbar border rounded p-2 mb-3 bg-light">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="d-flex align-items-center gap-3">
+                                        <h5 class="mb-0">@activeWorksheet.Name</h5>
+                                        
+                                        <!-- Filter buttons -->
+                                        <div class="btn-group" role="group">
+                                            <button class="btn btn-sm @(activeFilter == "all" ? "btn-primary" : "btn-outline-primary")" 
+                                                    @onclick='() => SetFilter("all")'>
+                                                All Items
+                                            </button>
+                                            <button class="btn btn-sm @(activeFilter == "unbundled" ? "btn-primary" : "btn-outline-primary")" 
+                                                    @onclick='() => SetFilter("unbundled")'>
+                                                Unbundled
+                                            </button>
+                                            <button class="btn btn-sm @(activeFilter == "bundled" ? "btn-primary" : "btn-outline-primary")" 
+                                                    @onclick='() => SetFilter("bundled")'>
+                                                Bundled
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Action buttons -->
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-sm btn-primary" @onclick="ShowTemplateDesigner">
+                                            <i class="fas fa-columns"></i> Customize Template
+                                        </button>
+                                        <button class="btn btn-sm btn-secondary" @onclick="() => showTemplateManagement = true">
+                                            <i class="fas fa-cog"></i> Manage Templates
+                                        </button>
+                                        <button class="btn btn-sm btn-success" @onclick="ShowBulkBundleModal">
+                                            <i class="fas fa-boxes"></i> Bulk Bundle
+                                        </button>
+                                        <button class="btn btn-sm btn-info" @onclick="ShowBundleManagementWindow">
+                                            <i class="fas fa-tasks"></i> Manage Bundles
+                                        </button>
+                                        <button class="btn btn-sm btn-warning" @onclick="ShowSplitRowsModal">
+                                            <i class="fas fa-cut"></i> Split Rows
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Processing table -->
+                            <div class="table-wrapper">
+                                <table class="table table-sm table-hover worksheet-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="text-center" style="width: 40px;">
+                                                <input type="checkbox" @onchange="SelectAllProcessingItems" />
+                                            </th>
+                                            @foreach (var field in GetActiveTemplateFields())
+                                            {
+                                                <th class="@GetFieldHeaderClass(field.FieldName)" 
+                                                    style="@GetFieldStyle(field)">
+                                                    @field.DisplayName
+                                                </th>
+                                            }
+                                            <th class="text-center">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var item in GetFilteredProcessingItems())
+                                        {
+                                            <tr>
+                                                <td class="text-center">
+                                                    <input type="checkbox" />
+                                                </td>
+                                                @foreach (var field in GetActiveTemplateFields())
+                                                {
+                                                    <td class="@GetFieldCellClass(field.FieldName)">
+                                                        @if (field.FieldName == "DeliveryBundle" && item.DeliveryBundle != null)
+                                                        {
+                                                            <span class="badge delivery-bundle-badge">
+                                                                @item.DeliveryBundle.BundleName
+                                                            </span>
+                                                        }
+                                                        else if (field.FieldName == "PackBundle" && item.PackBundle != null)
+                                                        {
+                                                            <span class="badge pack-bundle-badge">
+                                                                @item.PackBundle.BundleName
+                                                            </span>
+                                                        }
+                                                        else
+                                                        {
+                                                            @GetFieldValue(item, field.FieldName)
+                                                        }
+                                                    </td>
+                                                }
+                                                <td class="text-center">
+                                                    <button class="btn btn-sm btn-link p-0" title="Edit">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                        else if (activeWorksheet.WorksheetType == "Welding")
+                        {
+                            <!-- Welding Worksheet -->
+                            <div class="worksheet-header-toolbar border rounded p-2 mb-3 bg-light">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="d-flex align-items-center gap-3">
+                                        <h5 class="mb-0">@activeWorksheet.Name</h5>
+                                        <span class="text-muted small">
+                                            <i class="fas fa-info-circle"></i>
+                                            Tip: Paste images from clipboard directly into the table
+                                        </span>
+                                    </div>
+                                    
+                                    <!-- Action buttons -->
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-sm btn-primary" @onclick="ShowTemplateDesigner">
+                                            <i class="fas fa-columns"></i> Customize Template
+                                        </button>
+                                        <button class="btn btn-sm btn-success" @onclick="ShowAddWeldingItemModal">
+                                            <i class="fas fa-plus"></i> Add Item
+                                        </button>
+                                        <button class="btn btn-sm btn-warning" @onclick="CreateNewWeldingItemForPaste">
+                                            <i class="fas fa-paste"></i> Add Row for Image
+                                        </button>
+                                        <button class="btn btn-sm btn-info" @onclick="ShowWeldingBulkEditModal">
+                                            <i class="fas fa-edit"></i> Bulk Edit
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Welding table -->
+                            <div class="table-wrapper">
+                                <table class="table table-sm table-hover worksheet-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="text-center" style="width: 40px;">
+                                                <input type="checkbox" @onchange="SelectAllWeldingItems" />
+                                            </th>
+                                            <th>Drawing #</th>
+                                            <th>Description</th>
+                                            <th>Weld Type</th>
+                                            <th class="text-center">Images</th>
+                                            <th class="text-center">Connections</th>
+                                            <th class="text-end">Total Time</th>
+                                            <th class="text-end">Total Hours</th>
+                                            <th class="text-center">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var item in GetFilteredWeldingItems())
+                                        {
+                                            <tr id="welding-row-@item.Id">
+                                                <td class="text-center">
+                                                    <input type="checkbox" />
+                                                </td>
+                                                <td>@item.DrawingNumber</td>
+                                                <td>@item.ItemDescription</td>
+                                                <td>@item.WeldType</td>
+                                                <td class="text-center image-paste-cell" 
+                                                    tabindex="0" 
+                                                    @onclick="() => FocusImageCell(item)" 
+                                                    @onpaste="async (e) => await HandleImageCellPaste(item)"
+                                                    @onpaste:preventDefault="true"
+                                                    style="cursor: pointer; outline: none;"
+                                                    @onfocus="() => selectedWeldingItem = item"
+                                                    @onblur="() => { if (selectedWeldingItem == item) selectedWeldingItem = null; }">
+                                                    @if (item.Images?.Any() == true)
+                                                    {
+                                                        <div class="d-flex justify-content-center gap-1">
+                                                            @foreach (var image in item.Images.Take(3))
+                                                            {
+                                                                <img src="@image.FilePath" class="welding-thumbnail" alt="Weld image" 
+                                                                     style="width: 30px; height: 30px; object-fit: cover; border-radius: 4px;"
+                                                                     @onclick="() => ShowImagePreview(image.FilePath)" @onclick:stopPropagation="true" />
+                                                            }
+                                                            @if (item.Images.Count > 3)
+                                                            {
+                                                                <span class="badge bg-secondary">+@(item.Images.Count - 3)</span>
+                                                            }
+                                                        </div>
+                                                    }
+                                                    else
+                                                    {
+                                                        <div class="text-muted small @(selectedWeldingItem == item ? "text-primary" : "")">
+                                                            <i class="fas fa-image"></i><br/>
+                                                            @(selectedWeldingItem == item ? "Press Ctrl+V" : "Click & Ctrl+V")
+                                                        </div>
+                                                    }
+                                                </td>
+                                                <td class="text-center">@item.ItemConnections?.Count</td>
+                                                <td class="text-end">@item.TotalWeldingMinutes.ToString("N2")</td>
+                                                <td class="text-end">@((item.TotalWeldingMinutes / 60m).ToString("N2"))</td>
+                                                <td class="text-center">
+                                                    <button class="btn btn-sm btn-link p-0" title="Edit" @onclick="() => EditWeldingItem(item)">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    <button class="btn btn-sm btn-link text-danger p-0 ms-2" title="Delete" @onclick="() => DeleteWeldingItem(item)">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                    <tfoot>
+                                        <tr class="table-secondary fw-bold">
+                                            <td colspan="6" class="text-end">Total:</td>
+                                            <td class="text-end">@GetWeldingTotalMinutes().ToString("N2")</td>
+                                            <td class="text-end">@GetWeldingTotalHours().ToString("N2")</td>
+                                            <td></td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+            <!-- Toast notifications -->
+            <div class="toast-container">
+                @foreach (var notification in _fieldChangeNotifications.ToList())
+                {
+                    <div class="toast field-change-toast show @(notification.IsRemoving ? "removing" : "")" role="alert">
+                        <div class="toast-header">
+                            <i class="fas fa-clock text-primary me-2"></i>
+                            <strong class="me-auto">Field Updated</strong>
+                            <small>@notification.Timestamp.ToString("HH:mm:ss")</small>
+                            <button type="button" class="btn-close btn-sm" @onclick="() => RemoveNotification(notification)"></button>
+                        </div>
+                        <div class="toast-body">
+                            <div class="mb-1"><strong>@notification.ItemDescription</strong></div>
+                            <div class="text-muted small">@notification.FieldName: @notification.OldValue → @notification.NewValue</div>
+                            @if (notification.HoursChange != 0)
+                            {
+                                <div class="mt-1 text-primary">
+                                    <i class="fas fa-clock"></i> Total Hours: @notification.OldHours.ToString("N2") → @notification.NewHours.ToString("N2") 
+                                    <span class="badge bg-info ms-1">@(notification.HoursChange > 0 ? "+" : "")@notification.HoursChange.ToString("N2") hrs</span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Template Designer Modal -->
+@if (showTemplateDesigner && editingTemplate != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-columns me-2"></i>
+                        Customize Worksheet Template
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CloseTemplateDesigner"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <!-- Template Settings -->
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Template Settings</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">Template Name</label>
+                                        <input type="text" class="form-control" @bind="editingTemplate.Name" placeholder="Enter template name" />
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Description</label>
+                                        <textarea class="form-control" @bind="editingTemplate.Description" rows="2" placeholder="Optional description"></textarea>
+                                    </div>
+                                    <div class="form-check form-switch mb-2">
+                                        <input class="form-check-input" type="checkbox" @bind="editingTemplate.AllowColumnReorder" id="allowReorder">
+                                        <label class="form-check-label" for="allowReorder">
+                                            Allow Column Reordering
+                                        </label>
+                                    </div>
+                                    <div class="form-check form-switch mb-2">
+                                        <input class="form-check-input" type="checkbox" @bind="editingTemplate.IsPublished" id="isPublished">
+                                        <label class="form-check-label" for="isPublished">
+                                            Publish Template
+                                        </label>
+                                    </div>
+                                    @if (editingTemplate.IsPublished)
+                                    {
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" @bind="editingTemplate.IsGlobal" id="isGlobal">
+                                            <label class="form-check-label" for="isGlobal">
+                                                Make Available to All Users
+                                            </label>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                            
+                            <!-- Available Fields -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Available Fields</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="small text-muted mb-2">Click to add fields to your template</div>
+                                    <div class="list-group list-group-flush">
+                                        @foreach (var field in availableFields.Where(f => !editingTemplate.Fields.Any(tf => tf.FieldName == f)))
+                                        {
+                                            <button class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" 
+                                                    @onclick="() => AddFieldToTemplate(field)">
+                                                <span>@GetFieldDisplayName(field)</span>
+                                                <i class="fas fa-plus text-success"></i>
+                                            </button>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-8">
+                            <!-- Selected Fields -->
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Selected Fields</h6>
+                                </div>
+                                <div class="card-body">
+                                    @if (!editingTemplate.Fields.Any())
+                                    {
+                                        <div class="text-center text-muted py-3">
+                                            <i class="fas fa-arrow-left me-2"></i>
+                                            Select fields from the available list
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="list-group">
+                                            @foreach (var field in editingTemplate.Fields.OrderBy(f => f.DisplayOrder))
+                                            {
+                                                <div class="list-group-item">
+                                                    <div class="d-flex justify-content-between align-items-center">
+                                                        <div class="d-flex align-items-center">
+                                                            <div class="btn-group btn-group-sm me-2">
+                                                                <button class="btn btn-outline-secondary" @onclick="() => MoveFieldUp(field)" 
+                                                                        disabled="@(field.DisplayOrder == 0)">
+                                                                    <i class="fas fa-arrow-up"></i>
+                                                                </button>
+                                                                <button class="btn btn-outline-secondary" @onclick="() => MoveFieldDown(field)"
+                                                                        disabled="@(field.DisplayOrder >= editingTemplate.Fields.Count - 1)">
+                                                                    <i class="fas fa-arrow-down"></i>
+                                                                </button>
+                                                            </div>
+                                                            <strong>@field.DisplayName</strong>
+                                                            @if (field.IsRequired)
+                                                            {
+                                                                <span class="badge bg-warning ms-2">Required</span>
+                                                            }
+                                                            @if (!IsFieldEditable(field.FieldName))
+                                                            {
+                                                                <span class="badge bg-info ms-2">Calculated</span>
+                                                            }
+                                                        </div>
+                                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveFieldFromTemplate(field)"
+                                                                disabled="@(!CanRemoveField(field.FieldName))">
+                                                            <i class="fas fa-times"></i>
+                                                        </button>
+                                                    </div>
+                                                    @{
+                                                        var dependencies = GetFieldDependencies(field.FieldName);
+                                                        if (dependencies.Any())
+                                                        {
+                                                            <div class="small text-muted mt-1">
+                                                                <i class="fas fa-info-circle me-1"></i>
+                                                                Depends on: @string.Join(", ", dependencies.Select(d => GetFieldDisplayName(d)))
+                                                            </div>
+                                                        }
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                            
+                            <!-- Visible Buttons -->
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Toolbar Buttons</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="small text-muted mb-2">These buttons will be visible based on your selected fields:</div>
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        @foreach (var button in GetVisibleButtons())
+                                        {
+                                            <span class="badge bg-primary">
+                                                <i class="fas fa-check me-1"></i>
+                                                @button
+                                            </span>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Live Preview -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Live Preview</h6>
+                                </div>
+                                <div class="card-body p-0">
+                                    <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
+                                        <table class="table table-sm mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th class="text-center" style="width: 40px;">
+                                                        <input type="checkbox" disabled />
+                                                    </th>
+                                                    @foreach (var field in editingTemplate.Fields.OrderBy(f => f.DisplayOrder))
+                                                    {
+                                                        <th class="@GetFieldHeaderClass(field.FieldName)">
+                                                            @field.DisplayName
+                                                        </th>
+                                                    }
+                                                    <th class="text-center">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td class="text-center">
+                                                        <input type="checkbox" disabled />
+                                                    </td>
+                                                    @foreach (var field in editingTemplate.Fields.OrderBy(f => f.DisplayOrder))
+                                                    {
+                                                        <td class="@GetFieldCellClass(field.FieldName)">
+                                                            @if (field.FieldName == "DeliveryBundle")
+                                                            {
+                                                                <span class="badge delivery-bundle-badge">Bundle-001</span>
+                                                            }
+                                                            else if (field.FieldName == "PackBundle")
+                                                            {
+                                                                <span class="badge pack-bundle-badge">Pack-001</span>
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="text-muted">@GetPreviewValue(field.FieldName)</span>
+                                                            }
+                                                        </td>
+                                                    }
+                                                    <td class="text-center">
+                                                        <button class="btn btn-sm btn-link p-0" disabled>
+                                                            <i class="fas fa-edit"></i>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseTemplateDesigner">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveTemplate" 
+                            disabled="@(string.IsNullOrWhiteSpace(editingTemplate.Name) || !editingTemplate.Fields.Any())">
+                        <i class="fas fa-save me-1"></i>
+                        Save Template
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Split Rows Modal -->
+@if (showSplitModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-cut me-2"></i>
+                        Split Rows
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="() => showSplitModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Select items to split and specify how many times to split each item.
+                    </div>
+                    @if (selectedProcessingItems.Any())
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Number of splits:</label>
+                            <input type="number" class="form-control" min="2" max="10" value="2" />
+                        </div>
+                        <div class="border rounded p-3">
+                            <h6>Preview:</h6>
+                            @foreach (var item in selectedProcessingItems.Take(3))
+                            {
+                                <div class="mb-2">
+                                    <strong>@item.DrawingNumber</strong> - @item.Description<br/>
+                                    <small class="text-muted">Qty: @item.Quantity → Will be split into 2 items with Qty: @(item.Quantity / 2)</small>
+                                </div>
+                            }
+                            @if (selectedProcessingItems.Count > 3)
+                            {
+                                <small class="text-muted">...and @(selectedProcessingItems.Count - 3) more items</small>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted">Please select items to split from the worksheet.</p>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => showSplitModal = false">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SplitSelectedRows" disabled="@(!selectedProcessingItems.Any())">
+                        <i class="fas fa-cut me-1"></i>
+                        Split Rows
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Bulk Bundle Modal -->
+@if (showBulkBundleModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-boxes me-2"></i>
+                        Bulk Delivery Bundle
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="() => showBulkBundleModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Create New Bundle</h6>
+                            <div class="mb-3">
+                                <label class="form-label">Bundle Name</label>
+                                <input type="text" class="form-control" placeholder="Enter bundle name" />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Bundle Type</label>
+                                <select class="form-select">
+                                    <option>Standard Bundle</option>
+                                    <option>Priority Bundle</option>
+                                    <option>Special Handling</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Or Select Existing Bundle</h6>
+                            <div class="list-group" style="max-height: 200px; overflow-y: auto;">
+                                @foreach (var bundle in deliveryBundles)
+                                {
+                                    <button class="list-group-item list-group-item-action">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span>@bundle.BundleName</span>
+                                            <span class="badge bg-secondary">@bundle.ProcessingItems?.Count items</span>
+                                        </div>
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                    <hr />
+                    <h6>Selected Items (@selectedProcessingItems.Count)</h6>
+                    <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
+                        @foreach (var item in selectedProcessingItems)
+                        {
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span>@item.DrawingNumber - @item.Description</span>
+                                <span class="badge bg-info">Qty: @item.Quantity</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => showBulkBundleModal = false">Cancel</button>
+                    <button type="button" class="btn btn-success" @onclick="CreateBulkBundle">
+                        <i class="fas fa-save me-1"></i>
+                        Create Bundle
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Bundle Management Window -->
+@if (showBundleManagementWindow)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-tasks me-2"></i>
+                        Bundle Management
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="() => showBundleManagementWindow = false"></button>
+                </div>
+                <div class="modal-body">
+                    <ul class="nav nav-tabs mb-3">
+                        <li class="nav-item">
+                            <button class="nav-link active">
+                                <i class="fas fa-truck me-1"></i>
+                                Delivery Bundles
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link">
+                                <i class="fas fa-box me-1"></i>
+                                Pack Bundles
+                            </button>
+                        </li>
+                    </ul>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Bundle Name</th>
+                                    <th>Type</th>
+                                    <th class="text-center">Items</th>
+                                    <th class="text-end">Total Weight</th>
+                                    <th class="text-center">Status</th>
+                                    <th class="text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var bundle in deliveryBundles.Where(b => b.ProcessingItems?.Any(pi => !pi.IsDeleted) ?? false))
+                                {
+                                    <tr>
+                                        <td>@bundle.BundleName</td>
+                                        <td>Standard</td>
+                                        <td class="text-center">@bundle.ProcessingItems?.Count(pi => !pi.IsDeleted)</td>
+                                        <td class="text-end">@bundle.ProcessingItems?.Sum(pi => pi.TotalWeight).ToString("N2") kg</td>
+                                        <td class="text-center">
+                                            <span class="badge bg-success">Active</span>
+                                        </td>
+                                        <td class="text-center">
+                                            <button class="btn btn-sm btn-link" title="Edit">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-link text-danger" title="Delete">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => showBundleManagementWindow = false">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Add/Edit Welding Item Modal -->
+@if (showAddWeldingItemModal && editingWeldingItem != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-fire me-2"></i>
+                        @(editingWeldingItem.Id == 0 ? "Add" : "Edit") Welding Item
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="() => showAddWeldingItemModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Drawing Number</label>
+                                <input type="text" class="form-control" @bind="editingWeldingItem.DrawingNumber" />
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Weld Type</label>
+                                <input type="text" class="form-control" @bind="editingWeldingItem.WeldType" placeholder="e.g., Butt Weld, Fillet Weld" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Item Description</label>
+                        <input type="text" class="form-control" @bind="editingWeldingItem.ItemDescription" />
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Connection Qty</label>
+                                <input type="number" class="form-control" @bind="editingWeldingItem.ConnectionQty" min="1" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="alert alert-info">
+                        <strong>Connection Qty:</strong> @editingWeldingItem.ConnectionQty
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => showAddWeldingItemModal = false">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveWeldingItem">
+                        <i class="fas fa-save me-1"></i>
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Welding Bulk Edit Modal -->
+@if (showWeldingBulkEditModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-edit me-2"></i>
+                        Bulk Edit Welding Items
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="() => showWeldingBulkEditModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Editing @selectedWeldingItems.Count welding items. Only filled fields will be updated.
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Weld Size</label>
+                        <input type="number" class="form-control" placeholder="Leave empty to keep existing" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Time per Connection (min)</label>
+                        <input type="number" class="form-control" placeholder="Leave empty to keep existing" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Multiply Quantity By</label>
+                        <input type="number" class="form-control" step="0.1" placeholder="e.g., 1.5 to increase by 50%" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => showWeldingBulkEditModal = false">Cancel</button>
+                    <button type="button" class="btn btn-warning" @onclick="BulkUpdateWeldingItems">
+                        <i class="fas fa-save me-1"></i>
+                        Update Items
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Image Preview Modal -->
+@if (showImagePreview && !string.IsNullOrEmpty(previewImageData))
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.8);" @onclick="() => showImagePreview = false">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-image me-2"></i>
+                        Image Preview
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="() => showImagePreview = false"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img src="@previewImageData" class="img-fluid" alt="Weld image preview" />
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Template Management Modal -->
+@if (showTemplateManagement)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-cog me-2"></i>
+                        Worksheet Template Management
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="() => showTemplateManagement = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row mb-3">
+                        <div class="col">
+                            <div class="input-group">
+                                <input type="text" class="form-control" placeholder="Search templates..." />
+                                <button class="btn btn-outline-secondary">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <button class="btn btn-success" @onclick="() => { editingTemplate = null; ShowTemplateDesigner(); }">
+                                <i class="fas fa-plus me-1"></i>
+                                Create New Template
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Template Name</th>
+                                    <th>Type</th>
+                                    <th>Description</th>
+                                    <th class="text-center">Fields</th>
+                                    <th class="text-center">Status</th>
+                                    <th class="text-center">Visibility</th>
+                                    <th class="text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var template in worksheetTemplates.OrderBy(t => t.DisplayOrder))
+                                {
+                                    <tr>
+                                        <td>
+                                            <strong>@template.Name</strong>
+                                            @if (template.IsDefault)
+                                            {
+                                                <span class="badge bg-primary ms-1">Default</span>
+                                            }
+                                        </td>
+                                        <td>@template.BaseType</td>
+                                        <td>
+                                            <small class="text-muted">@(template.Description ?? "No description")</small>
+                                        </td>
+                                        <td class="text-center">@template.Fields?.Count</td>
+                                        <td class="text-center">
+                                            @if (template.IsPublished)
+                                            {
+                                                <span class="badge bg-success">Published</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-warning">Draft</span>
+                                            }
+                                        </td>
+                                        <td class="text-center">
+                                            @if (template.IsGlobal)
+                                            {
+                                                <span class="badge bg-info">Global</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary">Personal</span>
+                                            }
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-outline-primary" title="Edit" @onclick="() => EditTemplate(template)">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <button class="btn btn-outline-info" title="Clone" @onclick="() => CloneTemplate(template)">
+                                                    <i class="fas fa-copy"></i>
+                                                </button>
+                                                @if (!template.IsDefault)
+                                                {
+                                                    <button class="btn btn-outline-danger" title="Delete" @onclick="() => DeleteTemplate(template)">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                }
+                                                @if (!template.IsPublished)
+                                                {
+                                                    <button class="btn btn-outline-success" title="Publish" @onclick="() => PublishTemplate(template)">
+                                                        <i class="fas fa-upload"></i>
+                                                    </button>
+                                                }
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => showTemplateManagement = false">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int EstimationId { get; set; }
+    [Parameter] public int PackageId { get; set; }
+
+    private Project? estimation;
+    private Package? package;
+    private List<PackageWorksheet> worksheets = new();
+    private PackageWorksheet? activeWorksheet;
+    private TimeTracker? timeTracker;
+    private bool _isDataLoaded = false;
+
+    // Data collections
+    private List<ProcessingItem> processingItems = new();
+    private List<WeldingItem> weldingItems = new();
+    private List<DeliveryBundle> deliveryBundles = new();
+    private List<PackBundle> packBundles = new();
+    private List<WorksheetTemplate> worksheetTemplates = new();
+
+    // UI State
+    private string activeFilter = "all";
+    private Dictionary<string, bool> showBundleManagementModal = new();
+    private bool showSplitModal = false;
+    private bool showBulkUpdateModal = false;
+    private bool showBulkBundleModal = false;
+    private bool showBulkPackBundleModal = false;
+    private bool showTemplateDesigner = false;
+    private bool showBundleManagementWindow = false;
+    private bool showAddWeldingItemModal = false;
+    private bool showWeldingBulkEditModal = false;
+    private bool showTemplateManagement = false;
+    private bool showImagePreview = false;
+    private string? previewImageData;
+    private WorksheetTemplate? activeTemplate;
+    private WorksheetTemplate? editingTemplate;
+    private List<string> availableFields = new();
+    
+    // Selected items
+    private List<ProcessingItem> selectedProcessingItems = new();
+    private List<WeldingItem> selectedWeldingItems = new();
+    private WeldingItem? editingWeldingItem;
+    private WeldingItem? selectedWeldingItem;
+    
+    // Sorting and filtering
+    private Dictionary<string, string> columnFilters = new();
+    private Dictionary<string, string> sortColumns = new();
+    private Dictionary<string, bool> sortAscending = new();
+
+    // Notifications
+    private List<FieldChangeNotification> _fieldChangeNotifications = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            // Load estimation and package
+            estimation = await DbContext.Projects
+                .FirstOrDefaultAsync(p => p.Id == EstimationId);
+
+            package = await DbContext.Packages
+                .FirstOrDefaultAsync(p => p.Id == PackageId);
+
+            if (package != null)
+            {
+                // Load worksheets separately
+                worksheets = await DbContext.PackageWorksheets
+                    .Where(w => w.PackageId == PackageId)
+                    .OrderBy(w => w.DisplayOrder)
+                    .ToListAsync();
+                
+                // Select first worksheet by default
+                if (worksheets.Any())
+                {
+                    var firstWorksheet = worksheets.OrderBy(w => w.DisplayOrder).First();
+                    SelectWorksheet(firstWorksheet);
+                }
+
+                // Load processing items for this package's project
+                processingItems = await DbContext.ProcessingItems
+                    .Include(p => p.DeliveryBundle)
+                    .Include(p => p.PackBundle)
+                    .Where(p => p.ProjectId == package.ProjectId)
+                    .OrderBy(p => p.DrawingNumber)
+                    .ToListAsync();
+
+                // Load welding items with images
+                weldingItems = await DbContext.WeldingItems
+                    .Include(w => w.Images)
+                    .Include(w => w.ItemConnections)
+                    .Where(w => w.ProjectId == package.ProjectId)
+                    .OrderBy(w => w.Id)
+                    .ToListAsync();
+
+                // Load bundles
+                deliveryBundles = await DbContext.DeliveryBundles
+                    .Where(b => b.PackageId == PackageId)
+                    .ToListAsync();
+
+                packBundles = await DbContext.PackBundles
+                    .Where(b => b.PackageId == PackageId)
+                    .ToListAsync();
+
+
+                // Load worksheet templates
+                worksheetTemplates = await DbContext.WorksheetTemplates
+                    .Include(t => t.Fields.OrderBy(f => f.DisplayOrder))
+                    .Where(t => t.IsPublished || t.CreatedByUserId == 1) // TODO: Get current user ID
+                    .ToListAsync();
+            }
+
+            _isDataLoaded = true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading package data");
+        }
+    }
+
+    private void SelectWorksheet(PackageWorksheet worksheet)
+    {
+        activeWorksheet = worksheet;
+        
+        // Find the template for this worksheet
+        activeTemplate = GetTemplateForWorksheet(worksheet);
+        
+        StateHasChanged();
+    }
+    
+    private WorksheetTemplate? GetTemplateForWorksheet(PackageWorksheet worksheet)
+    {
+        // First check if worksheet has a specific template
+        if (worksheet.WorksheetTemplateId.HasValue)
+        {
+            return worksheetTemplates.FirstOrDefault(t => t.Id == worksheet.WorksheetTemplateId.Value);
+        }
+        
+        // Otherwise use default template for the worksheet type
+        return worksheetTemplates.FirstOrDefault(t => 
+            t.BaseType == worksheet.WorksheetType && 
+            t.IsDefault);
+    }
+    
+    private List<WorksheetTemplateField> GetActiveTemplateFields()
+    {
+        if (activeTemplate?.Fields == null)
+            return new List<WorksheetTemplateField>();
+            
+        return activeTemplate.Fields
+            .OrderBy(f => f.DisplayOrder)
+            .ToList();
+    }
+    
+    private string GetFieldValue(ProcessingItem item, string fieldName)
+    {
+        return fieldName switch
+        {
+            "DrawingNumber" => item.DrawingNumber ?? "",
+            "Description" => item.Description ?? "",
+            "Material" => item.MaterialId ?? "",
+            "Quantity" => item.Quantity.ToString(),
+            "Length" => item.Length.ToString("N2"),
+            "Weight" => item.Weight.ToString("N2"),
+            "TotalWeight" => (item.Quantity * item.Weight).ToString("N2"),
+            "DeliveryBundle" => item.DeliveryBundle?.BundleName ?? "",
+            "PackBundle" => item.PackBundle?.BundleName ?? "",
+            "UnloadTime" => item.UnloadTimePerBundle.ToString("N2"),
+            "MarkMeasureCut" => item.MarkMeasureCut.ToString("N2"),
+            "QualityCheck" => item.QualityCheckClean.ToString("N2"),
+            "MoveToAssembly" => item.MoveToAssembly.ToString("N2"),
+            "MoveAfterWeld" => item.MoveAfterWeld.ToString("N2"),
+            "LoadingTime" => item.LoadingTimePerBundle.ToString("N2"),
+            "TotalHours" => ((item.UnloadTimePerBundle + item.MarkMeasureCut + item.QualityCheckClean + 
+                            item.MoveToAssembly + item.MoveAfterWeld + item.LoadingTimePerBundle) / 60.0).ToString("N2"),
+            _ => ""
+        };
+    }
+
+    private string GetWorksheetIcon(PackageWorksheet worksheet)
+    {
+        return worksheet.WorksheetType switch
+        {
+            "Processing" => "fas fa-cogs",
+            "Welding" => "fas fa-fire",
+            _ => "fas fa-table"
+        };
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo($"/estimation/{EstimationId}/package/{PackageId}");
+    }
+
+    private void HandlePageClick()
+    {
+        // Close any open dropdowns or modals
+        StateHasChanged();
+    }
+
+    private void RemoveNotification(FieldChangeNotification notification)
+    {
+        notification.IsRemoving = true;
+        StateHasChanged();
+        
+        Task.Delay(300).ContinueWith(_ =>
+        {
+            _fieldChangeNotifications.Remove(notification);
+            InvokeAsync(StateHasChanged);
+        });
+    }
+
+    // Filtering methods
+    private void SetFilter(string filter)
+    {
+        activeFilter = filter;
+        StateHasChanged();
+    }
+
+    private List<ProcessingItem> GetFilteredProcessingItems()
+    {
+        var items = processingItems.Where(p => p.PackageWorksheetId == activeWorksheet?.Id);
+        
+        return activeFilter switch
+        {
+            "unbundled" => items.Where(p => p.DeliveryBundleId == null).ToList(),
+            "bundled" => items.Where(p => p.DeliveryBundleId != null).ToList(),
+            _ => items.ToList()
+        };
+    }
+
+    // Event handlers
+    private void SelectAllProcessingItems(ChangeEventArgs e)
+    {
+        // TODO: Implement select all
+    }
+
+    private void ShowBulkBundleModal()
+    {
+        showBulkBundleModal = true;
+    }
+
+    private void ShowBundleManagementWindow()
+    {
+        showBundleManagementWindow = true;
+    }
+
+    private void ShowSplitRowsModal()
+    {
+        showSplitModal = true;
+    }
+    
+    private void ShowAddWeldingItemModal()
+    {
+        editingWeldingItem = new WeldingItem
+        {
+            PackageWorksheetId = activeWorksheet?.Id ?? 0,
+            ProjectId = EstimationId,
+            DrawingNumber = "NEW-" + DateTime.Now.ToString("HHmmss"),
+            ItemDescription = "New Welding Item",
+            WeldType = "Fillet",
+            ConnectionQty = 1
+        };
+        showAddWeldingItemModal = true;
+    }
+    
+    private void ShowWeldingBulkEditModal()
+    {
+        if (selectedWeldingItems.Any())
+        {
+            showWeldingBulkEditModal = true;
+        }
+    }
+    
+    private void EditWeldingItem(WeldingItem item)
+    {
+        editingWeldingItem = new WeldingItem
+        {
+            Id = item.Id,
+            DrawingNumber = item.DrawingNumber,
+            ItemDescription = item.ItemDescription,
+            WeldType = item.WeldType,
+            ConnectionQty = item.ConnectionQty,
+            PackageWorksheetId = item.PackageWorksheetId,
+            ProjectId = item.ProjectId
+        };
+        showAddWeldingItemModal = true;
+    }
+    
+    private async Task DeleteWeldingItem(WeldingItem item)
+    {
+        try
+        {
+            DbContext.WeldingItems.Remove(item);
+            await DbContext.SaveChangesAsync();
+            weldingItems.Remove(item);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error deleting welding item");
+        }
+    }
+    
+    private void SelectAllWeldingItems(ChangeEventArgs e)
+    {
+        var isChecked = (bool?)e.Value ?? false;
+        if (isChecked)
+        {
+            selectedWeldingItems = GetFilteredWeldingItems().ToList();
+        }
+        else
+        {
+            selectedWeldingItems.Clear();
+        }
+    }
+    
+    private List<WeldingItem> GetFilteredWeldingItems()
+    {
+        return weldingItems.Where(w => w.PackageWorksheetId == activeWorksheet?.Id).ToList();
+    }
+    
+    private decimal GetWeldingTotalMinutes()
+    {
+        return GetFilteredWeldingItems().Sum(w => w.TotalWeldingMinutes);
+    }
+    
+    private decimal GetWeldingTotalHours()
+    {
+        return GetWeldingTotalMinutes() / 60m;
+    }
+
+    private void ShowBulkPackBundleModal()
+    {
+        showBulkPackBundleModal = true;
+    }
+    
+    private void ShowTemplateDesigner()
+    {
+        // Clone the active template or create a new one
+        if (activeTemplate != null)
+        {
+            editingTemplate = new WorksheetTemplate
+            {
+                Name = activeTemplate.Name + " (Custom)",
+                Description = activeTemplate.Description,
+                BaseType = activeTemplate.BaseType,
+                CreatedByUserId = 1, // TODO: Get current user ID
+                IsPublished = false,
+                IsGlobal = false,
+                IsDefault = false,
+                AllowColumnReorder = activeTemplate.AllowColumnReorder,
+                Fields = activeTemplate.Fields.Select(f => new WorksheetTemplateField
+                {
+                    FieldName = f.FieldName,
+                    DisplayName = f.DisplayName,
+                    IsRequired = f.IsRequired,
+                    IsFrozen = f.IsFrozen,
+                    ColumnWidth = f.ColumnWidth,
+                    DisplayOrder = f.DisplayOrder
+                }).ToList()
+            };
+        }
+        else
+        {
+            // Create new template from scratch
+            editingTemplate = new WorksheetTemplate
+            {
+                Name = "Custom Worksheet",
+                BaseType = activeWorksheet?.WorksheetType ?? "Processing",
+                CreatedByUserId = 1,
+                IsPublished = false,
+                IsGlobal = false,
+                IsDefault = false,
+                AllowColumnReorder = true,
+                Fields = new List<WorksheetTemplateField>()
+            };
+        }
+        
+        // Load available fields
+        LoadAvailableFields();
+        showTemplateDesigner = true;
+    }
+    
+    private void LoadAvailableFields()
+    {
+        availableFields = new List<string>
+        {
+            "DrawingNumber",
+            "Description", 
+            "Material",
+            "Quantity",
+            "Length",
+            "Weight",
+            "TotalWeight",
+            "DeliveryBundle",
+            "PackBundle",
+            "UnloadTime",
+            "MarkMeasureCut",
+            "QualityCheck",
+            "MoveToAssembly", 
+            "MoveAfterWeld",
+            "LoadingTime",
+            "TotalHours"
+        };
+    }
+    
+    private void CloseTemplateDesigner()
+    {
+        showTemplateDesigner = false;
+        editingTemplate = null;
+    }
+    
+    private async Task SaveTemplate()
+    {
+        if (editingTemplate == null || string.IsNullOrWhiteSpace(editingTemplate.Name))
+            return;
+            
+        try
+        {
+            // Save the template
+            if (editingTemplate.Id == 0)
+            {
+                DbContext.WorksheetTemplates.Add(editingTemplate);
+            }
+            else
+            {
+                DbContext.WorksheetTemplates.Update(editingTemplate);
+            }
+            
+            await DbContext.SaveChangesAsync();
+            
+            // Reload templates
+            await LoadTemplates();
+            
+            // Apply the new template to the current worksheet
+            if (activeWorksheet != null)
+            {
+                activeWorksheet.WorksheetTemplateId = editingTemplate.Id;
+                DbContext.PackageWorksheets.Update(activeWorksheet);
+                await DbContext.SaveChangesAsync();
+                activeTemplate = editingTemplate;
+            }
+            
+            CloseTemplateDesigner();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error saving worksheet template");
+        }
+    }
+    
+    private async Task LoadTemplates()
+    {
+        worksheetTemplates = await DbContext.WorksheetTemplates
+            .Include(t => t.Fields.OrderBy(f => f.DisplayOrder))
+            .Where(t => t.IsPublished || t.CreatedByUserId == 1) // TODO: Get current user ID
+            .ToListAsync();
+    }
+    
+    private void AddFieldToTemplate(string fieldName)
+    {
+        if (editingTemplate == null || editingTemplate.Fields.Any(f => f.FieldName == fieldName))
+            return;
+            
+        var newField = new WorksheetTemplateField
+        {
+            FieldName = fieldName,
+            DisplayName = GetFieldDisplayName(fieldName),
+            IsRequired = IsFieldRequired(fieldName),
+            DisplayOrder = editingTemplate.Fields.Count,
+            ColumnWidth = GetDefaultColumnWidth(fieldName)
+        };
+        
+        editingTemplate.Fields.Add(newField);
+    }
+    
+    private void RemoveFieldFromTemplate(WorksheetTemplateField field)
+    {
+        if (editingTemplate == null)
+            return;
+            
+        editingTemplate.Fields.Remove(field);
+        
+        // Reorder remaining fields
+        var order = 0;
+        foreach (var f in editingTemplate.Fields.OrderBy(f => f.DisplayOrder))
+        {
+            f.DisplayOrder = order++;
+        }
+    }
+    
+    private void MoveFieldUp(WorksheetTemplateField field)
+    {
+        if (editingTemplate == null || field.DisplayOrder == 0)
+            return;
+            
+        var previousField = editingTemplate.Fields.FirstOrDefault(f => f.DisplayOrder == field.DisplayOrder - 1);
+        if (previousField != null)
+        {
+            previousField.DisplayOrder++;
+            field.DisplayOrder--;
+        }
+    }
+    
+    private void MoveFieldDown(WorksheetTemplateField field) 
+    {
+        if (editingTemplate == null || field.DisplayOrder >= editingTemplate.Fields.Count - 1)
+            return;
+            
+        var nextField = editingTemplate.Fields.FirstOrDefault(f => f.DisplayOrder == field.DisplayOrder + 1);
+        if (nextField != null)
+        {
+            nextField.DisplayOrder--;
+            field.DisplayOrder++;
+        }
+    }
+    
+    private string GetFieldDisplayName(string fieldName)
+    {
+        return fieldName switch
+        {
+            "DrawingNumber" => "Drawing #",
+            "Description" => "Description",
+            "Material" => "Material",
+            "Quantity" => "Qty",
+            "Length" => "Length",
+            "Weight" => "Weight",
+            "TotalWeight" => "Total Weight",
+            "DeliveryBundle" => "Delivery Bundle",
+            "PackBundle" => "Pack Bundle",
+            "UnloadTime" => "Unload Time",
+            "MarkMeasureCut" => "Mark/Measure/Cut",
+            "QualityCheck" => "Quality Check/Clean",
+            "MoveToAssembly" => "Move to Assembly",
+            "MoveAfterWeld" => "Move After Weld",
+            "LoadingTime" => "Loading Time",
+            "TotalHours" => "Total Hours",
+            _ => fieldName
+        };
+    }
+    
+    
+    private bool IsFieldRequired(string fieldName)
+    {
+        return fieldName switch
+        {
+            "DrawingNumber" or "Quantity" => true,
+            _ => false
+        };
+    }
+    
+    private bool IsFieldEditable(string fieldName)
+    {
+        return fieldName switch
+        {
+            "TotalWeight" or "TotalHours" => false,
+            _ => true
+        };
+    }
+    
+    private int GetDefaultColumnWidth(string fieldName)
+    {
+        return fieldName switch
+        {
+            "DrawingNumber" => 120,
+            "Description" => 250,
+            "Material" => 100,
+            "Quantity" => 60,
+            "Length" or "Weight" or "TotalWeight" => 80,
+            "DeliveryBundle" or "PackBundle" => 120,
+            "UnloadTime" or "MarkMeasureCut" or "QualityCheck" or "MoveToAssembly" or "MoveAfterWeld" or "LoadingTime" => 100,
+            "TotalHours" => 80,
+            _ => 100
+        };
+    }
+    
+    private List<string> GetFieldDependencies(string fieldName)
+    {
+        return fieldName switch
+        {
+            "TotalWeight" => new List<string> { "Weight", "Quantity" },
+            "TotalHours" => new List<string> { "UnloadTime", "MarkMeasureCut", "QualityCheck", "MoveToAssembly", "MoveAfterWeld", "LoadingTime" },
+            _ => new List<string>()
+        };
+    }
+    
+    private List<string> GetDependentFields(string fieldName)
+    {
+        var dependents = new List<string>();
+        
+        if (fieldName == "Weight" || fieldName == "Quantity")
+            dependents.Add("TotalWeight");
+            
+        if (fieldName == "UnloadTime" || fieldName == "MarkMeasureCut" || fieldName == "QualityCheck" || 
+            fieldName == "MoveToAssembly" || fieldName == "MoveAfterWeld" || fieldName == "LoadingTime")
+            dependents.Add("TotalHours");
+            
+        return dependents;
+    }
+    
+    private bool CanRemoveField(string fieldName)
+    {
+        if (editingTemplate == null)
+            return false;
+            
+        // Check if any other fields depend on this one
+        var dependents = GetDependentFields(fieldName);
+        return !dependents.Any(d => editingTemplate.Fields.Any(f => f.FieldName == d));
+    }
+    
+    private List<string> GetVisibleButtons()
+    {
+        if (editingTemplate == null)
+            return new List<string>();
+            
+        var buttons = new List<string>();
+        
+        // Always show these buttons
+        buttons.Add("Bulk Bundle");
+        buttons.Add("Manage Bundles");
+        
+        // Show Split Rows if quantity field is present
+        if (editingTemplate.Fields.Any(f => f.FieldName == "Quantity"))
+            buttons.Add("Split Rows");
+            
+        // Show Pack Bundle if pack bundle fields are present
+        if (editingTemplate.Fields.Any(f => f.FieldName == "PackBundle" || f.FieldName == "MoveToAssembly" || f.FieldName == "MoveAfterWeld"))
+            buttons.Add("Bulk Pack Bundle");
+            
+        return buttons;
+    }
+    
+    // Template field helpers
+    private string GetFieldHeaderClass(string fieldName)
+    {
+        return fieldName switch
+        {
+            "Quantity" or "DeliveryBundleQty" or "PackBundleQty" => "text-center",
+            "Length" or "Weight" or "TotalWeight" or "UnloadTime" or "MarkMeasureCut" 
+                or "QualityCheck" or "MoveToAssembly" or "MoveAfterWeld" or "LoadingTime" 
+                or "TotalHours" => "text-end",
+            _ => ""
+        };
+    }
+    
+    private string GetFieldCellClass(string fieldName)
+    {
+        return fieldName switch
+        {
+            "Quantity" or "DeliveryBundleQty" or "PackBundleQty" => "text-center",
+            "Length" or "Weight" or "TotalWeight" or "UnloadTime" or "MarkMeasureCut" 
+                or "QualityCheck" or "MoveToAssembly" or "MoveAfterWeld" or "LoadingTime" 
+                or "TotalHours" => "text-end",
+            _ => ""
+        };
+    }
+    
+    private string GetFieldStyle(WorksheetTemplateField field)
+    {
+        var styles = new List<string>();
+        
+        if (field.ColumnWidth.HasValue && field.ColumnWidth > 0)
+        {
+            styles.Add($"width: {field.ColumnWidth}px");
+        }
+        
+        if (field.IsFrozen)
+        {
+            styles.Add("position: sticky");
+            styles.Add("left: 0");
+            styles.Add("z-index: 10");
+        }
+        
+        return string.Join("; ", styles);
+    }
+
+    private string GetPreviewValue(string fieldName)
+    {
+        return fieldName switch
+        {
+            "DrawingNumber" => "DWG-001",
+            "Description" => "Sample Item Description",
+            "Material" => "MAT-123",
+            "Quantity" => "10",
+            "Length" => "2500.00",
+            "Weight" => "150.50",
+            "TotalWeight" => "1505.00",
+            "UnloadTime" => "15",
+            "MarkMeasureCut" => "30",
+            "QualityCheck" => "15",
+            "MoveToAssembly" => "20",
+            "MoveAfterWeld" => "20",
+            "LoadingTime" => "15",
+            "TotalHours" => "1.92",
+            _ => "Sample"
+        };
+    }
+    
+    // Modal action handlers
+    private async Task SplitSelectedRows()
+    {
+        if (!selectedProcessingItems.Any())
+            return;
+            
+        try
+        {
+            // TODO: Implement split logic
+            // For now, just close the modal
+            showSplitModal = false;
+            selectedProcessingItems.Clear();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error splitting rows");
+        }
+    }
+    
+    private async Task CreateBulkBundle()
+    {
+        if (!selectedProcessingItems.Any())
+            return;
+            
+        try
+        {
+            // TODO: Implement bulk bundle creation
+            showBulkBundleModal = false;
+            selectedProcessingItems.Clear();
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error creating bulk bundle");
+        }
+    }
+    
+    private async Task SaveWeldingItem()
+    {
+        if (editingWeldingItem == null || string.IsNullOrWhiteSpace(editingWeldingItem.DrawingNumber))
+            return;
+            
+        try
+        {
+            if (editingWeldingItem.Id == 0)
+            {
+                DbContext.WeldingItems.Add(editingWeldingItem);
+                weldingItems.Add(editingWeldingItem);
+            }
+            else
+            {
+                DbContext.WeldingItems.Update(editingWeldingItem);
+                var existing = weldingItems.FirstOrDefault(w => w.Id == editingWeldingItem.Id);
+                if (existing != null)
+                {
+                    existing.DrawingNumber = editingWeldingItem.DrawingNumber;
+                    existing.ItemDescription = editingWeldingItem.ItemDescription;
+                    existing.WeldType = editingWeldingItem.WeldType;
+                    existing.ConnectionQty = editingWeldingItem.ConnectionQty;
+                }
+            }
+            
+            await DbContext.SaveChangesAsync();
+            showAddWeldingItemModal = false;
+            editingWeldingItem = null;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error saving welding item");
+        }
+    }
+    
+    private async Task BulkUpdateWeldingItems()
+    {
+        if (!selectedWeldingItems.Any())
+            return;
+            
+        try
+        {
+            // TODO: Implement bulk update logic
+            showWeldingBulkEditModal = false;
+            selectedWeldingItems.Clear();
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error bulk updating welding items");
+        }
+    }
+    
+    // Template management methods
+    private void EditTemplate(WorksheetTemplate template)
+    {
+        editingTemplate = new WorksheetTemplate
+        {
+            Id = template.Id,
+            Name = template.Name,
+            Description = template.Description,
+            BaseType = template.BaseType,
+            CreatedByUserId = template.CreatedByUserId,
+            IsPublished = template.IsPublished,
+            IsGlobal = template.IsGlobal,
+            IsDefault = template.IsDefault,
+            AllowColumnReorder = template.AllowColumnReorder,
+            DisplayOrder = template.DisplayOrder,
+            Fields = template.Fields.Select(f => new WorksheetTemplateField
+            {
+                Id = f.Id,
+                FieldName = f.FieldName,
+                DisplayName = f.DisplayName,
+                IsRequired = f.IsRequired,
+                IsFrozen = f.IsFrozen,
+                ColumnWidth = f.ColumnWidth,
+                DisplayOrder = f.DisplayOrder
+            }).ToList()
+        };
+        
+        LoadAvailableFields();
+        showTemplateManagement = false;
+        showTemplateDesigner = true;
+    }
+    
+    private void CloneTemplate(WorksheetTemplate template)
+    {
+        editingTemplate = new WorksheetTemplate
+        {
+            Name = template.Name + " (Copy)",
+            Description = template.Description,
+            BaseType = template.BaseType,
+            CreatedByUserId = 1, // TODO: Get current user ID
+            IsPublished = false,
+            IsGlobal = false,
+            IsDefault = false,
+            AllowColumnReorder = template.AllowColumnReorder,
+            Fields = template.Fields.Select(f => new WorksheetTemplateField
+            {
+                FieldName = f.FieldName,
+                DisplayName = f.DisplayName,
+                IsRequired = f.IsRequired,
+                IsFrozen = f.IsFrozen,
+                ColumnWidth = f.ColumnWidth,
+                DisplayOrder = f.DisplayOrder
+            }).ToList()
+        };
+        
+        LoadAvailableFields();
+        showTemplateManagement = false;
+        showTemplateDesigner = true;
+    }
+    
+    private async Task DeleteTemplate(WorksheetTemplate template)
+    {
+        if (template.IsDefault)
+            return;
+            
+        try
+        {
+            DbContext.WorksheetTemplates.Remove(template);
+            await DbContext.SaveChangesAsync();
+            await LoadTemplates();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error deleting template");
+        }
+    }
+    
+    private async Task PublishTemplate(WorksheetTemplate template)
+    {
+        try
+        {
+            template.IsPublished = true;
+            DbContext.WorksheetTemplates.Update(template);
+            await DbContext.SaveChangesAsync();
+            await LoadTemplates();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error publishing template");
+        }
+    }
+    
+    // Image handling methods
+    private async Task FocusImageCell(WeldingItem item)
+    {
+        selectedWeldingItem = item;
+        // The focus will be handled by the browser due to tabindex
+    }
+    
+    private async Task HandleImageCellPaste(WeldingItem item)
+    {
+        try
+        {
+            // Use JavaScript interop to handle clipboard paste
+            var imageData = await JSRuntime.InvokeAsync<string>("handleClipboardPaste");
+            
+            if (!string.IsNullOrEmpty(imageData))
+            {
+                if (item == null)
+                {
+                    // Create a new welding item with the pasted image
+                    item = new WeldingItem
+                    {
+                        PackageWorksheetId = activeWorksheet?.Id ?? 0,
+                        ProjectId = EstimationId,
+                        DrawingNumber = "NEW-" + DateTime.Now.ToString("yyyyMMddHHmmss"),
+                        ItemDescription = "New Welding Item",
+                        WeldType = "Fillet",
+                        ConnectionQty = 1
+                    };
+                    
+                    DbContext.WeldingItems.Add(item);
+                    weldingItems.Add(item);
+                }
+                
+                // Add image to the item
+                var imageUpload = new ImageUpload
+                {
+                    FileName = $"paste-{DateTime.Now:yyyyMMddHHmmss}.png",
+                    OriginalFileName = $"paste-{DateTime.Now:yyyyMMddHHmmss}.png",
+                    FilePath = imageData,
+                    ContentType = "image/png",
+                    FileSize = 0,
+                    UploadedDate = DateTime.UtcNow,
+                    WeldingItemId = item.Id
+                };
+                
+                if (item.Id > 0)
+                {
+                    DbContext.Set<ImageUpload>().Add(imageUpload);
+                }
+                else
+                {
+                    item.Images.Add(imageUpload);
+                }
+                
+                await DbContext.SaveChangesAsync();
+                
+                // Reload the item to get the updated images
+                if (item.Id > 0)
+                {
+                    await DbContext.Entry(item).Collection(i => i.Images).LoadAsync();
+                }
+                
+                StateHasChanged();
+                
+                // Show notification
+                var notification = new FieldChangeNotification
+                {
+                    ItemDescription = item.DrawingNumber ?? "Welding Item",
+                    FieldName = "Image",
+                    OldValue = "None",
+                    NewValue = "Image Added",
+                    Timestamp = DateTime.Now
+                };
+                _fieldChangeNotifications.Add(notification);
+                
+                // Auto-remove notification after 5 seconds
+                _ = Task.Delay(5000).ContinueWith(_ =>
+                {
+                    _fieldChangeNotifications.Remove(notification);
+                    InvokeAsync(StateHasChanged);
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error handling clipboard paste");
+        }
+    }
+    
+    private void ShowImagePreview(string imageData)
+    {
+        previewImageData = imageData;
+        showImagePreview = true;
+    }
+    
+    private async Task CreateNewWeldingItemForPaste()
+    {
+        try
+        {
+            // Create a new welding item
+            var newItem = new WeldingItem
+            {
+                PackageWorksheetId = activeWorksheet?.Id ?? 0,
+                ProjectId = EstimationId,
+                DrawingNumber = "NEW-" + DateTime.Now.ToString("yyyyMMddHHmmss"),
+                ItemDescription = "New Welding Item",
+                WeldType = "Fillet",
+                ConnectionQty = 1
+            };
+            
+            DbContext.WeldingItems.Add(newItem);
+            await DbContext.SaveChangesAsync();
+            
+            // Reload to get the new item with proper ID
+            await LoadData();
+            
+            // Set focus to the new item
+            selectedWeldingItem = weldingItems.FirstOrDefault(w => w.Id == newItem.Id);
+            StateHasChanged();
+            
+            // Focus the image cell after render
+            if (selectedWeldingItem != null)
+            {
+                await Task.Delay(100); // Give time for render
+                await JSRuntime.InvokeVoidAsync("focusImageCell", selectedWeldingItem.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error creating new welding item for paste");
+        }
+    }
+    
+    // Field change notification class
+    public class FieldChangeNotification
+    {
+        public string ItemDescription { get; set; } = "";
+        public string FieldName { get; set; } = "";
+        public string OldValue { get; set; } = "";
+        public string NewValue { get; set; } = "";
+        public double OldHours { get; set; }
+        public double NewHours { get; set; }
+        public double HoursChange => NewHours - OldHours;
+        public DateTime Timestamp { get; set; } = DateTime.Now;
+        public bool IsRemoving { get; set; }
+    }
+}
+
+<script>
+    window.handleClipboardPaste = async function() {
+        try {
+            const clipboardItems = await navigator.clipboard.read();
+            for (const item of clipboardItems) {
+                for (const type of item.types) {
+                    if (type.startsWith('image/')) {
+                        const blob = await item.getType(type);
+                        const reader = new FileReader();
+                        
+                        return new Promise((resolve) => {
+                            reader.onloadend = function() {
+                                resolve(reader.result);
+                            };
+                            reader.readAsDataURL(blob);
+                        });
+                    }
+                }
+            }
+        } catch (err) {
+            console.error('Failed to read clipboard contents: ', err);
+        }
+        return null;
+    };
+    
+    window.focusImageCell = function(itemId) {
+        const row = document.getElementById('welding-row-' + itemId);
+        if (row) {
+            const imageCell = row.querySelector('.image-paste-cell');
+            if (imageCell) {
+                imageCell.focus();
+            }
+        }
+    };
+</script>

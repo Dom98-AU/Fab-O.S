@@ -1,0 +1,58 @@
+@page "/authorizetest"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@attribute [Authorize]
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Authorize Attribute Test</PageTitle>
+
+<h3>Protected Page - Requires Authentication</h3>
+
+<div class="alert alert-success">
+    <h4>Success!</h4>
+    <p>If you can see this page, the [Authorize] attribute is working correctly with cookie authentication.</p>
+</div>
+
+<AuthorizeView>
+    <Authorized>
+        <div class="card">
+            <div class="card-header">Authenticated User Details</div>
+            <div class="card-body">
+                <p><strong>Username:</strong> @context.User.Identity?.Name</p>
+                <p><strong>IsAuthenticated:</strong> @context.User.Identity?.IsAuthenticated</p>
+                <p><strong>AuthenticationType:</strong> @context.User.Identity?.AuthenticationType</p>
+                
+                <h6>User Claims:</h6>
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var claim in context.User.Claims)
+                        {
+                            <tr>
+                                <td>@claim.Type</td>
+                                <td>@claim.Value</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        
+        // Log authentication details for debugging
+        Console.WriteLine($"AuthorizeTest - User authenticated: {user.Identity?.IsAuthenticated}");
+        Console.WriteLine($"AuthorizeTest - User name: {user.Identity?.Name}");
+    }
+}

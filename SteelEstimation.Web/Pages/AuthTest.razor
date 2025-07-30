@@ -1,0 +1,201 @@
+@page "/authtest"
+@using SteelEstimation.Core.Interfaces
+@using Microsoft.EntityFrameworkCore
+@using SteelEstimation.Infrastructure.Data
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IAuthenticationService AuthService
+@inject IServiceProvider ServiceProvider
+@inject ILogger<AuthTest> Logger
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IConfiguration Configuration
+@inject IHttpContextAccessor HttpContextAccessor
+
+<h3>Authentication Test</h3>
+
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">Current Authentication State</div>
+            <div class="card-body">
+                <h5>Authentication Mode</h5>
+                <p>Current Mode: <strong>@authMode</strong></p>
+                
+                <h5>Authentication Status</h5>
+                <AuthorizeView>
+                    <Authorized>
+                        <p class="text-success">✓ User is authenticated</p>
+                        <p>Username: @context.User.Identity?.Name</p>
+                        <p>Authentication Type: @context.User.Identity?.AuthenticationType</p>
+                        
+                        <h6>Claims:</h6>
+                        <ul>
+                            @foreach (var claim in context.User.Claims)
+                            {
+                                <li>@claim.Type: @claim.Value</li>
+                            }
+                        </ul>
+                    </Authorized>
+                    <NotAuthorized>
+                        <p class="text-danger">✗ User is not authenticated</p>
+                    </NotAuthorized>
+                </AuthorizeView>
+                
+                <h5>HttpContext Status</h5>
+                @if (httpContextStatus != null)
+                {
+                    <pre>@httpContextStatus</pre>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <h4>Test Login</h4>
+        <div class="form-group">
+            <label>Email:</label>
+            <input @bind="email" class="form-control" />
+        </div>
+        <div class="form-group">
+            <label>Password:</label>
+            <input @bind="password" type="password" class="form-control" />
+        </div>
+        <button class="btn btn-primary" @onclick="TestLogin">Test Login</button>
+    </div>
+    <div class="col-md-6">
+        <h4>Result:</h4>
+        <pre class="@(success ? "text-success" : "text-danger")">@result</pre>
+    </div>
+</div>
+
+@code {
+    private string email = "admin@steelestimation.com";
+    private string password = "Admin@123";
+    private string result = "";
+    private bool success = false;
+    private string authMode = "Unknown";
+    private string? httpContextStatus;
+
+    protected override Task OnInitializedAsync()
+    {
+        authMode = Configuration.GetValue<string>("Authentication:Mode", "Session") ?? "Session";
+        
+        // Check HttpContext
+        var httpContext = HttpContextAccessor.HttpContext;
+        if (httpContext != null)
+        {
+            httpContextStatus = $"HttpContext found\n";
+            httpContextStatus += $"IsAuthenticated: {httpContext.User?.Identity?.IsAuthenticated}\n";
+            httpContextStatus += $"AuthenticationType: {httpContext.User?.Identity?.AuthenticationType}\n";
+            httpContextStatus += $"User Name: {httpContext.User?.Identity?.Name}\n";
+            httpContextStatus += $"Claims Count: {httpContext.User?.Claims?.Count() ?? 0}\n";
+        }
+        else
+        {
+            httpContextStatus = "HttpContext is null";
+        }
+        return Task.CompletedTask;
+    }
+
+    private async Task TestLogin()
+    {
+        try
+        {
+            result = "=== STARTING COMPREHENSIVE TEST ===\n\n";
+            
+            // Test 1: Database Connection
+            result += "1. Testing Database Connection:\n";
+            try
+            {
+                var dbContext = ServiceProvider.GetService<ApplicationDbContext>();
+                if (dbContext == null)
+                {
+                    result += "   ERROR: ApplicationDbContext not registered!\n";
+                }
+                else
+                {
+                    result += "   DbContext found\n";
+                    var connStr = dbContext.Database.GetConnectionString();
+                    result += $"   Connection string length: {connStr?.Length ?? 0}\n";
+                    
+                    var canConnect = await dbContext.Database.CanConnectAsync();
+                    result += $"   Can connect to database: {canConnect}\n";
+                    
+                    if (canConnect)
+                    {
+                        var userCount = await dbContext.Users.CountAsync();
+                        result += $"   User count in database: {userCount}\n";
+                    }
+                }
+            }
+            catch (Exception dbEx)
+            {
+                result += $"   Database test ERROR: {dbEx.GetType().Name}: {dbEx.Message}\n";
+                if (dbEx.InnerException != null)
+                {
+                    result += $"   Inner: {dbEx.InnerException.Message}\n";
+                }
+            }
+            
+            result += $"\n2. Testing Authentication Service:\n";
+            result += $"   Email: {email}\n";
+            result += $"   Password length: {password.Length}\n";
+            
+            if (AuthService == null)
+            {
+                result += "   ERROR: AuthService is null!\n";
+                return;
+            }
+            
+            result += $"   AuthService type: {AuthService.GetType().FullName}\n";
+            
+            result += "\n3. Calling LoginAsync...\n";
+            Logger.LogInformation("AuthTest: Calling LoginAsync for {Email}", email);
+            
+            var authResult = await AuthService.LoginAsync(email, password);
+            
+            result += $"   Success: {authResult.Success}\n";
+            result += $"   Message: {authResult.Message}\n";
+            
+            if (authResult.User != null)
+            {
+                result += $"   User ID: {authResult.User.Id}\n";
+                result += $"   Username: {authResult.User.Username}\n";
+                result += $"   Email: {authResult.User.Email}\n";
+                result += $"   IsActive: {authResult.User.IsActive}\n";
+                result += $"   IsEmailConfirmed: {authResult.User.IsEmailConfirmed}\n";
+            }
+            else
+            {
+                result += "   User object is null\n";
+            }
+            
+            success = authResult.Success;
+        }
+        catch (Exception ex)
+        {
+            success = false;
+            Logger.LogError(ex, "AuthTest: Exception during test");
+            
+            result += "\n=== EXCEPTION CAUGHT ===\n";
+            result += $"Exception Type: {ex.GetType().FullName}\n";
+            result += $"Message: {ex.Message}\n";
+            
+            var innerEx = ex.InnerException;
+            int depth = 1;
+            while (innerEx != null && depth <= 3)
+            {
+                result += $"\nInner Exception Level {depth}:\n";
+                result += $"Type: {innerEx.GetType().FullName}\n";
+                result += $"Message: {innerEx.Message}\n";
+                innerEx = innerEx.InnerException;
+                depth++;
+            }
+            
+            result += $"\nStack Trace:\n{ex.StackTrace}\n";
+        }
+        
+        result += "\n=== TEST COMPLETE ===\n";
+    }
+}
