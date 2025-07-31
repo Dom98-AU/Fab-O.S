@@ -13,11 +13,22 @@ public class User
     [Required, EmailAddress, MaxLength(200)]
     public string Email { get; set; } = string.Empty;
     
-    [Required, MaxLength(500)]
-    public string PasswordHash { get; set; } = string.Empty;
+    // Made nullable for social login users
+    [MaxLength(500)]
+    public string? PasswordHash { get; set; }
+    
+    [MaxLength(100)]
+    public string? PasswordSalt { get; set; }
     
     [Required, MaxLength(500)]
     public string SecurityStamp { get; set; } = Guid.NewGuid().ToString();
+    
+    // Authentication provider support
+    [Required, MaxLength(50)]
+    public string AuthProvider { get; set; } = "Local"; // Local, Microsoft, Google, etc.
+    
+    [MaxLength(256)]
+    public string? ExternalUserId { get; set; } // ID from external provider
     
     [MaxLength(100)]
     public string? FirstName { get; set; }
@@ -58,6 +69,7 @@ public class User
     public virtual ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
     public virtual ICollection<ProjectUser> ProjectAccess { get; set; } = new List<ProjectUser>();
     public virtual ICollection<Project> OwnedProjects { get; set; } = new List<Project>();
+    public virtual ICollection<UserAuthMethod> AuthMethods { get; set; } = new List<UserAuthMethod>();
     
     // Computed properties
     [NotMapped]
@@ -68,4 +80,10 @@ public class User
     
     [NotMapped]
     public IEnumerable<string> RoleNames => UserRoles.Select(ur => ur.Role.RoleName);
+    
+    [NotMapped]
+    public bool IsSocialLogin => AuthProvider != "Local";
+    
+    [NotMapped]
+    public bool HasPassword => !string.IsNullOrEmpty(PasswordHash);
 }

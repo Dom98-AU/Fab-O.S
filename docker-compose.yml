@@ -1,68 +1,28 @@
-services:
-  sql-server:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: steel-estimation-sql
-    environment:
-      - ACCEPT_EULA=Y
-      - MSSQL_SA_PASSWORD=YourStrong@Password123
-      - MSSQL_PID=Developer
-      - MSSQL_COLLATION=SQL_Latin1_General_CP1_CI_AS
-    ports:
-      - "1433:1433"
-    volumes:
-      - sql-data:/var/opt/mssql
-      - ./docker/sql/complete-init-database.sql:/docker-entrypoint-initdb.d/init.sql:ro
-      - ./docker/sql-init.sh:/usr/local/bin/sql-init.sh:ro
-    networks:
-      - steel-estimation-net
-    healthcheck:
-      test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "SA", "-P", "YourStrong@Password123", "-Q", "SELECT 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
-    restart: unless-stopped
+version: '3.8'
 
+services:
   web:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: steel-estimation-web
+    container_name: steel-estimation-web-dev
     environment:
-      - ASPNETCORE_ENVIRONMENT=DockerLocal
+      - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:80
     ports:
       - "8080:80"
-    depends_on:
-      sql-server:
-        condition: service_healthy
     networks:
       - steel-estimation-net
     restart: unless-stopped
     volumes:
       - ./logs:/app/logs
       - ./uploads:/app/uploads
-
-  # Optional: Add nginx reverse proxy for production
-  # Uncomment the following lines to enable nginx
-  # nginx:
-  #   image: nginx:1.25-alpine
-  #   container_name: steel-estimation-nginx
-  #   ports:
-  #     - "80:80"
-  #     - "443:443"
-  #   volumes:
-  #     - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-  #     - ./docker/nginx/ssl:/etc/nginx/ssl:ro
-  #   depends_on:
-  #     - web
-  #   networks:
-  #     - steel-estimation-net
-  #   restart: unless-stopped
-
-volumes:
-  sql-data:
-    driver: local
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 networks:
   steel-estimation-net:

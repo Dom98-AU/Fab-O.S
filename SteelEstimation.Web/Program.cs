@@ -13,6 +13,8 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using SteelEstimation.Web.Authentication;
+using SteelEstimation.Infrastructure.Services;
+using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -109,11 +111,128 @@ builder.Services.AddAuthentication(options =>
     }
 });
 
+// Configure Microsoft Account authentication (if enabled)
+var microsoftConfig = builder.Configuration.GetSection("Authentication:Microsoft");
+if (microsoftConfig.Exists() && microsoftConfig.GetValue<bool>("Enabled", false))
+{
+    builder.Services.AddAuthentication()
+        .AddMicrosoftAccount("Microsoft", options =>
+        {
+            options.ClientId = microsoftConfig["ClientId"] ?? "";
+            options.ClientSecret = microsoftConfig["ClientSecret"] ?? "";
+            options.SaveTokens = true;
+            
+            options.Events = new Microsoft.AspNetCore.Authentication.OAuth.OAuthEvents
+            {
+                OnRemoteFailure = context =>
+                {
+                    context.HandleResponse();
+                    context.Response.Redirect("/Account/Login?error=external");
+                    return Task.CompletedTask;
+                },
+                OnTicketReceived = async context =>
+                {
+                    // Handle the social login in our system
+                    var multiAuthService = context.HttpContext.RequestServices.GetRequiredService<IMultiAuthService>();
+                    var result = await multiAuthService.SignUpWithSocialAsync("Microsoft", context.Principal);
+                    
+                    if (!result.Success)
+                    {
+                        context.Fail(result.ErrorMessage ?? "Authentication failed");
+                    }
+                }
+            };
+        });
+    
+    Log.Information("Microsoft authentication configured");
+}
+
+// Configure Google authentication (if enabled)
+var googleConfig = builder.Configuration.GetSection("Authentication:Google");
+if (googleConfig.Exists() && googleConfig.GetValue<bool>("Enabled", false))
+{
+    builder.Services.AddAuthentication()
+        .AddGoogle("Google", options =>
+        {
+            options.ClientId = googleConfig["ClientId"] ?? "";
+            options.ClientSecret = googleConfig["ClientSecret"] ?? "";
+            options.SaveTokens = true;
+            
+            options.Events = new Microsoft.AspNetCore.Authentication.OAuth.OAuthEvents
+            {
+                OnRemoteFailure = context =>
+                {
+                    context.HandleResponse();
+                    context.Response.Redirect("/Account/Login?error=external");
+                    return Task.CompletedTask;
+                },
+                OnTicketReceived = async context =>
+                {
+                    // Handle the social login in our system
+                    var multiAuthService = context.HttpContext.RequestServices.GetRequiredService<IMultiAuthService>();
+                    var result = await multiAuthService.SignUpWithSocialAsync("Google", context.Principal);
+                    
+                    if (!result.Success)
+                    {
+                        context.Fail(result.ErrorMessage ?? "Authentication failed");
+                    }
+                }
+            };
+        });
+    
+    Log.Information("Google authentication configured");
+}
+
+// Configure LinkedIn authentication (if enabled)
+var linkedInConfig = builder.Configuration.GetSection("Authentication:LinkedIn");
+if (linkedInConfig.Exists() && linkedInConfig.GetValue<bool>("Enabled", false))
+{
+    builder.Services.AddAuthentication()
+        .AddOAuth("LinkedIn", "LinkedIn", options =>
+        {
+            options.ClientId = linkedInConfig["ClientId"] ?? "";
+            options.ClientSecret = linkedInConfig["ClientSecret"] ?? "";
+            options.SaveTokens = true;
+            
+            options.AuthorizationEndpoint = "https://www.linkedin.com/oauth/v2/authorization";
+            options.TokenEndpoint = "https://www.linkedin.com/oauth/v2/accessToken";
+            options.UserInformationEndpoint = "https://api.linkedin.com/v2/me?projection=(id,localizedFirstName,localizedLastName,profilePicture(displayImage~digitalmediaAsset))";
+            
+            options.Scope.Add("r_liteprofile");
+            options.Scope.Add("r_emailaddress");
+            
+            options.Events = new Microsoft.AspNetCore.Authentication.OAuth.OAuthEvents
+            {
+                OnRemoteFailure = context =>
+                {
+                    context.HandleResponse();
+                    context.Response.Redirect("/Account/Login?error=external");
+                    return Task.CompletedTask;
+                },
+                OnTicketReceived = async context =>
+                {
+                    // Handle the social login in our system
+                    var multiAuthService = context.HttpContext.RequestServices.GetRequiredService<IMultiAuthService>();
+                    var result = await multiAuthService.SignUpWithSocialAsync("LinkedIn", context.Principal);
+                    
+                    if (!result.Success)
+                    {
+                        context.Fail(result.ErrorMessage ?? "Authentication failed");
+                    }
+                }
+            };
+        });
+    
+    Log.Information("LinkedIn authentication configured");
+}
+
 builder.Services.AddAuthorization();
 builder.Services.AddHttpContextAccessor();
 
 // Cookie Authentication Services (Cloud-Ready)
 builder.Services.AddScoped<ICookieAuthenticationService, CookieAuthenticationService>();
+builder.Services.AddScoped<IFabOSAuthenticationService, FabOSAuthenticationService>();
+builder.Services.AddScoped<IMultiAuthService, MultiAuthService>();
 builder.Services.AddScoped<AuthenticationStateProvider, CookieAuthenticationStateProvider>();
 builder.Services.AddScoped<CookieAuthenticationStateProvider>();
 
@@ -224,10 +343,37 @@ else
 // Add authorization
 builder.Services.AddAuthorization(options =>
 {
+    // Existing role-based policies
     options.AddPolicy("Administrator", policy => policy.RequireRole("Administrator"));
     options.AddPolicy("ProjectManager", policy => policy.RequireRole("Administrator", "Project Manager"));
     options.AddPolicy("Estimator", policy => policy.RequireRole("Administrator", "Project Manager", "Senior Estimator", "Estimator"));
     options.AddPolicy("Viewer", policy => policy.RequireAuthenticatedUser());
+    
+    // New product-based policies for Fab.OS
+    options.AddPolicy("Estimate.Access", policy => 
+        policy.RequireClaim("Product.Estimate", "true"));
+    
+    options.AddPolicy("Trace.Access", policy => 
+        policy.RequireClaim("Product.Trace", "true"));
+    
+    options.AddPolicy("Fabmate.Access", policy => 
+        policy.RequireClaim("Product.Fabmate", "true"));
+    
+    options.AddPolicy("QDocs.Access", policy => 
+        policy.RequireClaim("Product.QDocs", "true"));
+    
+    // Feature-specific policies
+    options.AddPolicy("Estimate.TimeTracking", policy =>
+        policy.RequireClaim("Feature.Estimate.TimeTracking", "true"));
+    
+    options.AddPolicy("Estimate.WeldingDashboard", policy =>
+        policy.RequireClaim("Feature.Estimate.WeldingDashboard", "true"));
+    
+    options.AddPolicy("Fabmate.Production", policy =>
+        policy.RequireClaim("Feature.Fabmate.Production", "true"));
+    
+    options.AddPolicy("QDocs.Compliance", policy =>
+        policy.RequireClaim("Feature.QDocs.Compliance", "true"));
 });
 
 // Register application services

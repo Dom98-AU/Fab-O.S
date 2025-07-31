@@ -1,0 +1,132 @@
+@page
+@model SteelEstimation.Web.Pages.Account.Manage.LinkedAccountsModel
+@{
+    ViewData["Title"] = "Linked Accounts";
+    Layout = "_Layout";
+}
+
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title mb-0">Linked Accounts</h3>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">Manage how you sign in to your account. You can link multiple authentication methods for convenience.</p>
+                    
+                    @if (TempData["StatusMessage"] != null)
+                    {
+                        <div class="alert alert-info alert-dismissible fade show" role="alert">
+                            @TempData["StatusMessage"]
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    }
+                    
+                    <h5 class="mb-3">Current Authentication Methods</h5>
+                    
+                    <div class="list-group mb-4">
+                        @foreach (var method in Model.UserAuthMethods)
+                        {
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        @if (method.AuthProvider == "Local")
+                                        {
+                                            <i class="fas fa-envelope text-primary"></i>
+                                            <strong>Email/Password</strong>
+                                        }
+                                        else if (method.AuthProvider == "Microsoft")
+                                        {
+                                            <i class="fab fa-microsoft" style="color: #0078d4;"></i>
+                                            <strong>Microsoft Account</strong>
+                                        }
+                                        else if (method.AuthProvider == "Google")
+                                        {
+                                            <i class="fab fa-google" style="color: #4285f4;"></i>
+                                            <strong>Google Account</strong>
+                                        }
+                                        else if (method.AuthProvider == "LinkedIn")
+                                        {
+                                            <i class="fab fa-linkedin" style="color: #0077b5;"></i>
+                                            <strong>LinkedIn Account</strong>
+                                        }
+                                        else
+                                        {
+                                            <i class="fas fa-link"></i>
+                                            <strong>@method.AuthProvider</strong>
+                                        }
+                                    </div>
+                                    <small class="text-muted">
+                                        @if (!string.IsNullOrEmpty(method.Email))
+                                        {
+                                            <span>@method.Email</span>
+                                        }
+                                        @if (method.LastUsedDate.HasValue)
+                                        {
+                                            <span> • Last used: @method.LastUsedDate.Value.ToString("MMM d, yyyy")</span>
+                                        }
+                                    </small>
+                                </div>
+                                <div>
+                                    @if (Model.UserAuthMethods.Count > 1 && method.AuthProvider != "Local")
+                                    {
+                                        <form method="post" asp-page-handler="Unlink" class="d-inline">
+                                            <input type="hidden" name="provider" value="@method.AuthProvider" />
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" 
+                                                    onclick="return confirm('Are you sure you want to unlink this account?');">
+                                                Unlink
+                                            </button>
+                                        </form>
+                                    }
+                                    else if (Model.UserAuthMethods.Count == 1)
+                                    {
+                                        <small class="text-muted">Cannot remove last method</small>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    
+                    @if (Model.AvailableProviders?.Any() == true)
+                    {
+                        <h5 class="mb-3">Add Authentication Method</h5>
+                        <p class="text-muted mb-3">Link additional accounts to sign in more easily.</p>
+                        
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach (var provider in Model.AvailableProviders)
+                            {
+                                <form method="post" asp-page-handler="Link">
+                                    <input type="hidden" name="provider" value="@provider.ProviderName" />
+                                    <button type="submit" class="btn btn-outline-secondary d-flex align-items-center gap-2"
+                                            style="@(!string.IsNullOrEmpty(provider.ButtonColor) ? $"border-color: {provider.ButtonColor}; color: {provider.ButtonColor};" : "")">
+                                        @if (!string.IsNullOrEmpty(provider.IconClass))
+                                        {
+                                            <i class="@provider.IconClass"></i>
+                                        }
+                                        <span>Link @provider.DisplayName</span>
+                                    </button>
+                                </form>
+                            }
+                        </div>
+                    }
+                    
+                    @if (Model.HasPassword)
+                    {
+                        <hr class="my-4" />
+                        <h5 class="mb-3">Password Settings</h5>
+                        <p class="text-muted">You have a password set for your account.</p>
+                        <a href="/Account/Manage/ChangePassword" class="btn btn-outline-primary">Change Password</a>
+                    }
+                    else
+                    {
+                        <hr class="my-4" />
+                        <h5 class="mb-3">Set a Password</h5>
+                        <p class="text-muted">You're currently using social login only. Set a password to enable email/password sign in.</p>
+                        <a href="/Account/Manage/SetPassword" class="btn btn-outline-primary">Set Password</a>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

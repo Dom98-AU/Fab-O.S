@@ -3,25 +3,26 @@
 ## Local Development Setup
 
 ### Prerequisites
-- SQL Server 2022 (or SQL Server 2019+)
 - .NET 8 SDK
 - Visual Studio 2022 or VS Code
-- PowerShell (Run as Administrator for database setup)
+- Docker Desktop (for containerized development)
+- Access to Azure SQL Database (connection details in appsettings)
 
 ### Quick Start
 
-1. **Set up the database** (run as Administrator):
-   ```powershell
-   .\setup-local-db.ps1
-   ```
-
-2. **Run the application**:
+1. **Run the application locally**:
    ```powershell
    .\run-local.ps1
    ```
 
+2. **Or run with Docker**:
+   ```bash
+   docker-compose up
+   ```
+
 3. **Access the application**:
-   - URL: https://localhost:5001
+   - Local: https://localhost:5003 or http://localhost:5002
+   - Docker: http://localhost:8080
    - Login: admin@steelestimation.com
    - Password: Admin@123
 
@@ -33,16 +34,16 @@ The application uses **Cookie-based authentication** with the following structur
 - Password hashing: PBKDF2 with HMACSHA256
 - Role-based authorization: Administrator, Project Manager, Senior Estimator, Estimator, Viewer
 
-### Key Differences: Local vs Cloud
+### Key Differences: Development vs Production
 
-| Feature | Local Development | Cloud (Azure) |
-|---------|------------------|---------------|
-| Database | SQL Server with Windows Auth | Azure SQL with Managed Identity |
-| Connection String | `Trusted_Connection=True` | `Authentication=Active Directory Default` |
+| Feature | Development (Local/Docker) | Production (Azure) |
+|---------|---------------------------|--------------------|
+| Database | Azure SQL with SQL Auth | Azure SQL with Managed Identity |
+| Connection String | In appsettings.json | In Key Vault |
 | Secrets | appsettings.json | Azure Key Vault |
 | SSL Certificate | Self-signed | Azure-managed |
-| Environment | Development | Staging/Production |
-| Migrations | Run automatically | Must be run manually |
+| Environment | Development/DockerLocal | Staging/Production |
+| Migrations | Run manually | Must be run manually |
 | Logging | Debug level, file output | Information level, Application Insights |
 
 ### Important Files
@@ -55,9 +56,9 @@ The application uses **Cookie-based authentication** with the following structur
 ### Troubleshooting
 
 1. **Database connection fails**:
-   - Ensure SQL Server service is running
-   - Check Windows Authentication is enabled
-   - Verify database name in connection string
+   - Check Azure SQL firewall rules
+   - Verify connection string in appsettings
+   - Ensure your IP is whitelisted in Azure
 
 2. **Login fails**:
    - Check admin user exists in database

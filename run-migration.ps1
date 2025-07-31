@@ -1,39 +1,115 @@
-# Run Time Tracking and Efficiency Migration
-# This script applies the database migration for the new features
+# Run Database Migrations
+# This script applies SQL migrations to the Azure SQL Database
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "Running Time Tracking and Efficiency Migration..." -ForegroundColor Green
+Write-Host "Running Database Migration..." -ForegroundColor Green
 
-# Get the connection string from appsettings
-$connectionString = "Server=localhost;Database=SteelEstimationDb;Trusted_Connection=True;TrustServerCertificate=True;"
+# Azure SQL connection details
+$serverName = "nwiapps.database.windows.net"
+$databaseName = "sqldb-steel-estimation-sandbox"
+$username = "admin@nwi@nwiapps"
+$password = "Natweigh88"
 
-# Path to migration file
-$migrationPath = Join-Path $PSScriptRoot "SteelEstimation.Infrastructure\Migrations\AddTimeTrackingAndEfficiency.sql"
-
-if (-not (Test-Path $migrationPath)) {
-    Write-Error "Migration file not found at: $migrationPath"
-    exit 1
+# Function to run a SQL migration file
+function Run-SqlMigration {
+    param(
+        [string]$MigrationFile,
+        [string]$Description
+    )
+    
+    if (Test-Path $MigrationFile) {
+        Write-Host "Applying $Description..." -ForegroundColor Yellow
+        try {
+            # Read the migration SQL
+            $migrationSql = Get-Content $MigrationFile -Raw
+            
+            # Execute using sqlcmd (more reliable for Azure SQL)
+            $result = sqlcmd -S $serverName -d $databaseName -U $username -P $password -i $MigrationFile -I 2>&1
+            
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "[OK] $Description completed successfully!" -ForegroundColor Green
+                return $true
+            } else {
+                Write-Host "[FAIL] $Description failed: $result" -ForegroundColor Red
+                return $false
+            }
+        }
+        catch {
+            Write-Host "[ERROR] Error applying $Description : $_" -ForegroundColor Red
+            return $false
+        }
+    }
+    else {
+        Write-Host "[WARNING] Migration file not found: $MigrationFile" -ForegroundColor Yellow
+        return $false
+    }
 }
 
-try {
-    # Read the migration SQL
-    $migrationSql = Get-Content $migrationPath -Raw
-    
-    # Execute the migration
-    Write-Host "Applying migration to database..." -ForegroundColor Yellow
-    Invoke-Sqlcmd -ServerInstance "localhost" -Database "SteelEstimationDb" -Query $migrationSql -TrustServerCertificate
-    
-    Write-Host "Migration completed successfully!" -ForegroundColor Green
-    Write-Host ""
-    Write-Host "New features added:" -ForegroundColor Cyan
-    Write-Host "- Time tracking with EstimationTimeLogs table" -ForegroundColor White
-    Write-Host "- Multiple welding connections with WeldingItemConnections table" -ForegroundColor White
-    Write-Host "- Processing efficiency column in Packages table" -ForegroundColor White
-    Write-Host ""
-    Write-Host "You can now restart the application." -ForegroundColor Yellow
+# Check for specific migration file passed as parameter
+if ($args.Count -gt 0) {
+    $specificMigration = $args[0]
+    if (Test-Path $specificMigration) {
+        Run-SqlMigration -MigrationFile $specificMigration -Description "Custom migration"
+    }
+    else {
+        Write-Error "Migration file not found: $specificMigration"
+        exit 1
+    }
 }
-catch {
-    Write-Error "Failed to apply migration: $_"
-    exit 1
+else {
+    # Run all pending migrations in order
+    Write-Host "Checking for pending migrations..." -ForegroundColor Cyan
+    
+    $migrations = @(
+        @{
+            File = "SteelEstimation.Infrastructure\Migrations\AddTimeTrackingAndEfficiency.sql"
+            Description = "Time Tracking and Efficiency"
+        },
+        @{
+            File = "SteelEstimation.Infrastructure\Migrations\AddEfficiencyRates.sql"
+            Description = "Efficiency Rates"
+        },
+        @{
+            File = "SteelEstimation.Infrastructure\Migrations\SQL\AddPackBundles.sql"
+            Description = "Pack Bundles"
+        },
+        @{
+            File = "SQL_Migrations\AddProductLicensing.sql"
+            Description = "Product Licensing (Fab.OS)"
+        },
+        @{
+            File = "SQL_Migrations\AddMultipleAuthProviders.sql"
+            Description = "Multiple Authentication Providers"
+        }
+    )
+    
+    $successCount = 0
+    $failCount = 0
+    
+    foreach ($migration in $migrations) {
+        $migrationPath = Join-Path $PSScriptRoot $migration.File
+        if (Run-SqlMigration -MigrationFile $migrationPath -Description $migration.Description) {
+            $successCount++
+        }
+        else {
+            $failCount++
+        }
+    }
+    
+    Write-Host ""
+    Write-Host "Migration Summary:" -ForegroundColor Cyan
+    Write-Host "  Successful: $successCount" -ForegroundColor Green
+    Write-Host "  Failed: $failCount" -ForegroundColor $(if ($failCount -gt 0) { "Red" } else { "Gray" })
+    
+    if ($failCount -eq 0) {
+        Write-Host ""
+        Write-Host "All migrations completed successfully!" -ForegroundColor Green
+        Write-Host "You can now restart the application." -ForegroundColor Yellow
+    }
+    else {
+        Write-Host ""
+        Write-Host "Some migrations failed. Please check the errors above." -ForegroundColor Red
+        exit 1
+    }
 }

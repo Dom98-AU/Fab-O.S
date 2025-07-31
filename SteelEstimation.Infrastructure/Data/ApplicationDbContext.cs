@@ -21,6 +21,9 @@ public class ApplicationDbContext : DbContext
     public DbSet<User> Users { get; set; }
     public DbSet<Role> Roles { get; set; }
     public DbSet<UserRole> UserRoles { get; set; }
+    public DbSet<UserAuthMethod> UserAuthMethods { get; set; }
+    public DbSet<SocialLoginAudit> SocialLoginAudits { get; set; }
+    public DbSet<OAuthProviderSettings> OAuthProviderSettings { get; set; }
     
     // Settings
     public DbSet<Setting> Settings { get; set; }
@@ -75,6 +78,12 @@ public class ApplicationDbContext : DbContext
     public DbSet<FeatureCache> FeatureCache { get; set; }
     public DbSet<FeatureGroup> FeatureGroups { get; set; }
     public DbSet<ApiKey> ApiKeys { get; set; }
+    
+    // Product Licensing (Fab.OS)
+    public DbSet<ProductLicense> ProductLicenses { get; set; }
+    public DbSet<UserProductAccess> UserProductAccess { get; set; }
+    public DbSet<ProductRole> ProductRoles { get; set; }
+    public DbSet<UserProductRole> UserProductRoles { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -168,8 +177,9 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<User>(entity =>
         {
             entity.HasIndex(e => e.Username).IsUnique();
-            entity.HasIndex(e => e.Email).IsUnique();
+            entity.HasIndex(e => e.Email).HasFilter("[IsActive] = 1").IsUnique();
             entity.HasIndex(e => e.IsActive);
+            entity.HasIndex(e => new { e.AuthProvider, e.ExternalUserId });
             entity.HasIndex(e => e.CompanyId);
             
             entity.HasOne(e => e.Company)
@@ -203,6 +213,41 @@ public class ApplicationDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.AssignedBy)
                 .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        // UserAuthMethod configuration
+        modelBuilder.Entity<UserAuthMethod>(entity =>
+        {
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => new { e.AuthProvider, e.ExternalUserId });
+            entity.HasIndex(e => new { e.UserId, e.AuthProvider })
+                .HasFilter("[IsActive] = 1")
+                .IsUnique();
+            
+            entity.HasOne(e => e.User)
+                .WithMany(u => u.AuthMethods)
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // SocialLoginAudit configuration
+        modelBuilder.Entity<SocialLoginAudit>(entity =>
+        {
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.EventDate);
+            entity.HasIndex(e => new { e.AuthProvider, e.EventType });
+            
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // OAuthProviderSettings configuration
+        modelBuilder.Entity<OAuthProviderSettings>(entity =>
+        {
+            entity.HasIndex(e => e.ProviderName).IsUnique();
+            entity.HasIndex(e => e.SortOrder);
         });
 
         // Project configuration
@@ -734,6 +779,88 @@ public class ApplicationDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.CompanyId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Product Licensing configuration
+        modelBuilder.Entity<ProductLicense>(entity =>
+        {
+            entity.HasIndex(e => new { e.CompanyId, e.ProductName });
+            entity.HasIndex(e => e.IsActive);
+            entity.HasIndex(e => e.ValidUntil);
+            
+            entity.Property(e => e.Features)
+                .HasConversion(
+                    v => v == null ? null : string.Join(',', v),
+                    v => v == null ? new List<string>() : v.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList()
+                );
+            
+            entity.HasOne(e => e.Company)
+                .WithMany()
+                .HasForeignKey(e => e.CompanyId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            entity.HasOne(e => e.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.CreatedBy)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            entity.HasOne(e => e.ModifiedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.ModifiedBy)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // UserProductAccess configuration
+        modelBuilder.Entity<UserProductAccess>(entity =>
+        {
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.ProductLicenseId);
+            entity.HasIndex(e => new { e.ProductLicenseId, e.IsCurrentlyActive });
+            
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            entity.HasOne(e => e.ProductLicense)
+                .WithMany(p => p.UserAccess)
+                .HasForeignKey(e => e.ProductLicenseId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ProductRole configuration
+        modelBuilder.Entity<ProductRole>(entity =>
+        {
+            entity.HasIndex(e => new { e.ProductName, e.RoleName }).IsUnique();
+            
+            entity.Property(e => e.Permissions)
+                .HasConversion(
+                    v => v == null ? null : System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions)null),
+                    v => v == null ? new Dictionary<string, object>() : System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(v, (System.Text.Json.JsonSerializerOptions)null)
+                );
+        });
+
+        // UserProductRole configuration
+        modelBuilder.Entity<UserProductRole>(entity =>
+        {
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.ProductRoleId);
+            entity.HasIndex(e => new { e.UserId, e.ProductRoleId }).IsUnique();
+            
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            entity.HasOne(e => e.ProductRole)
+                .WithMany(p => p.UserProductRoles)
+                .HasForeignKey(e => e.ProductRoleId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            entity.HasOne(e => e.AssignedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.AssignedBy)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         // Seed default roles

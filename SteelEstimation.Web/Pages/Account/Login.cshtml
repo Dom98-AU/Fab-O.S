@@ -108,10 +108,43 @@
                             Sign In
                         </button>
                         
-                        <div class="text-center">
+                        <div class="text-center mb-3">
                             <a href="/forgot-password" class="text-decoration-none">Forgot Password?</a>
                         </div>
                     </form>
+                    
+                    @if (Model.EnabledProviders?.Any() == true)
+                    {
+                        <div class="social-login-section">
+                            <div class="position-relative my-4">
+                                <hr class="bg-secondary" />
+                                <div class="position-absolute top-50 start-50 translate-middle bg-white px-3">
+                                    <span class="text-muted">or continue with</span>
+                                </div>
+                            </div>
+                            
+                            <div class="d-grid gap-2">
+                                @foreach (var provider in Model.EnabledProviders)
+                                {
+                                    <form method="post" asp-page-handler="ExternalLogin" asp-route-provider="@provider.ProviderName">
+                                        <button type="submit" class="btn btn-outline-secondary btn-lg w-100 d-flex align-items-center justify-content-center gap-2" 
+                                                style="@(!string.IsNullOrEmpty(provider.ButtonColor) ? $"border-color: {provider.ButtonColor}; color: {provider.ButtonColor};" : "")">
+                                            @if (!string.IsNullOrEmpty(provider.IconClass))
+                                            {
+                                                <i class="@provider.IconClass"></i>
+                                            }
+                                            <span>@provider.DisplayName</span>
+                                        </button>
+                                    </form>
+                                }
+                            </div>
+                        </div>
+                    }
+                    
+                    <div class="text-center mt-4 pt-3 border-top">
+                        <span class="text-muted">Don't have an account?</span>
+                        <a href="/Account/Register" class="text-decoration-none ms-1">Sign up</a>
+                    </div>
                 </div>
             </div>
         </div>

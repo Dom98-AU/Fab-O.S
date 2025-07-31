@@ -1,5 +1,5 @@
 @echo off
-echo Running Time Tracking and Efficiency Migration...
+echo Running Database Migrations...
 echo.
 
 REM Run the PowerShell script

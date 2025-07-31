@@ -1,6 +1,6 @@
 # Steel Estimation Platform - Docker Edition
 
-A comprehensive steel fabrication estimation platform built with ASP.NET Core 8.0, Blazor Server, and SQL Server. This Docker-ready version enables easy deployment and development with full containerization support.
+A comprehensive steel fabrication estimation platform built with ASP.NET Core 8.0, Blazor Server, and Azure SQL Database. This cloud-ready version enables easy deployment with Docker containerization and Azure integration.
 
 ## Project Structure
 
@@ -42,16 +42,12 @@ SteelEstimation/
 
 ## Prerequisites
 
-### For Docker Development (Recommended)
-- Docker Desktop
-- Docker Compose
-- PowerShell (for migration scripts)
-
-### For Local Development
+### For All Development
 - .NET 8 SDK
-- SQL Server 2022 (or SQL Server 2019+)
 - Visual Studio 2022 or VS Code
-- PowerShell (Run as Administrator for database setup)
+- Docker Desktop (for containerized development)
+- PowerShell (for scripts)
+- Access to Azure SQL Database (connection details in appsettings)
 
 ## Getting Started
 
@@ -78,43 +74,37 @@ SteelEstimation/
    - Login: admin@steelestimation.com
    - Password: Admin@123
 
-### 💻 Local Development with SQL Server
+### 💻 Local Development
 
-2. **Set up local database** (Run PowerShell as Administrator)
-   ```powershell
-   .\setup-local-db.ps1
-   ```
-   This will:
-   - Create the database
-   - Run all migrations
-   - Seed admin user (admin@steelestimation.com / Admin@123)
-
-3. **Run the application**
+2. **Run the application**
    ```powershell
    .\run-local.ps1
    ```
-   Access at: https://localhost:5001
+   Access at: https://localhost:5003 or http://localhost:5002
 
-### Manual Database Setup (Alternative)
+### Running with Docker
 
-If you prefer to set up the database manually:
+```bash
+# Default Docker setup
+docker-compose up
 
-1. **Create database in SQL Server**
-2. **Run migrations**
-   ```bash
-   cd SteelEstimation.Web
-   dotnet ef database update --project ..\SteelEstimation.Infrastructure
-   ```
+# Or use Azure-specific configuration
+docker-compose -f docker-compose-azure.yml up
+```
 
-4. **Run the application**
-   ```bash
-   cd SteelEstimation.Web
-   dotnet run
-   ```
+### Database Information
 
-5. **Access the application**
-   - Navigate to `https://localhost:5001`
-   - Default login: admin@steelestimation.com / Admin@123
+The application uses Azure SQL Database:
+- Server: nwiapps.database.windows.net
+- Database: sqldb-steel-estimation-sandbox
+- Connection details are in appsettings files
+
+### Running Migrations
+
+To apply database migrations to Azure SQL:
+```powershell
+.\run-migration.ps1
+```
 
 ## Features
 
@@ -153,7 +143,7 @@ If you prefer to set up the database manually:
 
 - **Backend**: .NET 8, ASP.NET Core, Entity Framework Core 8
 - **Frontend**: Blazor Server-Side Rendering, Bootstrap 5
-- **Database**: SQL Server 2022 (Docker or Azure SQL)
+- **Database**: Azure SQL Database
 - **Authentication**: Cookie-based with ASP.NET Core Identity
 - **Containerization**: Docker, Docker Compose
 - **Architecture**: Clean Architecture with DDD principles
@@ -209,13 +199,12 @@ docker logs steel-estimation-sql --tail 100
 docker-compose restart
 ```
 
-### Database Backup/Restore
-```powershell
-# Backup from Docker
-docker exec steel-estimation-sql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'YourStrong@Password123' -C -Q "BACKUP DATABASE SteelEstimationDB TO DISK = '/var/opt/mssql/backup/backup.bak'"
+### Database Operations
 
-# Copy backup locally
-docker cp steel-estimation-sql:/var/opt/mssql/backup/backup.bak ./backup.bak
+For database backup/restore operations with Azure SQL, use:
+```powershell
+# Use SqlPackage for Azure SQL backup/restore
+.\migrate-to-azure.ps1
 ```
 
 ## Deployment
@@ -253,23 +242,10 @@ docker-compose -f docker-compose.prod.yml up -d
 
 ### Environment-Specific Settings
 
-#### Docker Environment (`appsettings.Docker.json`)
-```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Server=sql-server;Database=SteelEstimationDB;..."
-  }
-}
-```
-
-#### Local Development (`appsettings.Development.json`)
-```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Server=localhost;Database=SteelEstimationDb_CloudDev;Trusted_Connection=True;..."
-  }
-}
-```
+#All environments now use Azure SQL Database. Connection strings are configured in:
+- `appsettings.Development.json` - For local development
+- `appsettings.DockerLocal.json` - For Docker with Development environment
+- `appsettings.DockerAzure.json` - For Docker with Azure-specific settings
 
 ### Key Settings
 - `ConnectionStrings:DefaultConnection` - Database connection
@@ -280,9 +256,9 @@ docker-compose -f docker-compose.prod.yml up -d
 ## 🛠️ Troubleshooting
 
 ### Docker Issues
-- **SQL Server not starting**: Wait 30-60 seconds for initialization
-- **Port conflicts**: Change ports in docker-compose.yml if 8080 or 1433 are in use
-- **Permission errors**: Run PowerShell as Administrator
+- **Port conflicts**: Change ports in docker-compose.yml if 8080 is in use
+- **Connection issues**: Check Azure SQL firewall rules
+- **Permission errors**: Ensure Docker Desktop is running
 
 ### Database Migration Issues
 - **Login failed**: Check SA password matches docker-compose.yml
