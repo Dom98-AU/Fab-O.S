@@ -1,0 +1,30 @@
+QUICK SSMS MIGRATION STEPS
+==========================
+
+1. DOWNLOAD SSMS
+   https://aka.ms/ssmsfullsetup
+
+2. CONNECT TO DOCKER SQL
+   Server: localhost,1433
+   Login: sa
+   Password: YourStrong@Password123
+
+3. CONNECT TO AZURE SQL
+   Server: nwiapps.database.windows.net
+   Login: admin@nwi@nwiapps
+   Password: Natweigh88
+   Database: sqldb-steel-estimation-sandbox
+
+4. EXPORT DATA
+   - Right-click "SteelEstimationDB" (in Docker)
+   - Tasks → Export Data
+   - Source: Docker connection
+   - Destination: Azure connection
+   - Select all 35 tables
+   - Click Finish
+
+5. VERIFY
+   - Check Azure SQL has all 35 tables
+   - Verify row counts match
+
+THAT'S IT! Your data is migrated.

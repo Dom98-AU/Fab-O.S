@@ -16,15 +16,10 @@ using SteelEstimation.Web.Authentication;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Check if running in Docker
-var isDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
-if (isDocker)
-{
-    builder.Configuration.AddJsonFile("appsettings.Docker.json", optional: true, reloadOnChange: true);
-}
-
 // Configure Kestrel for local development - CloudDev version uses different ports
-if (builder.Environment.IsDevelopment() && !isDocker)
+// Skip this configuration when running in Docker (Docker sets ASPNETCORE_URLS)
+var isRunningInDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
+if (builder.Environment.IsDevelopment() && !isRunningInDocker)
 {
     builder.WebHost.ConfigureKestrel(serverOptions =>
     {

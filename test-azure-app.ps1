@@ -29,21 +29,21 @@ Write-Host "`nStep 5: Testing application endpoint..." -ForegroundColor Yellow
 try {
     Start-Sleep -Seconds 5
     $response = Invoke-WebRequest -Uri "http://localhost:8080" -UseBasicParsing -TimeoutSec 10
-    Write-Host "✅ Application is responding!" -ForegroundColor Green
+    Write-Host "Application is responding!" -ForegroundColor Green
     Write-Host "Status: $($response.StatusCode)" -ForegroundColor Gray
 } catch {
-    Write-Host "⚠️ Application not yet responding: $($_.Exception.Message)" -ForegroundColor Yellow
+    Write-Host "Application not yet responding: $($_.Exception.Message)" -ForegroundColor Yellow
     Write-Host "This is normal - application may still be starting up" -ForegroundColor Gray
 }
 
 Write-Host "`nStep 6: Application URLs:" -ForegroundColor Cyan
-Write-Host "🌐 Application: http://localhost:8080" -ForegroundColor White
-Write-Host "🔐 Login: admin@steelestimation.com / Admin@123" -ForegroundColor White
+Write-Host "Application: http://localhost:8080" -ForegroundColor White
+Write-Host "Login: admin@steelestimation.com / Admin@123" -ForegroundColor White
 
 Write-Host "`nStep 7: Useful commands:" -ForegroundColor Cyan
 Write-Host "View logs:    docker logs steel-estimation-web-azure -f" -ForegroundColor Gray
 Write-Host "Stop app:     docker-compose -f docker-compose-azure.yml down" -ForegroundColor Gray
 Write-Host "Restart app:  docker-compose -f docker-compose-azure.yml restart" -ForegroundColor Gray
 
-Write-Host "`n✅ Azure SQL setup complete!" -ForegroundColor Green
+Write-Host "`nAzure SQL setup complete!" -ForegroundColor Green
 Write-Host "Your application is now running with Azure SQL Database" -ForegroundColor White
