@@ -232,6 +232,7 @@ builder.Services.AddHttpContextAccessor();
 // Cookie Authentication Services (Cloud-Ready)
 builder.Services.AddScoped<ICookieAuthenticationService, CookieAuthenticationService>();
 builder.Services.AddScoped<IFabOSAuthenticationService, FabOSAuthenticationService>();
+builder.Services.AddScoped<FabOSAuthenticationService>(); // Register concrete type for DI
 builder.Services.AddScoped<IMultiAuthService, MultiAuthService>();
 builder.Services.AddScoped<AuthenticationStateProvider, CookieAuthenticationStateProvider>();
 builder.Services.AddScoped<CookieAuthenticationStateProvider>();
@@ -377,7 +378,7 @@ builder.Services.AddAuthorization(options =>
 });
 
 // Register application services
-builder.Services.AddScoped<IAuthenticationService, SteelEstimation.Infrastructure.Services.AuthenticationService>();
+// FabOSAuthenticationService now implements all IAuthenticationService methods directly
 builder.Services.AddScoped<ITokenService, SteelEstimation.Infrastructure.Services.TokenService>();
 builder.Services.AddScoped<IInviteService, SteelEstimation.Infrastructure.Services.InviteService>();
 builder.Services.AddScoped<IUserService, SteelEstimation.Infrastructure.Services.UserService>();

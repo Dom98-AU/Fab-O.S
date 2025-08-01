@@ -7,7 +7,7 @@
 @using System.Security.Claims
 @attribute [Authorize(Roles = "Administrator")]
 @inject IInviteService InviteService
-@inject IAuthenticationService AuthService
+@inject IFabOSAuthenticationService AuthService
 @inject NavigationManager Navigation
 @inject ILogger<InviteManagement> Logger
 @inject AuthenticationStateProvider AuthStateProvider

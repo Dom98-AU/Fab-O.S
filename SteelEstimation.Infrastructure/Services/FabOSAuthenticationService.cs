@@ -6,10 +6,12 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
+using SteelEstimation.Core.DTOs;
 using SteelEstimation.Core.Entities;
 using SteelEstimation.Core.Interfaces;
 using SteelEstimation.Infrastructure.Data;
@@ -21,6 +23,7 @@ namespace SteelEstimation.Infrastructure.Services
         private readonly ApplicationDbContext _context;
         private readonly IConfiguration _configuration;
         private readonly ILogger<FabOSAuthenticationService> _logger;
+        private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly string _jwtSecret;
         private readonly string _jwtIssuer;
         private readonly string _jwtAudience;
@@ -29,11 +32,13 @@ namespace SteelEstimation.Infrastructure.Services
         public FabOSAuthenticationService(
             ApplicationDbContext context,
             IConfiguration configuration,
-            ILogger<FabOSAuthenticationService> logger)
+            ILogger<FabOSAuthenticationService> logger,
+            IHttpContextAccessor httpContextAccessor)
         {
             _context = context;
             _configuration = configuration;
             _logger = logger;
+            _httpContextAccessor = httpContextAccessor;
             
             // JWT Configuration
             _jwtSecret = configuration["JwtSettings:SecretKey"] ?? throw new InvalidOperationException("JWT Secret Key is not configured");
@@ -103,6 +108,8 @@ namespace SteelEstimation.Infrastructure.Services
             {
                 var user = await _context.Users
                     .Include(u => u.Company)
+                    .Include(u => u.UserRoles)
+                    .ThenInclude(ur => ur.Role)
                     .FirstOrDefaultAsync(u => u.Email == email && u.IsActive);
 
                 if (user == null)
@@ -238,6 +245,228 @@ namespace SteelEstimation.Infrastructure.Services
             using var hmac = new HMACSHA512(saltBytes);
             var computedHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(password));
             return Convert.ToBase64String(computedHash) == hash;
+        }
+        
+        // IAuthenticationService compatibility methods
+        
+        public async Task<AuthResult> LoginAsync(string usernameOrEmail, string password)
+        {
+            try
+            {
+                var authResult = await AuthenticateAsync(usernameOrEmail, password);
+                
+                return new AuthResult
+                {
+                    Success = authResult.Success,
+                    Message = authResult.ErrorMessage ?? authResult.Message ?? "Login successful",
+                    User = authResult.User,
+                    AccessToken = authResult.Token,
+                    RefreshToken = null // FabOS uses JWT tokens, not refresh tokens
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Login failed for {UsernameOrEmail}", usernameOrEmail);
+                return new AuthResult
+                {
+                    Success = false,
+                    Message = "Login failed"
+                };
+            }
+        }
+        
+        public async Task<User?> GetCurrentUserAsync()
+        {
+            var httpContext = _httpContextAccessor.HttpContext;
+            if (httpContext?.User?.Identity?.IsAuthenticated != true)
+                return null;
+                
+            // Try multiple claim types to find the user ID
+            var userIdClaim = httpContext.User.FindFirst("UserId")?.Value 
+                           ?? httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                           
+            if (string.IsNullOrEmpty(userIdClaim))
+            {
+                _logger.LogWarning("No UserId claim found for authenticated user");
+                return null;
+            }
+            
+            if (!int.TryParse(userIdClaim, out var userId))
+            {
+                _logger.LogWarning("Invalid UserId claim value: {UserIdClaim}", userIdClaim);
+                return null;
+            }
+            
+            return await _context.Users
+                .Include(u => u.Company)
+                .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+                .FirstOrDefaultAsync(u => u.Id == userId);
+        }
+        
+        public async Task<int?> GetCurrentUserIdAsync()
+        {
+            var user = await GetCurrentUserAsync();
+            return user?.Id;
+        }
+        
+        public async Task<int?> GetUserCompanyIdAsync()
+        {
+            var user = await GetCurrentUserAsync();
+            return user?.CompanyId;
+        }
+        
+        public async Task<IEnumerable<string>> GetUserRolesAsync(int userId)
+        {
+            return await _context.UserRoles
+                .Include(ur => ur.Role)
+                .Where(ur => ur.UserId == userId)
+                .Select(ur => ur.Role.RoleName)
+                .ToListAsync();
+        }
+        
+        public async Task<bool> IsUserInRoleAsync(int userId, string roleName)
+        {
+            return await _context.UserRoles
+                .Include(ur => ur.Role)
+                .AnyAsync(ur => ur.UserId == userId && ur.Role.RoleName == roleName);
+        }
+        
+        public async Task<bool> ChangePasswordAsync(int userId, string currentPassword, string newPassword)
+        {
+            try
+            {
+                var user = await _context.Users.FindAsync(userId);
+                if (user == null)
+                    return false;
+                    
+                // Verify current password
+                if (!VerifyPassword(currentPassword, user.PasswordHash!, user.PasswordSalt!))
+                    return false;
+                    
+                // Generate new password hash and salt
+                var salt = GenerateSalt();
+                var hash = HashPassword(newPassword, salt);
+                
+                user.PasswordSalt = salt;
+                user.PasswordHash = hash;
+                user.UpdatedDate = DateTime.UtcNow;
+                
+                await _context.SaveChangesAsync();
+                
+                _logger.LogInformation("Password changed successfully for user {UserId}", userId);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error changing password for user {UserId}", userId);
+                return false;
+            }
+        }
+        
+        public async Task<bool> ResetPasswordAsync(string email)
+        {
+            try
+            {
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+                if (user == null)
+                {
+                    // Don't reveal if user exists
+                    _logger.LogWarning("Password reset requested for non-existent email: {Email}", email);
+                    return true;
+                }
+                
+                // Generate reset token (in a real implementation, this would be sent via email)
+                var resetToken = Guid.NewGuid().ToString();
+                user.PasswordResetToken = resetToken;
+                user.PasswordResetExpiry = DateTime.UtcNow.AddHours(1);
+                
+                await _context.SaveChangesAsync();
+                
+                _logger.LogInformation("Password reset token generated for user {Email}", email);
+                // TODO: Send email with reset token
+                
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error resetting password for {Email}", email);
+                return false;
+            }
+        }
+        
+        public async Task<bool> ConfirmPasswordResetAsync(string token, string newPassword)
+        {
+            try
+            {
+                var user = await _context.Users
+                    .FirstOrDefaultAsync(u => u.PasswordResetToken == token 
+                                           && u.PasswordResetExpiry > DateTime.UtcNow);
+                                           
+                if (user == null)
+                    return false;
+                    
+                // Generate new password hash and salt
+                var salt = GenerateSalt();
+                var hash = HashPassword(newPassword, salt);
+                
+                user.PasswordSalt = salt;
+                user.PasswordHash = hash;
+                user.PasswordResetToken = null;
+                user.PasswordResetExpiry = null;
+                user.UpdatedDate = DateTime.UtcNow;
+                
+                await _context.SaveChangesAsync();
+                
+                _logger.LogInformation("Password reset confirmed for user {UserId}", user.Id);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error confirming password reset");
+                return false;
+            }
+        }
+        
+        // Stub implementations for methods not used in cookie authentication
+        
+        public Task<AuthResult> RegisterAsync(RegisterRequest request)
+        {
+            throw new NotImplementedException("Registration is not implemented. Use user management features instead.");
+        }
+        
+        public Task<bool> LogoutAsync()
+        {
+            // Logout is handled by cookie authentication at the controller level
+            return Task.FromResult(true);
+        }
+        
+        public Task<AuthResult> RefreshTokenAsync(string refreshToken)
+        {
+            throw new NotImplementedException("Refresh tokens are not used with cookie authentication.");
+        }
+        
+        public Task<bool> ConfirmEmailAsync(string token)
+        {
+            throw new NotImplementedException("Email confirmation is not implemented.");
+        }
+        
+        // Helper methods
+        
+        private static string GenerateSalt()
+        {
+            var buffer = new byte[16];
+            using var rng = RandomNumberGenerator.Create();
+            rng.GetBytes(buffer);
+            return Convert.ToBase64String(buffer);
+        }
+        
+        private static string HashPassword(string password, string salt)
+        {
+            var saltBytes = Convert.FromBase64String(salt);
+            using var hmac = new HMACSHA512(saltBytes);
+            var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(password));
+            return Convert.ToBase64String(hash);
         }
     }
 }

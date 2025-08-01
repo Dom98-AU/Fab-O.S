@@ -7,7 +7,7 @@
 @using System.Security.Claims
 @attribute [Authorize(Roles = "Administrator")]
 @inject IUserService UserService
-@inject IAuthenticationService AuthService
+@inject IFabOSAuthenticationService AuthService
 @inject NavigationManager Navigation
 @inject ILogger<UserManagement> Logger
 @inject AuthenticationStateProvider AuthStateProvider

@@ -6,7 +6,7 @@
 @using SteelEstimation.Infrastructure.Data
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject NavigationManager Navigation
-@inject IAuthenticationService AuthService
+@inject IFabOSAuthenticationService AuthService
 @inject IABNLookupService ABNLookupService
 @inject IJSRuntime JS
 @attribute [Authorize(Policy = "Estimator")]

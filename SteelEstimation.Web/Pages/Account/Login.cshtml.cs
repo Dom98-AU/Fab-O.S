@@ -12,13 +12,13 @@ namespace SteelEstimation.Web.Pages.Account;
 
 public class LoginModel : PageModel
 {
-    private readonly SteelEstimation.Core.Interfaces.IAuthenticationService _authService;
+    private readonly IFabOSAuthenticationService _authService;
     private readonly ICookieAuthenticationService _cookieAuthService;
     private readonly IMultiAuthService _multiAuthService;
     private readonly ILogger<LoginModel> _logger;
 
     public LoginModel(
-        SteelEstimation.Core.Interfaces.IAuthenticationService authService,
+        IFabOSAuthenticationService authService,
         ICookieAuthenticationService cookieAuthService,
         IMultiAuthService multiAuthService,
         ILogger<LoginModel> logger)
@@ -52,7 +52,16 @@ public class LoginModel : PageModel
         ReturnUrl = returnUrl ?? Url.Content("~/");
         
         // Load enabled OAuth providers
-        EnabledProviders = await _multiAuthService.GetEnabledProvidersAsync();
+        try
+        {
+            EnabledProviders = await _multiAuthService.GetEnabledProvidersAsync();
+        }
+        catch (Exception ex)
+        {
+            // If OAuth table doesn't exist, just continue without OAuth providers
+            _logger.LogWarning(ex, "Could not load OAuth providers - table may not exist");
+            EnabledProviders = new List<OAuthProviderSettings>();
+        }
     }
 
     public async Task<IActionResult> OnPostAsync(string? returnUrl = null)
@@ -66,16 +75,15 @@ public class LoginModel : PageModel
 
         try
         {
-            // Use the authentication service to validate credentials
-            var result = await _authService.LoginAsync(Input.Email, Input.Password);
+            // Use the FabOS authentication service to validate credentials
+            var result = await _authService.AuthenticateAsync(Input.Email, Input.Password);
 
             if (result.Success && result.User != null)
             {
                 _logger.LogInformation("User {Email} logged in.", Input.Email);
 
-                // Get user roles
-                var roles = await _authService.GetUserRolesAsync(result.User.Id);
-                var primaryRole = roles.FirstOrDefault() ?? "Viewer";
+                // Get user roles from the user entity
+                var primaryRole = result.User.RoleNames.FirstOrDefault() ?? "Viewer";
 
                 // Sign in with cookies using the service
                 await _cookieAuthService.SignInAsync(
@@ -164,9 +172,8 @@ public class LoginModel : PageModel
         {
             _logger.LogInformation("User {Email} logged in with {Provider}.", result.User.Email, provider);
             
-            // Get user roles
-            var roles = await _authService.GetUserRolesAsync(result.User.Id);
-            var primaryRole = roles.FirstOrDefault() ?? "Viewer";
+            // Get user roles from the user entity
+            var primaryRole = result.User.RoleNames.FirstOrDefault() ?? "Viewer";
             
             // Sign in with cookies
             await _cookieAuthService.SignInAsync(

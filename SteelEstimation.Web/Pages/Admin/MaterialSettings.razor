@@ -5,7 +5,7 @@
 @using SteelEstimation.Web.Pages.Admin.Components
 @using Microsoft.AspNetCore.Authorization
 @inject ICompanySettingsService CompanySettingsService
-@inject IAuthenticationService AuthService
+@inject IFabOSAuthenticationService AuthService
 @inject IJSRuntime JSRuntime
 @inject ILogger<MaterialSettings> Logger
 @attribute [Authorize(Roles = "Administrator")]

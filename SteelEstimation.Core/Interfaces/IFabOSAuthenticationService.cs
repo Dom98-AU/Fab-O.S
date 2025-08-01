@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using SteelEstimation.Core.DTOs;
 using SteelEstimation.Core.Entities;
 
 namespace SteelEstimation.Core.Interfaces
@@ -21,6 +22,21 @@ namespace SteelEstimation.Core.Interfaces
         Task<string?> GetUserProductRoleAsync(int userId, string productName);
         Task<bool> CheckConcurrentUserLimitAsync(string productName, int companyId, int userId);
         Task RecordUserActivityAsync(int userId, string productName);
+        
+        // IAuthenticationService compatibility methods
+        Task<AuthResult> LoginAsync(string usernameOrEmail, string password);
+        Task<AuthResult> RegisterAsync(RegisterRequest request);
+        Task<bool> LogoutAsync();
+        Task<AuthResult> RefreshTokenAsync(string refreshToken);
+        Task<bool> ChangePasswordAsync(int userId, string currentPassword, string newPassword);
+        Task<bool> ResetPasswordAsync(string email);
+        Task<bool> ConfirmPasswordResetAsync(string token, string newPassword);
+        Task<bool> ConfirmEmailAsync(string token);
+        Task<User?> GetCurrentUserAsync();
+        Task<bool> IsUserInRoleAsync(int userId, string roleName);
+        Task<IEnumerable<string>> GetUserRolesAsync(int userId);
+        Task<int?> GetCurrentUserIdAsync();
+        Task<int?> GetUserCompanyIdAsync();
     }
 
     public class AuthenticationResult

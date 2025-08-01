@@ -34,9 +34,9 @@ namespace SteelEstimation.Core.Entities
         
         public DateTime LastModified { get; set; } = DateTime.UtcNow;
         
-        public Guid? CreatedBy { get; set; }
+        public int? CreatedBy { get; set; }
         
-        public Guid? ModifiedBy { get; set; }
+        public int? ModifiedBy { get; set; }
         
         // Navigation properties
         public virtual Company Company { get; set; }

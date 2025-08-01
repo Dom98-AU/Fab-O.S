@@ -1,0 +1,26 @@
+{
+  "name": "fab-o.s",
+  "version": "1.0.0",
+  "description": "A comprehensive steel fabrication estimation platform built with ASP.NET Core 8.0, Blazor Server, and Azure SQL Database. This cloud-ready version enables easy deployment with Docker containerization and Azure integration.",
+  "main": "test-ui.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Dom98-AU/Fab-O.S.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Dom98-AU/Fab-O.S/issues"
+  },
+  "homepage": "https://github.com/Dom98-AU/Fab-O.S#readme",
+  "dependencies": {
+    "playwright": "^1.54.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.54.1"
+  }
+}

@@ -1,0 +1,128 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login - Steel Estimation Platform</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <style>
+        :root {
+            --bs-primary: rgb(13, 26, 128);
+            --bs-primary-rgb: 13, 26, 128;
+        }
+        .btn-primary {
+            background-color: rgb(13, 26, 128) !important;
+            border-color: rgb(13, 26, 128) !important;
+        }
+        .btn-primary:hover {
+            background-color: rgb(10, 20, 102) !important;
+            border-color: rgb(10, 20, 102) !important;
+        }
+        .login-container {
+            display: flex;
+            min-height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+        .login-left {
+            flex: 1;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+        .login-right {
+            flex: 1;
+            background: rgb(13, 26, 128);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+        .login-content {
+            width: 100%;
+            max-width: 400px;
+        }
+        .logo-container {
+            text-align: center;
+        }
+        .nwi-logo {
+            max-width: 300px;
+            width: 100%;
+            height: auto;
+        }
+        @media (max-width: 768px) {
+            .login-container {
+                flex-direction: column;
+                position: relative;
+            }
+            .login-right {
+                order: -1;
+                flex: 0 0 200px;
+            }
+            .nwi-logo {
+                max-width: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-left">
+            <div class="login-content">
+                <div class="login-brand mb-5">
+                    <h1 class="h2 mb-2">Steel Estimation Platform</h1>
+                    <p class="text-muted">Sign in to your account</p>
+                    <small class="text-muted d-block">Version 2.0 - Razor Pages</small>
+                </div>
+                
+                <div class="login-form">
+                    <form method="post">
+                        
+                        
+                        <div class="mb-4">
+                            <label class="form-label" for="Input_Email">Email or Username</label>
+                            <input class="form-control form-control-lg" placeholder="Enter your email or username" type="text" data-val="true" data-val-required="The Email or Username field is required." id="Input_Email" name="Input.Email" value="" />
+                            <span class="text-danger field-validation-valid" data-valmsg-for="Input.Email" data-valmsg-replace="true"></span>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="form-label" for="Input_Password">Password</label>
+                            <input class="form-control form-control-lg" placeholder="Enter your password" type="password" data-val="true" data-val-required="The Password field is required." id="Input_Password" name="Input.Password" />
+                            <span class="text-danger field-validation-valid" data-valmsg-for="Input.Password" data-valmsg-replace="true"></span>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary btn-lg w-100 mb-3">
+                            Sign In
+                        </button>
+                        
+                        <div class="text-center mb-3">
+                            <a href="/forgot-password" class="text-decoration-none">Forgot Password?</a>
+                        </div>
+                    <input name="__RequestVerificationToken" type="hidden" value="CfDJ8MLIK2zGt_ZPjf0NRixX0KgQ8abIfyPy7LCJwxGV9eZjSxLfP9nxzYepkCr7bDyusDQ7JfWOtgxu4Tgg5mqA3v_T33qmHCOxMiYOQ2T5NerRXx1Y957YynwCKI-V8FDThN4KKsj0LXyuIa7BArJju0g" /></form>
+                    
+                    
+                    <div class="text-center mt-4 pt-3 border-top">
+                        <span class="text-muted">Don't have an account?</span>
+                        <a href="/Account/Register" class="text-decoration-none ms-1">Sign up</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="login-right">
+            <div class="logo-container">
+                <img src="/images/nwi-group-logo-white.png" alt="NWI Group" class="nwi-logo" />
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
