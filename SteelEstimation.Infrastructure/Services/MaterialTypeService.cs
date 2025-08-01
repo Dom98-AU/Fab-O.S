@@ -10,16 +10,16 @@ namespace SteelEstimation.Infrastructure.Services;
 
 public class MaterialTypeService : IMaterialTypeService
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
     private readonly MaterialMappingSettings _settings;
-    private readonly IAuthenticationService _authService;
+    private readonly IFabOSAuthenticationService _authService;
     
     public MaterialTypeService(
-        ApplicationDbContext context,
+        IDbContextFactory<ApplicationDbContext> contextFactory,
         IOptions<MaterialMappingSettings> settings,
-        IAuthenticationService authService)
+        IFabOSAuthenticationService authService)
     {
-        _context = context;
+        _contextFactory = contextFactory;
         _settings = settings.Value;
         _authService = authService;
     }
@@ -30,14 +30,16 @@ public class MaterialTypeService : IMaterialTypeService
             return "Misc";
         
         // First check MBE ID mappings
-        var mbeMapping = await _context.CompanyMbeIdMappings
+        using var context = await _contextFactory.CreateDbContextAsync();
+        
+        var mbeMapping = await context.CompanyMbeIdMappings
             .FirstOrDefaultAsync(m => m.CompanyId == companyId && m.MbeId == materialId);
             
         if (mbeMapping != null)
             return mbeMapping.MaterialType;
         
         // Then check material patterns
-        var patterns = await _context.CompanyMaterialPatterns
+        var patterns = await context.CompanyMaterialPatterns
             .Where(p => p.CompanyId == companyId && p.IsActive)
             .OrderBy(p => p.Priority)
             .ToListAsync();

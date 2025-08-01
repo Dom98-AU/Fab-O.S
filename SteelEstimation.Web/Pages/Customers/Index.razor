@@ -206,7 +206,7 @@
     {
         if (firstRender)
         {
-            // Initialize enhanced table features
+            // Initialize enhanced table features with view modes
             await JSRuntime.InvokeVoidAsync("enhancedTable.init", ".customers-table", new
             {
                 enableResize = true,
@@ -215,7 +215,9 @@
                 enableFreezeColumns = true,
                 freezeColumns = 1, // Freeze the Company Name column
                 tableType = "Customers",
-                dotNetRef = dotNetRef
+                dotNetRef = dotNetRef,
+                viewMode = "list", // Start with list view (can be "list", "compactList", or "cardView")
+                enableViewModes = true // Enable the view mode switcher
             });
         }
     }

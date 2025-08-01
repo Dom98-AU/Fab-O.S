@@ -8,22 +8,26 @@ namespace SteelEstimation.Infrastructure.Services
 {
     public class WorksheetChangeService : IWorksheetChangeService
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
 
-        public WorksheetChangeService(ApplicationDbContext context)
+        public WorksheetChangeService(IDbContextFactory<ApplicationDbContext> contextFactory)
         {
-            _context = context;
+            _contextFactory = contextFactory;
         }
 
         public async Task RecordChangeAsync(WorksheetChange change)
         {
-            _context.WorksheetChanges.Add(change);
-            await _context.SaveChangesAsync();
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
+            context.WorksheetChanges.Add(change);
+            await context.SaveChangesAsync();
         }
 
         public async Task<WorksheetChange?> GetLastChangeAsync(int worksheetId, int userId)
         {
-            return await _context.WorksheetChanges
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
+            return await context.WorksheetChanges
                 .Where(c => c.PackageWorksheetId == worksheetId && 
                            c.UserId == userId && 
                            !c.IsUndone)
@@ -33,6 +37,8 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<bool> UndoAsync(int worksheetId, int userId)
         {
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
             var lastChange = await GetLastChangeAsync(worksheetId, userId);
             if (lastChange == null) return false;
 
@@ -43,23 +49,25 @@ namespace SteelEstimation.Infrastructure.Services
             switch (lastChange.ChangeType)
             {
                 case "Add":
-                    await UndoAddAsync(lastChange);
+                    await UndoAddAsync(lastChange, context);
                     break;
                 case "Update":
-                    await UndoUpdateAsync(lastChange);
+                    await UndoUpdateAsync(lastChange, context);
                     break;
                 case "Delete":
-                    await UndoDeleteAsync(lastChange);
+                    await UndoDeleteAsync(lastChange, context);
                     break;
             }
 
-            await _context.SaveChangesAsync();
+            await context.SaveChangesAsync();
             return true;
         }
 
         public async Task<bool> RedoAsync(int worksheetId, int userId)
         {
-            var lastUndoneChange = await _context.WorksheetChanges
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
+            var lastUndoneChange = await context.WorksheetChanges
                 .Where(c => c.PackageWorksheetId == worksheetId && 
                            c.UserId == userId && 
                            c.IsUndone)
@@ -75,34 +83,36 @@ namespace SteelEstimation.Infrastructure.Services
             switch (lastUndoneChange.ChangeType)
             {
                 case "Add":
-                    await RedoAddAsync(lastUndoneChange);
+                    await RedoAddAsync(lastUndoneChange, context);
                     break;
                 case "Update":
-                    await RedoUpdateAsync(lastUndoneChange);
+                    await RedoUpdateAsync(lastUndoneChange, context);
                     break;
                 case "Delete":
-                    await RedoDeleteAsync(lastUndoneChange);
+                    await RedoDeleteAsync(lastUndoneChange, context);
                     break;
             }
 
-            await _context.SaveChangesAsync();
+            await context.SaveChangesAsync();
             return true;
         }
 
         public async Task<List<WorksheetChange>> GetRecentChangesAsync(int worksheetId, int count = 10)
         {
-            return await _context.WorksheetChanges
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
+            return await context.WorksheetChanges
                 .Where(c => c.PackageWorksheetId == worksheetId)
                 .OrderByDescending(c => c.Timestamp)
                 .Take(count)
                 .ToListAsync();
         }
 
-        private async Task UndoAddAsync(WorksheetChange change)
+        private async Task UndoAddAsync(WorksheetChange change, ApplicationDbContext context)
         {
             if (change.EntityType == "ProcessingItem")
             {
-                var item = await _context.ProcessingItems.FindAsync(change.EntityId);
+                var item = await context.ProcessingItems.FindAsync(change.EntityId);
                 if (item != null)
                 {
                     item.IsDeleted = true;
@@ -110,7 +120,7 @@ namespace SteelEstimation.Infrastructure.Services
             }
             else if (change.EntityType == "WeldingItem")
             {
-                var item = await _context.WeldingItems.FindAsync(change.EntityId);
+                var item = await context.WeldingItems.FindAsync(change.EntityId);
                 if (item != null)
                 {
                     item.IsDeleted = true;
@@ -118,13 +128,13 @@ namespace SteelEstimation.Infrastructure.Services
             }
         }
 
-        private async Task UndoUpdateAsync(WorksheetChange change)
+        private async Task UndoUpdateAsync(WorksheetChange change, ApplicationDbContext context)
         {
             if (string.IsNullOrEmpty(change.OldValues)) return;
 
             if (change.EntityType == "ProcessingItem")
             {
-                var item = await _context.ProcessingItems.FindAsync(change.EntityId);
+                var item = await context.ProcessingItems.FindAsync(change.EntityId);
                 if (item != null)
                 {
                     var oldValues = JsonConvert.DeserializeObject<Dictionary<string, object>>(change.OldValues);
@@ -133,7 +143,7 @@ namespace SteelEstimation.Infrastructure.Services
             }
             else if (change.EntityType == "WeldingItem")
             {
-                var item = await _context.WeldingItems.FindAsync(change.EntityId);
+                var item = await context.WeldingItems.FindAsync(change.EntityId);
                 if (item != null)
                 {
                     var oldValues = JsonConvert.DeserializeObject<Dictionary<string, object>>(change.OldValues);
@@ -142,13 +152,13 @@ namespace SteelEstimation.Infrastructure.Services
             }
         }
 
-        private async Task UndoDeleteAsync(WorksheetChange change)
+        private async Task UndoDeleteAsync(WorksheetChange change, ApplicationDbContext context)
         {
             if (string.IsNullOrEmpty(change.OldValues)) return;
 
             if (change.EntityType == "ProcessingItem")
             {
-                var item = await _context.ProcessingItems.FindAsync(change.EntityId);
+                var item = await context.ProcessingItems.FindAsync(change.EntityId);
                 if (item != null)
                 {
                     item.IsDeleted = false;
@@ -156,7 +166,7 @@ namespace SteelEstimation.Infrastructure.Services
             }
             else if (change.EntityType == "WeldingItem")
             {
-                var item = await _context.WeldingItems.FindAsync(change.EntityId);
+                var item = await context.WeldingItems.FindAsync(change.EntityId);
                 if (item != null)
                 {
                     item.IsDeleted = false;
@@ -164,11 +174,11 @@ namespace SteelEstimation.Infrastructure.Services
             }
         }
 
-        private async Task RedoAddAsync(WorksheetChange change)
+        private async Task RedoAddAsync(WorksheetChange change, ApplicationDbContext context)
         {
             if (change.EntityType == "ProcessingItem")
             {
-                var item = await _context.ProcessingItems.FindAsync(change.EntityId);
+                var item = await context.ProcessingItems.FindAsync(change.EntityId);
                 if (item != null)
                 {
                     item.IsDeleted = false;
@@ -176,7 +186,7 @@ namespace SteelEstimation.Infrastructure.Services
             }
             else if (change.EntityType == "WeldingItem")
             {
-                var item = await _context.WeldingItems.FindAsync(change.EntityId);
+                var item = await context.WeldingItems.FindAsync(change.EntityId);
                 if (item != null)
                 {
                     item.IsDeleted = false;
@@ -184,13 +194,13 @@ namespace SteelEstimation.Infrastructure.Services
             }
         }
 
-        private async Task RedoUpdateAsync(WorksheetChange change)
+        private async Task RedoUpdateAsync(WorksheetChange change, ApplicationDbContext context)
         {
             if (string.IsNullOrEmpty(change.NewValues)) return;
 
             if (change.EntityType == "ProcessingItem")
             {
-                var item = await _context.ProcessingItems.FindAsync(change.EntityId);
+                var item = await context.ProcessingItems.FindAsync(change.EntityId);
                 if (item != null)
                 {
                     var newValues = JsonConvert.DeserializeObject<Dictionary<string, object>>(change.NewValues);
@@ -199,7 +209,7 @@ namespace SteelEstimation.Infrastructure.Services
             }
             else if (change.EntityType == "WeldingItem")
             {
-                var item = await _context.WeldingItems.FindAsync(change.EntityId);
+                var item = await context.WeldingItems.FindAsync(change.EntityId);
                 if (item != null)
                 {
                     var newValues = JsonConvert.DeserializeObject<Dictionary<string, object>>(change.NewValues);
@@ -208,11 +218,11 @@ namespace SteelEstimation.Infrastructure.Services
             }
         }
 
-        private async Task RedoDeleteAsync(WorksheetChange change)
+        private async Task RedoDeleteAsync(WorksheetChange change, ApplicationDbContext context)
         {
             if (change.EntityType == "ProcessingItem")
             {
-                var item = await _context.ProcessingItems.FindAsync(change.EntityId);
+                var item = await context.ProcessingItems.FindAsync(change.EntityId);
                 if (item != null)
                 {
                     item.IsDeleted = true;
@@ -220,7 +230,7 @@ namespace SteelEstimation.Infrastructure.Services
             }
             else if (change.EntityType == "WeldingItem")
             {
-                var item = await _context.WeldingItems.FindAsync(change.EntityId);
+                var item = await context.WeldingItems.FindAsync(change.EntityId);
                 if (item != null)
                 {
                     item.IsDeleted = true;

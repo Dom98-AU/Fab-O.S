@@ -15,18 +15,18 @@ namespace SteelEstimation.Infrastructure.Services
 {
     public class InviteService : IInviteService
     {
-        private readonly ApplicationDbContext _context;
-        private readonly IAuthenticationService _authService;
+        private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
+        private readonly IFabOSAuthenticationService _authService;
         private readonly IConfiguration _configuration;
         private readonly ILogger<InviteService> _logger;
 
         public InviteService(
-            ApplicationDbContext context,
-            IAuthenticationService authService,
+            IDbContextFactory<ApplicationDbContext> contextFactory,
+            IFabOSAuthenticationService authService,
             IConfiguration configuration,
             ILogger<InviteService> logger)
         {
-            _context = context;
+            _contextFactory = contextFactory;
             _authService = authService;
             _configuration = configuration;
             _logger = logger;
@@ -37,7 +37,9 @@ namespace SteelEstimation.Infrastructure.Services
             try
             {
                 // Check if email already exists in users
-                if (await _context.Users.AnyAsync(u => u.Email == request.Email))
+                using var context = await _contextFactory.CreateDbContextAsync();
+                
+                if (await context.Users.AnyAsync(u => u.Email == request.Email))
                 {
                     return new InviteResult
                     {
@@ -47,7 +49,7 @@ namespace SteelEstimation.Infrastructure.Services
                 }
 
                 // Check if there's already a pending invite
-                var existingInvite = await _context.Invites
+                var existingInvite = await context.Invites
                     .FirstOrDefaultAsync(i => i.Email == request.Email && !i.IsUsed && i.ExpiryDate > DateTime.UtcNow);
 
                 if (existingInvite != null)
@@ -60,7 +62,7 @@ namespace SteelEstimation.Infrastructure.Services
                 }
 
                 // Verify role exists
-                var role = await _context.Roles.FindAsync(request.RoleId);
+                var role = await context.Roles.FindAsync(request.RoleId);
                 if (role == null)
                 {
                     return new InviteResult
@@ -87,8 +89,8 @@ namespace SteelEstimation.Infrastructure.Services
                     SendWelcomeEmail = request.SendWelcomeEmail
                 };
 
-                _context.Invites.Add(invite);
-                await _context.SaveChangesAsync();
+                context.Invites.Add(invite);
+                await context.SaveChangesAsync();
 
                 // Generate invite URL
                 var baseUrl = _configuration["Application:BaseUrl"] ?? "https://app-steel-estimation-prod.azurewebsites.net";
@@ -123,7 +125,9 @@ namespace SteelEstimation.Infrastructure.Services
         {
             try
             {
-                var invite = await _context.Invites
+                using var context = await _contextFactory.CreateDbContextAsync();
+                
+                var invite = await context.Invites
                     .Include(i => i.Role)
                     .FirstOrDefaultAsync(i => i.Id == inviteId);
 
@@ -147,7 +151,7 @@ namespace SteelEstimation.Infrastructure.Services
 
                 // Extend expiry date
                 invite.ExpiryDate = DateTime.UtcNow.AddDays(7);
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
 
                 // Generate invite URL
                 var baseUrl = _configuration["Application:BaseUrl"] ?? "https://app-steel-estimation-prod.azurewebsites.net";
@@ -179,7 +183,9 @@ namespace SteelEstimation.Infrastructure.Services
         {
             try
             {
-                var invite = await _context.Invites
+                using var context = await _contextFactory.CreateDbContextAsync();
+                
+                var invite = await context.Invites
                     .Include(i => i.Role)
                     .FirstOrDefaultAsync(i => i.Token == token);
 
@@ -211,7 +217,7 @@ namespace SteelEstimation.Infrastructure.Services
                 }
 
                 // Check if email already exists (double check)
-                if (await _context.Users.AnyAsync(u => u.Email == invite.Email))
+                if (await context.Users.AnyAsync(u => u.Email == invite.Email))
                 {
                     return new InviteResult
                     {
@@ -244,7 +250,7 @@ namespace SteelEstimation.Infrastructure.Services
                 }
 
                 // Override the default role assignment
-                var userRole = await _context.UserRoles
+                var userRole = await context.UserRoles
                     .FirstOrDefaultAsync(ur => ur.UserId == authResult.User.Id);
                 
                 if (userRole != null)
@@ -253,7 +259,7 @@ namespace SteelEstimation.Infrastructure.Services
                 }
                 else
                 {
-                    _context.UserRoles.Add(new UserRole
+                    context.UserRoles.Add(new UserRole
                     {
                         UserId = authResult.User.Id,
                         RoleId = invite.RoleId,
@@ -270,7 +276,7 @@ namespace SteelEstimation.Infrastructure.Services
                 authResult.User.IsEmailConfirmed = true;
                 authResult.User.IsActive = true;
 
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
 
                 return new InviteResult
                 {
@@ -294,12 +300,14 @@ namespace SteelEstimation.Infrastructure.Services
         {
             try
             {
-                var invite = await _context.Invites.FindAsync(inviteId);
+                using var context = await _contextFactory.CreateDbContextAsync();
+                
+                var invite = await context.Invites.FindAsync(inviteId);
                 if (invite == null || invite.IsUsed)
                     return false;
 
-                _context.Invites.Remove(invite);
-                await _context.SaveChangesAsync();
+                context.Invites.Remove(invite);
+                await context.SaveChangesAsync();
                 return true;
             }
             catch (Exception ex)
@@ -311,7 +319,9 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<Invite?> GetInviteByTokenAsync(string token)
         {
-            return await _context.Invites
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
+            return await context.Invites
                 .Include(i => i.Role)
                 .Include(i => i.InvitedByUser)
                 .FirstOrDefaultAsync(i => i.Token == token);
@@ -319,7 +329,9 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<IEnumerable<Invite>> GetInvitesAsync(bool includeUsed = false)
         {
-            var query = _context.Invites
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
+            var query = context.Invites
                 .Include(i => i.Role)
                 .Include(i => i.InvitedByUser)
                 .Include(i => i.User)
@@ -337,7 +349,9 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<IEnumerable<Invite>> GetInvitesByUserAsync(int userId)
         {
-            return await _context.Invites
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
+            return await context.Invites
                 .Include(i => i.Role)
                 .Include(i => i.User)
                 .Where(i => i.InvitedByUserId == userId)
@@ -347,18 +361,22 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<bool> IsEmailInvitedAsync(string email)
         {
-            return await _context.Invites
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
+            return await context.Invites
                 .AnyAsync(i => i.Email == email && !i.IsUsed && i.ExpiryDate > DateTime.UtcNow);
         }
 
         public async Task CleanupExpiredInvitesAsync()
         {
-            var expiredInvites = await _context.Invites
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
+            var expiredInvites = await context.Invites
                 .Where(i => !i.IsUsed && i.ExpiryDate < DateTime.UtcNow.AddDays(-30))
                 .ToListAsync();
 
-            _context.Invites.RemoveRange(expiredInvites);
-            await _context.SaveChangesAsync();
+            context.Invites.RemoveRange(expiredInvites);
+            await context.SaveChangesAsync();
 
             _logger.LogInformation("Cleaned up {Count} expired invites", expiredInvites.Count);
         }

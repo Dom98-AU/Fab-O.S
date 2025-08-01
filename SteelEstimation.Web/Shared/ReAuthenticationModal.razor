@@ -59,12 +59,13 @@
     private bool _isProcessing = false;
     private string? _errorMessage;
     private ReAuthModel _model = new();
-    private string? _currentUsername;
+    private string? _currentUserEmail;
     
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        _currentUsername = authState.User.Identity?.Name;
+        // Get the email claim for authentication - FabOSAuthenticationService expects email, not username
+        _currentUserEmail = authState.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
     }
     
     public void Show()
@@ -87,7 +88,7 @@
     
     private async Task HandleReAuthentication()
     {
-        if (string.IsNullOrEmpty(_currentUsername))
+        if (string.IsNullOrEmpty(_currentUserEmail))
         {
             await HandleLogout();
             return;
@@ -98,7 +99,7 @@
         
         try
         {
-            var result = await AuthService.LoginAsync(_currentUsername, _model.Password);
+            var result = await AuthService.LoginAsync(_currentUserEmail, _model.Password);
             
             if (result.Success)
             {
@@ -109,7 +110,7 @@
             else
             {
                 _errorMessage = "Invalid password. Please try again.";
-                Logger.LogWarning("Re-authentication failed for user {Username}", _currentUsername);
+                Logger.LogWarning("Re-authentication failed for user {Email}", _currentUserEmail);
             }
         }
         catch (Exception ex)

@@ -8,12 +8,12 @@ namespace SteelEstimation.Infrastructure.Services;
 
 public class CompanySettingsService : ICompanySettingsService
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
     private readonly ILogger<CompanySettingsService> _logger;
 
-    public CompanySettingsService(ApplicationDbContext context, ILogger<CompanySettingsService> logger)
+    public CompanySettingsService(IDbContextFactory<ApplicationDbContext> contextFactory, ILogger<CompanySettingsService> logger)
     {
-        _context = context;
+        _contextFactory = contextFactory;
         _logger = logger;
     }
 
@@ -21,7 +21,9 @@ public class CompanySettingsService : ICompanySettingsService
 
     public async Task<List<CompanyMaterialType>> GetMaterialTypesAsync(int companyId)
     {
-        return await _context.CompanyMaterialTypes
+        using var context = await _contextFactory.CreateDbContextAsync();
+        
+        return await context.CompanyMaterialTypes
             .Where(mt => mt.CompanyId == companyId)
             .OrderBy(mt => mt.DisplayOrder)
             .ThenBy(mt => mt.TypeName)
@@ -30,7 +32,9 @@ public class CompanySettingsService : ICompanySettingsService
 
     public async Task<CompanyMaterialType> GetMaterialTypeAsync(int companyId, int materialTypeId)
     {
-        var materialType = await _context.CompanyMaterialTypes
+        using var context = await _contextFactory.CreateDbContextAsync();
+        
+        var materialType = await context.CompanyMaterialTypes
             .FirstOrDefaultAsync(mt => mt.CompanyId == companyId && mt.Id == materialTypeId);
             
         if (materialType == null)
@@ -41,12 +45,14 @@ public class CompanySettingsService : ICompanySettingsService
 
     public async Task<CompanyMaterialType> CreateMaterialTypeAsync(int companyId, CompanyMaterialType materialType)
     {
+        using var context = await _contextFactory.CreateDbContextAsync();
+        
         materialType.CompanyId = companyId;
         materialType.CreatedDate = DateTime.UtcNow;
         materialType.LastModified = DateTime.UtcNow;
         
-        _context.CompanyMaterialTypes.Add(materialType);
-        await _context.SaveChangesAsync();
+        context.CompanyMaterialTypes.Add(materialType);
+        await context.SaveChangesAsync();
         
         _logger.LogInformation("Created material type {TypeName} for company {CompanyId}", 
             materialType.TypeName, companyId);
@@ -56,6 +62,7 @@ public class CompanySettingsService : ICompanySettingsService
 
     public async Task<CompanyMaterialType> UpdateMaterialTypeAsync(int companyId, int materialTypeId, CompanyMaterialType materialType)
     {
+        using var context = await _contextFactory.CreateDbContextAsync();
         var existingType = await GetMaterialTypeAsync(companyId, materialTypeId);
         
         existingType.TypeName = materialType.TypeName;
@@ -67,7 +74,7 @@ public class CompanySettingsService : ICompanySettingsService
         existingType.IsActive = materialType.IsActive;
         existingType.LastModified = DateTime.UtcNow;
         
-        await _context.SaveChangesAsync();
+        await context.SaveChangesAsync();
         
         _logger.LogInformation("Updated material type {TypeName} for company {CompanyId}", 
             materialType.TypeName, companyId);
@@ -77,10 +84,11 @@ public class CompanySettingsService : ICompanySettingsService
 
     public async Task<bool> DeleteMaterialTypeAsync(int companyId, int materialTypeId)
     {
+        using var context = await _contextFactory.CreateDbContextAsync();
         var materialType = await GetMaterialTypeAsync(companyId, materialTypeId);
         
-        _context.CompanyMaterialTypes.Remove(materialType);
-        await _context.SaveChangesAsync();
+        context.CompanyMaterialTypes.Remove(materialType);
+        await context.SaveChangesAsync();
         
         _logger.LogInformation("Deleted material type {TypeName} for company {CompanyId}", 
             materialType.TypeName, companyId);
@@ -94,7 +102,9 @@ public class CompanySettingsService : ICompanySettingsService
 
     public async Task<List<CompanyMbeIdMapping>> GetMbeIdMappingsAsync(int companyId)
     {
-        return await _context.CompanyMbeIdMappings
+        using var context = await _contextFactory.CreateDbContextAsync();
+        
+        return await context.CompanyMbeIdMappings
             .Where(m => m.CompanyId == companyId)
             .OrderBy(m => m.MbeId)
             .ToListAsync();
@@ -102,12 +112,13 @@ public class CompanySettingsService : ICompanySettingsService
 
     public async Task<CompanyMbeIdMapping> CreateMbeIdMappingAsync(int companyId, CompanyMbeIdMapping mapping)
     {
+        using var context = await _contextFactory.CreateDbContextAsync();
         mapping.CompanyId = companyId;
         mapping.CreatedDate = DateTime.UtcNow;
         mapping.LastModified = DateTime.UtcNow;
         
-        _context.CompanyMbeIdMappings.Add(mapping);
-        await _context.SaveChangesAsync();
+        context.CompanyMbeIdMappings.Add(mapping);
+        await context.SaveChangesAsync();
         
         _logger.LogInformation("Created MBE ID mapping {MbeId} -> {MaterialType} for company {CompanyId}", 
             mapping.MbeId, mapping.MaterialType, companyId);
@@ -117,7 +128,8 @@ public class CompanySettingsService : ICompanySettingsService
 
     public async Task<CompanyMbeIdMapping> UpdateMbeIdMappingAsync(int companyId, int mappingId, CompanyMbeIdMapping mapping)
     {
-        var existingMapping = await _context.CompanyMbeIdMappings
+        using var context = await _contextFactory.CreateDbContextAsync();
+        var existingMapping = await context.CompanyMbeIdMappings
             .FirstOrDefaultAsync(m => m.CompanyId == companyId && m.Id == mappingId);
             
         if (existingMapping == null)
@@ -129,7 +141,7 @@ public class CompanySettingsService : ICompanySettingsService
         existingMapping.Notes = mapping.Notes;
         existingMapping.LastModified = DateTime.UtcNow;
         
-        await _context.SaveChangesAsync();
+        await context.SaveChangesAsync();
         
         _logger.LogInformation("Updated MBE ID mapping {MbeId} -> {MaterialType} for company {CompanyId}", 
             mapping.MbeId, mapping.MaterialType, companyId);
@@ -139,14 +151,15 @@ public class CompanySettingsService : ICompanySettingsService
 
     public async Task<bool> DeleteMbeIdMappingAsync(int companyId, int mappingId)
     {
-        var mapping = await _context.CompanyMbeIdMappings
+        using var context = await _contextFactory.CreateDbContextAsync();
+        var mapping = await context.CompanyMbeIdMappings
             .FirstOrDefaultAsync(m => m.CompanyId == companyId && m.Id == mappingId);
             
         if (mapping == null)
             return false;
         
-        _context.CompanyMbeIdMappings.Remove(mapping);
-        await _context.SaveChangesAsync();
+        context.CompanyMbeIdMappings.Remove(mapping);
+        await context.SaveChangesAsync();
         
         _logger.LogInformation("Deleted MBE ID mapping {MbeId} for company {CompanyId}", 
             mapping.MbeId, companyId);
@@ -160,7 +173,8 @@ public class CompanySettingsService : ICompanySettingsService
 
     public async Task<List<CompanyMaterialPattern>> GetMaterialPatternsAsync(int companyId)
     {
-        return await _context.CompanyMaterialPatterns
+        using var context = await _contextFactory.CreateDbContextAsync();
+        return await context.CompanyMaterialPatterns
             .Where(p => p.CompanyId == companyId)
             .OrderBy(p => p.Priority)
             .ToListAsync();
@@ -168,12 +182,13 @@ public class CompanySettingsService : ICompanySettingsService
 
     public async Task<CompanyMaterialPattern> CreateMaterialPatternAsync(int companyId, CompanyMaterialPattern pattern)
     {
+        using var context = await _contextFactory.CreateDbContextAsync();
         pattern.CompanyId = companyId;
         pattern.CreatedDate = DateTime.UtcNow;
         pattern.LastModified = DateTime.UtcNow;
         
-        _context.CompanyMaterialPatterns.Add(pattern);
-        await _context.SaveChangesAsync();
+        context.CompanyMaterialPatterns.Add(pattern);
+        await context.SaveChangesAsync();
         
         _logger.LogInformation("Created material pattern {Pattern} -> {MaterialType} for company {CompanyId}", 
             pattern.Pattern, pattern.MaterialType, companyId);
@@ -183,7 +198,8 @@ public class CompanySettingsService : ICompanySettingsService
 
     public async Task<CompanyMaterialPattern> UpdateMaterialPatternAsync(int companyId, int patternId, CompanyMaterialPattern pattern)
     {
-        var existingPattern = await _context.CompanyMaterialPatterns
+        using var context = await _contextFactory.CreateDbContextAsync();
+        var existingPattern = await context.CompanyMaterialPatterns
             .FirstOrDefaultAsync(p => p.CompanyId == companyId && p.Id == patternId);
             
         if (existingPattern == null)
@@ -196,7 +212,7 @@ public class CompanySettingsService : ICompanySettingsService
         existingPattern.IsActive = pattern.IsActive;
         existingPattern.LastModified = DateTime.UtcNow;
         
-        await _context.SaveChangesAsync();
+        await context.SaveChangesAsync();
         
         _logger.LogInformation("Updated material pattern {Pattern} -> {MaterialType} for company {CompanyId}", 
             pattern.Pattern, pattern.MaterialType, companyId);
@@ -206,14 +222,15 @@ public class CompanySettingsService : ICompanySettingsService
 
     public async Task<bool> DeleteMaterialPatternAsync(int companyId, int patternId)
     {
-        var pattern = await _context.CompanyMaterialPatterns
+        using var context = await _contextFactory.CreateDbContextAsync();
+        var pattern = await context.CompanyMaterialPatterns
             .FirstOrDefaultAsync(p => p.CompanyId == companyId && p.Id == patternId);
             
         if (pattern == null)
             return false;
         
-        _context.CompanyMaterialPatterns.Remove(pattern);
-        await _context.SaveChangesAsync();
+        context.CompanyMaterialPatterns.Remove(pattern);
+        await context.SaveChangesAsync();
         
         _logger.LogInformation("Deleted material pattern {Pattern} for company {CompanyId}", 
             pattern.Pattern, companyId);
@@ -227,8 +244,9 @@ public class CompanySettingsService : ICompanySettingsService
     {
         try
         {
+            using var context = await _contextFactory.CreateDbContextAsync();
             // Copy material types
-            var sourceMaterialTypes = await _context.CompanyMaterialTypes
+            var sourceMaterialTypes = await context.CompanyMaterialTypes
                 .Where(mt => mt.CompanyId == sourceCompanyId)
                 .ToListAsync();
                 
@@ -247,11 +265,11 @@ public class CompanySettingsService : ICompanySettingsService
                     CreatedDate = DateTime.UtcNow,
                     LastModified = DateTime.UtcNow
                 };
-                _context.CompanyMaterialTypes.Add(newType);
+                context.CompanyMaterialTypes.Add(newType);
             }
             
             // Copy MBE ID mappings
-            var sourceMappings = await _context.CompanyMbeIdMappings
+            var sourceMappings = await context.CompanyMbeIdMappings
                 .Where(m => m.CompanyId == sourceCompanyId)
                 .ToListAsync();
                 
@@ -267,11 +285,11 @@ public class CompanySettingsService : ICompanySettingsService
                     CreatedDate = DateTime.UtcNow,
                     LastModified = DateTime.UtcNow
                 };
-                _context.CompanyMbeIdMappings.Add(newMapping);
+                context.CompanyMbeIdMappings.Add(newMapping);
             }
             
             // Copy material patterns
-            var sourcePatterns = await _context.CompanyMaterialPatterns
+            var sourcePatterns = await context.CompanyMaterialPatterns
                 .Where(p => p.CompanyId == sourceCompanyId)
                 .ToListAsync();
                 
@@ -288,10 +306,10 @@ public class CompanySettingsService : ICompanySettingsService
                     CreatedDate = DateTime.UtcNow,
                     LastModified = DateTime.UtcNow
                 };
-                _context.CompanyMaterialPatterns.Add(newPattern);
+                context.CompanyMaterialPatterns.Add(newPattern);
             }
             
-            await _context.SaveChangesAsync();
+            await context.SaveChangesAsync();
             
             _logger.LogInformation("Copied all settings from company {SourceCompanyId} to company {TargetCompanyId}", 
                 sourceCompanyId, targetCompanyId);

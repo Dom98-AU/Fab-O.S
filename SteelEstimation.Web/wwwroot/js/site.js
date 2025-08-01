@@ -730,3 +730,47 @@ window.updateFrozenColumns = function() {
         console.error('tableResize.updateFrozenColumnPositions not available');
     }
 };
+
+// Notification functions
+window.showNotification = function(title, body) {
+    if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(title, {
+            body: body,
+            icon: '/fabos-favicon-32.png',
+            badge: '/fabos-favicon-16.png'
+        });
+    }
+};
+
+window.requestNotificationPermission = function() {
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
+};
+
+// Theme functions
+window.applyTheme = function(theme) {
+    const html = document.documentElement;
+    
+    if (theme === 'dark') {
+        html.classList.add('dark-theme');
+        localStorage.setItem('theme', 'dark');
+    } else if (theme === 'light') {
+        html.classList.remove('dark-theme');
+        localStorage.setItem('theme', 'light');
+    } else if (theme === 'auto') {
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (prefersDark) {
+            html.classList.add('dark-theme');
+        } else {
+            html.classList.remove('dark-theme');
+        }
+        localStorage.setItem('theme', 'auto');
+    }
+};
+
+// Apply saved theme on load
+(function() {
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    window.applyTheme(savedTheme);
+})();

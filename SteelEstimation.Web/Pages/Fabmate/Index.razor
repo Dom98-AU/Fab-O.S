@@ -1,0 +1,155 @@
+@page "/fabmate"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy = "Fabmate.Access")]
+
+<PageTitle>Fabmate - Fabrication Management System</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="page-header mb-4">
+                <h1 class="page-title">
+                    <i class="fas fa-industry text-primary"></i>
+                    Fabmate - Fabrication Management System
+                </h1>
+                <p class="lead text-muted">Complete fabrication management including stock, inventory, and shop-floor execution</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card coming-soon-card">
+                <div class="card-body text-center py-5">
+                    <div class="coming-soon-icon mb-4">
+                        <i class="fas fa-industry"></i>
+                    </div>
+                    <h2 class="mb-3">Coming Soon</h2>
+                    <p class="lead mb-4">
+                        The Fabmate module is currently under development and will be available soon.
+                    </p>
+                    <p class="text-muted mb-5">
+                        Fabmate will be your comprehensive fabrication management system, handling everything
+                        from material traceability and inventory management to work order scheduling and
+                        shop-floor execution with real-time production tracking.
+                    </p>
+
+                    <div class="features-preview">
+                        <h4 class="mb-4">Planned Features</h4>
+                        <div class="row g-4">
+                            <div class="col-md-6">
+                                <div class="feature-card p-3">
+                                    <i class="fas fa-boxes feature-icon mb-2"></i>
+                                    <h5>Inventory Management</h5>
+                                    <p class="text-muted small">
+                                        Real-time stock tracking with material traceability
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="feature-card p-3">
+                                    <i class="fas fa-clipboard-list feature-icon mb-2"></i>
+                                    <h5>Work Order Management</h5>
+                                    <p class="text-muted small">
+                                        Create, schedule, and track work orders through production
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="feature-card p-3">
+                                    <i class="fas fa-calendar-alt feature-icon mb-2"></i>
+                                    <h5>Production Scheduling</h5>
+                                    <p class="text-muted small">
+                                        Optimize shop floor scheduling with resource allocation
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="feature-card p-3">
+                                    <i class="fas fa-tachometer-alt feature-icon mb-2"></i>
+                                    <h5>Shop Floor Execution</h5>
+                                    <p class="text-muted small">
+                                        Real-time production tracking and performance monitoring
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="feature-card p-3">
+                                    <i class="fas fa-barcode feature-icon mb-2"></i>
+                                    <h5>Material Traceability</h5>
+                                    <p class="text-muted small">
+                                        Complete tracking from raw material to finished product
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="feature-card p-3">
+                                    <i class="fas fa-chart-line feature-icon mb-2"></i>
+                                    <h5>Production Analytics</h5>
+                                    <p class="text-muted small">
+                                        Comprehensive reporting and performance analytics
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-5">
+                        <a href="/" class="btn btn-primary">
+                            <i class="fas fa-arrow-left me-2"></i>
+                            Return to Estimate Module
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .page-header {
+        padding: 2rem 0;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .page-title {
+        font-size: 2rem;
+        font-weight: 600;
+        color: #212529;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .coming-soon-card {
+        border: none;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08);
+    }
+
+    .coming-soon-icon {
+        font-size: 5rem;
+        color: #e9ecef;
+    }
+
+    .features-preview {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+
+    .feature-card {
+        background: #f8f9fa;
+        border-radius: 0.5rem;
+        height: 100%;
+        transition: transform 0.2s ease;
+    }
+
+    .feature-card:hover {
+        transform: translateY(-2px);
+        background: #e9ecef;
+    }
+
+    .feature-icon {
+        font-size: 2rem;
+        color: #6c757d;
+    }
+</style>

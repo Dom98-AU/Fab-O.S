@@ -20,7 +20,7 @@ namespace SteelEstimation.Infrastructure.Services
 {
     public class FabOSAuthenticationService : IFabOSAuthenticationService
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
         private readonly IConfiguration _configuration;
         private readonly ILogger<FabOSAuthenticationService> _logger;
         private readonly IHttpContextAccessor _httpContextAccessor;
@@ -30,12 +30,12 @@ namespace SteelEstimation.Infrastructure.Services
         private readonly int _jwtExpiryHours;
 
         public FabOSAuthenticationService(
-            ApplicationDbContext context,
+            IDbContextFactory<ApplicationDbContext> contextFactory,
             IConfiguration configuration,
             ILogger<FabOSAuthenticationService> logger,
             IHttpContextAccessor httpContextAccessor)
         {
-            _context = context;
+            _contextFactory = contextFactory;
             _configuration = configuration;
             _logger = logger;
             _httpContextAccessor = httpContextAccessor;
@@ -106,7 +106,8 @@ namespace SteelEstimation.Infrastructure.Services
         {
             try
             {
-                var user = await _context.Users
+                using var context = await _contextFactory.CreateDbContextAsync();
+                var user = await context.Users
                     .Include(u => u.Company)
                     .Include(u => u.UserRoles)
                     .ThenInclude(ur => ur.Role)
@@ -147,7 +148,7 @@ namespace SteelEstimation.Infrastructure.Services
 
                 // Update last login
                 user.LastLoginDate = DateTime.UtcNow;
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
 
                 // Generate token
                 var token = GenerateJwtToken(user);
@@ -172,7 +173,8 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<bool> UserHasProductAccessAsync(int userId, string productName)
         {
-            return await _context.UserProductAccess
+            using var context = await _contextFactory.CreateDbContextAsync();
+            return await context.UserProductAccess
                 .AnyAsync(upa => upa.UserId == userId && 
                                 upa.ProductLicense.ProductName == productName &&
                                 upa.ProductLicense.IsActive &&
@@ -181,7 +183,8 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<List<string>> GetUserProductsAsync(int userId)
         {
-            return await _context.UserProductAccess
+            using var context = await _contextFactory.CreateDbContextAsync();
+            return await context.UserProductAccess
                 .Where(upa => upa.UserId == userId && 
                              upa.ProductLicense.IsActive &&
                              upa.ProductLicense.ValidUntil > DateTime.UtcNow)
@@ -192,7 +195,8 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<string?> GetUserProductRoleAsync(int userId, string productName)
         {
-            var userProductRole = await _context.UserProductRoles
+            using var context = await _contextFactory.CreateDbContextAsync();
+            var userProductRole = await context.UserProductRoles
                 .Include(upr => upr.ProductRole)
                 .Where(upr => upr.UserId == userId && upr.ProductRole.ProductName == productName)
                 .Select(upr => upr.ProductRole.RoleName)
@@ -203,7 +207,8 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<bool> CheckConcurrentUserLimitAsync(string productName, int companyId, int userId)
         {
-            var license = await _context.ProductLicenses
+            using var context = await _contextFactory.CreateDbContextAsync();
+            var license = await context.ProductLicenses
                 .FirstOrDefaultAsync(pl => pl.CompanyId == companyId && 
                                           pl.ProductName == productName && 
                                           pl.IsActive);
@@ -215,7 +220,7 @@ namespace SteelEstimation.Infrastructure.Services
 
             // Count active sessions for this product in the last hour
             var oneHourAgo = DateTime.UtcNow.AddHours(-1);
-            var activeUsers = await _context.UserProductAccess
+            var activeUsers = await context.UserProductAccess
                 .Where(upa => upa.ProductLicenseId == license.Id &&
                              upa.LastAccessDate > oneHourAgo &&
                              upa.UserId != userId) // Don't count current user
@@ -228,14 +233,15 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task RecordUserActivityAsync(int userId, string productName)
         {
-            var access = await _context.UserProductAccess
+            using var context = await _contextFactory.CreateDbContextAsync();
+            var access = await context.UserProductAccess
                 .FirstOrDefaultAsync(upa => upa.UserId == userId &&
                                            upa.ProductLicense.ProductName == productName);
 
             if (access != null)
             {
                 access.LastAccessDate = DateTime.UtcNow;
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
             }
         }
 
@@ -297,7 +303,8 @@ namespace SteelEstimation.Infrastructure.Services
                 return null;
             }
             
-            return await _context.Users
+            using var context = await _contextFactory.CreateDbContextAsync();
+            return await context.Users
                 .Include(u => u.Company)
                 .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
@@ -318,7 +325,8 @@ namespace SteelEstimation.Infrastructure.Services
         
         public async Task<IEnumerable<string>> GetUserRolesAsync(int userId)
         {
-            return await _context.UserRoles
+            using var context = await _contextFactory.CreateDbContextAsync();
+            return await context.UserRoles
                 .Include(ur => ur.Role)
                 .Where(ur => ur.UserId == userId)
                 .Select(ur => ur.Role.RoleName)
@@ -327,7 +335,8 @@ namespace SteelEstimation.Infrastructure.Services
         
         public async Task<bool> IsUserInRoleAsync(int userId, string roleName)
         {
-            return await _context.UserRoles
+            using var context = await _contextFactory.CreateDbContextAsync();
+            return await context.UserRoles
                 .Include(ur => ur.Role)
                 .AnyAsync(ur => ur.UserId == userId && ur.Role.RoleName == roleName);
         }
@@ -336,7 +345,8 @@ namespace SteelEstimation.Infrastructure.Services
         {
             try
             {
-                var user = await _context.Users.FindAsync(userId);
+                using var context = await _contextFactory.CreateDbContextAsync();
+                var user = await context.Users.FindAsync(userId);
                 if (user == null)
                     return false;
                     
@@ -350,9 +360,8 @@ namespace SteelEstimation.Infrastructure.Services
                 
                 user.PasswordSalt = salt;
                 user.PasswordHash = hash;
-                user.UpdatedDate = DateTime.UtcNow;
                 
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
                 
                 _logger.LogInformation("Password changed successfully for user {UserId}", userId);
                 return true;
@@ -368,7 +377,8 @@ namespace SteelEstimation.Infrastructure.Services
         {
             try
             {
-                var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+                using var context = await _contextFactory.CreateDbContextAsync();
+                var user = await context.Users.FirstOrDefaultAsync(u => u.Email == email);
                 if (user == null)
                 {
                     // Don't reveal if user exists
@@ -381,7 +391,7 @@ namespace SteelEstimation.Infrastructure.Services
                 user.PasswordResetToken = resetToken;
                 user.PasswordResetExpiry = DateTime.UtcNow.AddHours(1);
                 
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
                 
                 _logger.LogInformation("Password reset token generated for user {Email}", email);
                 // TODO: Send email with reset token
@@ -399,7 +409,8 @@ namespace SteelEstimation.Infrastructure.Services
         {
             try
             {
-                var user = await _context.Users
+                using var context = await _contextFactory.CreateDbContextAsync();
+                var user = await context.Users
                     .FirstOrDefaultAsync(u => u.PasswordResetToken == token 
                                            && u.PasswordResetExpiry > DateTime.UtcNow);
                                            
@@ -414,9 +425,8 @@ namespace SteelEstimation.Infrastructure.Services
                 user.PasswordHash = hash;
                 user.PasswordResetToken = null;
                 user.PasswordResetExpiry = null;
-                user.UpdatedDate = DateTime.UtcNow;
                 
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
                 
                 _logger.LogInformation("Password reset confirmed for user {UserId}", user.Id);
                 return true;

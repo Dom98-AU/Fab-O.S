@@ -14,11 +14,11 @@ namespace SteelEstimation.Web.Controllers;
 public class TableViewsController : ControllerBase
 {
     private readonly IDbContextFactory<ApplicationDbContext> _dbFactory;
-    private readonly IAuthenticationService _authService;
+    private readonly IFabOSAuthenticationService _authService;
 
     public TableViewsController(
         IDbContextFactory<ApplicationDbContext> dbFactory,
-        IAuthenticationService authService)
+        IFabOSAuthenticationService authService)
     {
         _dbFactory = dbFactory;
         _authService = authService;

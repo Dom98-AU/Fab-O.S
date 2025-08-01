@@ -12,13 +12,13 @@ namespace SteelEstimation.Web.Pages.Account;
 public class RegisterModel : PageModel
 {
     private readonly IMultiAuthService _multiAuthService;
-    private readonly SteelEstimation.Core.Interfaces.IAuthenticationService _authService;
+    private readonly IFabOSAuthenticationService _authService;
     private readonly ICookieAuthenticationService _cookieAuthService;
     private readonly ILogger<RegisterModel> _logger;
 
     public RegisterModel(
         IMultiAuthService multiAuthService,
-        SteelEstimation.Core.Interfaces.IAuthenticationService authService,
+        IFabOSAuthenticationService authService,
         ICookieAuthenticationService cookieAuthService,
         ILogger<RegisterModel> logger)
     {

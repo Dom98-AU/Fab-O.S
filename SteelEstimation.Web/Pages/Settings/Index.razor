@@ -1,0 +1,207 @@
+@page "/settings"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Administrator,Admin")]
+@inject NavigationManager Navigation
+
+<PageTitle>Platform Settings - Fab O.S</PageTitle>
+
+<div class="settings-header mb-4">
+    <h1>Platform Settings</h1>
+    <p class="lead text-muted">Manage platform-wide settings and configuration</p>
+</div>
+
+<div class="row">
+    <!-- User Management Section -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-users"></i> User Management</h5>
+            </div>
+            <div class="card-body">
+                <p>Manage platform users, roles, and permissions</p>
+                <div class="list-group">
+                    <a href="/admin/users" class="list-group-item list-group-item-action">
+                        <i class="fas fa-users-cog me-2"></i>
+                        <strong>User Management</strong>
+                        <small class="d-block text-muted">Create, edit, and manage users</small>
+                    </a>
+                    <a href="/admin/invites" class="list-group-item list-group-item-action">
+                        <i class="fas fa-envelope-open-text me-2"></i>
+                        <strong>User Invitations</strong>
+                        <small class="d-block text-muted">Send invitations to new users</small>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Platform Configuration Section -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="fas fa-cogs"></i> Platform Configuration</h5>
+            </div>
+            <div class="card-body">
+                <p>Configure platform-wide settings and integrations</p>
+                <div class="list-group">
+                    <a href="/admin/settings" class="list-group-item list-group-item-action">
+                        <i class="fas fa-sliders-h me-2"></i>
+                        <strong>General Settings</strong>
+                        <small class="d-block text-muted">GitHub integration and system configuration</small>
+                    </a>
+                    <a href="/admin/environment-status" class="list-group-item list-group-item-action">
+                        <i class="fas fa-server me-2"></i>
+                        <strong>Environment Status</strong>
+                        <small class="d-block text-muted">View deployment status and health</small>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Module Configuration Section -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-cubes"></i> Module Configuration</h5>
+            </div>
+            <div class="card-body">
+                <p>Configure module access and licensing</p>
+                <div class="list-group">
+                    <a href="/settings/modules" class="list-group-item list-group-item-action">
+                        <i class="fas fa-th me-2"></i>
+                        <strong>Module Management</strong>
+                        <small class="d-block text-muted">Configure module access per company</small>
+                    </a>
+                    <a href="/settings/product-roles" class="list-group-item list-group-item-action">
+                        <i class="fas fa-user-tag me-2"></i>
+                        <strong>Module Roles</strong>
+                        <small class="d-block text-muted">Manage roles within each module</small>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Management Section -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-warning">
+                <h5 class="mb-0"><i class="fas fa-tools"></i> System Management</h5>
+            </div>
+            <div class="card-body">
+                <p>System health and maintenance tools</p>
+                <div class="list-group">
+                    <a href="/health" class="list-group-item list-group-item-action" target="_blank">
+                        <i class="fas fa-heartbeat me-2"></i>
+                        <strong>Health Check</strong>
+                        <small class="d-block text-muted">System health diagnostics</small>
+                    </a>
+                    <a href="/settings/logs" class="list-group-item list-group-item-action">
+                        <i class="fas fa-file-alt me-2"></i>
+                        <strong>System Logs</strong>
+                        <small class="d-block text-muted">View application logs and errors</small>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Stats -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-chart-line"></i> Platform Statistics</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <div class="stat-item">
+                            <i class="fas fa-users fa-2x text-primary mb-2"></i>
+                            <h3>@totalUsers</h3>
+                            <p class="text-muted">Total Users</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-item">
+                            <i class="fas fa-building fa-2x text-success mb-2"></i>
+                            <h3>@totalCompanies</h3>
+                            <p class="text-muted">Companies</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-item">
+                            <i class="fas fa-cubes fa-2x text-info mb-2"></i>
+                            <h3>@activeModules</h3>
+                            <p class="text-muted">Active Modules</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-item">
+                            <i class="fas fa-server fa-2x text-warning mb-2"></i>
+                            <h3>@currentEnvironment</h3>
+                            <p class="text-muted">Environment</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private int totalUsers = 0;
+    private int totalCompanies = 0;
+    private int activeModules = 4;
+    private string currentEnvironment = "Development";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // TODO: Load actual statistics from services
+        // For now, using placeholder values
+        totalUsers = 15;
+        totalCompanies = 3;
+        
+        // Get current environment
+        var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        currentEnvironment = env ?? "Development";
+    }
+}
+
+<style>
+    .settings-header {
+        border-bottom: 2px solid #e9ecef;
+        padding-bottom: 1rem;
+    }
+
+    .stat-item {
+        padding: 1.5rem;
+    }
+
+    .stat-item h3 {
+        margin: 0.5rem 0;
+        font-weight: 600;
+    }
+
+    .list-group-item {
+        border-left: 3px solid transparent;
+        transition: all 0.2s ease;
+    }
+
+    .list-group-item:hover {
+        border-left-color: var(--bs-primary);
+        background-color: #f8f9fa;
+    }
+
+    .card {
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        transition: transform 0.2s ease;
+    }
+
+    .card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
+    }
+</style>

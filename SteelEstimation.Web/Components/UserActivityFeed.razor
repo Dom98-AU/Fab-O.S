@@ -1,0 +1,407 @@
+@using SteelEstimation.Core.Interfaces
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Core.DTOs
+@inject IUserActivityService ActivityService
+@inject ICommentService CommentService
+@inject NavigationManager Navigation
+
+<div class="activity-feed">
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Recent Activity</h5>
+            @if (ShowFilter)
+            {
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary @(filterType == "all" ? "active" : "")" 
+                            @onclick="@(() => SetFilter("all"))">All</button>
+                    <button class="btn btn-outline-secondary @(filterType == "comments" ? "active" : "")" 
+                            @onclick="@(() => SetFilter("comments"))">Comments</button>
+                    <button class="btn btn-outline-secondary @(filterType == "activity" ? "active" : "")" 
+                            @onclick="@(() => SetFilter("activity"))">Activity</button>
+                </div>
+            }
+        </div>
+        <div class="card-body">
+            @if (isLoading)
+            {
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            }
+            else if (!activities.Any() && !comments.Any())
+            {
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-stream fa-3x mb-3"></i>
+                    <p>No activity to show</p>
+                </div>
+            }
+            else
+            {
+                <div class="activity-timeline">
+                    @foreach (var item in GetCombinedFeed())
+                    {
+                        @if (item is UserActivity activity)
+                        {
+                            <div class="activity-item">
+                                <div class="activity-icon @GetActivityColorClass(activity.ActivityType)">
+                                    <i class="@GetActivityIcon(activity.ActivityType)"></i>
+                                </div>
+                                <div class="activity-content">
+                                    <div class="activity-header">
+                                        <strong>@activity.User.FullName</strong>
+                                        <span class="text-muted">@activity.Description</span>
+                                    </div>
+                                    <div class="activity-meta">
+                                        <small class="text-muted">
+                                            <i class="fas fa-clock me-1"></i>
+                                            @GetTimeAgo(activity.CreatedAt)
+                                        </small>
+                                        @if (!string.IsNullOrEmpty(activity.ProductName))
+                                        {
+                                            <small class="text-muted ms-2">
+                                                <i class="fas fa-cube me-1"></i>
+                                                @activity.ProductName
+                                            </small>
+                                        }
+                                    </div>
+                                    @if (activity.EntityType != null && activity.EntityId != null)
+                                    {
+                                        <div class="mt-2">
+                                            <a href="@GetEntityUrl(activity.EntityType, activity.EntityId.Value)" 
+                                               class="btn btn-sm btn-outline-primary">
+                                                View @activity.EntityType
+                                            </a>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                        else if (item is Comment comment)
+                        {
+                            <div class="activity-item">
+                                <div class="activity-icon bg-info">
+                                    <i class="fas fa-comment"></i>
+                                </div>
+                                <div class="activity-content">
+                                    <div class="activity-header">
+                                        <strong>@comment.User.FullName</strong>
+                                        <span class="text-muted">commented on @comment.EntityType #@comment.EntityId</span>
+                                    </div>
+                                    <div class="comment-preview">
+                                        @((MarkupString)GetCommentPreview(comment.Content))
+                                    </div>
+                                    <div class="activity-meta">
+                                        <small class="text-muted">
+                                            <i class="fas fa-clock me-1"></i>
+                                            @GetTimeAgo(comment.CreatedAt)
+                                        </small>
+                                        @if (comment.Reactions.Any())
+                                        {
+                                            <small class="ms-2">
+                                                @foreach (var reaction in GetReactionSummary(comment))
+                                                {
+                                                    <span class="reaction-badge">
+                                                        @GetReactionEmoji(reaction.Key) @reaction.Value
+                                                    </span>
+                                                }
+                                            </small>
+                                        }
+                                    </div>
+                                    <div class="mt-2">
+                                        <a href="@GetEntityUrl(comment.EntityType, comment.EntityId)#comment-@comment.Id" 
+                                           class="btn btn-sm btn-outline-primary">
+                                            View Comment
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+
+                @if (hasMore)
+                {
+                    <div class="text-center mt-4">
+                        <button class="btn btn-outline-primary" @onclick="LoadMore" disabled="@isLoadingMore">
+                            @if (isLoadingMore)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                            }
+                            Load More
+                        </button>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+    .activity-timeline {
+        position: relative;
+        padding-left: 40px;
+    }
+
+    .activity-timeline::before {
+        content: '';
+        position: absolute;
+        left: 15px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #e9ecef;
+    }
+
+    .activity-item {
+        position: relative;
+        margin-bottom: 25px;
+    }
+
+    .activity-icon {
+        position: absolute;
+        left: -40px;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: #007bff;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        border: 3px solid #fff;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    .activity-content {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px solid #e9ecef;
+    }
+
+    .activity-header {
+        margin-bottom: 5px;
+    }
+
+    .activity-meta {
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+
+    .comment-preview {
+        margin: 10px 0;
+        padding: 10px;
+        background: white;
+        border-radius: 5px;
+        border: 1px solid #e9ecef;
+    }
+
+    .reaction-badge {
+        display: inline-block;
+        padding: 2px 6px;
+        background: #e9ecef;
+        border-radius: 12px;
+        font-size: 0.85rem;
+        margin-right: 5px;
+    }
+
+    .bg-success { background-color: #28a745 !important; }
+    .bg-warning { background-color: #ffc107 !important; }
+    .bg-danger { background-color: #dc3545 !important; }
+    .bg-info { background-color: #17a2b8 !important; }
+    .bg-secondary { background-color: #6c757d !important; }
+</style>
+
+@code {
+    [Parameter] public int UserId { get; set; }
+    [Parameter] public string? ProductName { get; set; }
+    [Parameter] public bool ShowComments { get; set; } = true;
+    [Parameter] public bool ShowFilter { get; set; } = true;
+    [Parameter] public int PageSize { get; set; } = 20;
+
+    private List<UserActivity> activities = new();
+    private List<Comment> comments = new();
+    private bool isLoading = true;
+    private bool isLoadingMore;
+    private bool hasMore = true;
+    private int currentPage = 1;
+    private string filterType = "all";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadActivities();
+    }
+
+    private async Task LoadActivities()
+    {
+        isLoading = true;
+        try
+        {
+            // Load user activities
+            if (filterType == "all" || filterType == "activity")
+            {
+                var userActivities = await ActivityService.GetUserActivitiesAsync(UserId, currentPage, PageSize);
+                activities = userActivities.ToList();
+            }
+
+            // Load comments if enabled
+            if (ShowComments && (filterType == "all" || filterType == "comments"))
+            {
+                var userComments = await CommentService.GetUserCommentsAsync(UserId, currentPage, PageSize);
+                comments = userComments.ToList();
+            }
+
+            hasMore = activities.Count == PageSize || comments.Count == PageSize;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadMore()
+    {
+        isLoadingMore = true;
+        currentPage++;
+        
+        try
+        {
+            if (filterType == "all" || filterType == "activity")
+            {
+                var moreActivities = await ActivityService.GetUserActivitiesAsync(UserId, currentPage, PageSize);
+                activities.AddRange(moreActivities);
+            }
+
+            if (ShowComments && (filterType == "all" || filterType == "comments"))
+            {
+                var moreComments = await CommentService.GetUserCommentsAsync(UserId, currentPage, PageSize);
+                comments.AddRange(moreComments);
+            }
+
+            hasMore = activities.Count % PageSize == 0 || comments.Count % PageSize == 0;
+        }
+        finally
+        {
+            isLoadingMore = false;
+        }
+    }
+
+    private async Task SetFilter(string filter)
+    {
+        filterType = filter;
+        currentPage = 1;
+        activities.Clear();
+        comments.Clear();
+        await LoadActivities();
+    }
+
+    private IEnumerable<object> GetCombinedFeed()
+    {
+        var combined = new List<object>();
+        combined.AddRange(activities);
+        combined.AddRange(comments);
+        
+        return combined.OrderByDescending(item =>
+        {
+            if (item is UserActivity activity)
+                return activity.CreatedAt;
+            if (item is Comment comment)
+                return comment.CreatedAt;
+            return DateTime.MinValue;
+        });
+    }
+
+    private string GetActivityIcon(string activityType)
+    {
+        return activityType switch
+        {
+            var t when t.Contains("created") => "fas fa-plus",
+            var t when t.Contains("updated") => "fas fa-edit",
+            var t when t.Contains("deleted") => "fas fa-trash",
+            var t when t.Contains("login") => "fas fa-sign-in-alt",
+            var t when t.Contains("logout") => "fas fa-sign-out-alt",
+            var t when t.Contains("comment") => "fas fa-comment",
+            _ => "fas fa-circle"
+        };
+    }
+
+    private string GetActivityColorClass(string activityType)
+    {
+        return activityType switch
+        {
+            var t when t.Contains("created") => "bg-success",
+            var t when t.Contains("updated") => "bg-warning",
+            var t when t.Contains("deleted") => "bg-danger",
+            var t when t.Contains("login") || t.Contains("logout") => "bg-secondary",
+            var t when t.Contains("comment") => "bg-info",
+            _ => "bg-primary"
+        };
+    }
+
+    private string GetEntityUrl(string entityType, int entityId)
+    {
+        return entityType.ToLower() switch
+        {
+            "project" or "estimation" => $"/projects/{entityId}",
+            "package" => $"/packages/{entityId}",
+            "customer" => $"/customers/{entityId}",
+            _ => "#"
+        };
+    }
+
+    private string GetCommentPreview(string content)
+    {
+        // Parse mentions and make them links
+        var preview = System.Text.RegularExpressions.Regex.Replace(
+            content, 
+            @"@(\w+)", 
+            "<a href='/profile/$1' class='text-decoration-none'>@$1</a>"
+        );
+
+        // Truncate if too long
+        if (preview.Length > 200)
+        {
+            preview = preview.Substring(0, 200) + "...";
+        }
+
+        return preview;
+    }
+
+    private Dictionary<string, int> GetReactionSummary(Comment comment)
+    {
+        return comment.Reactions
+            .GroupBy(r => r.ReactionType)
+            .ToDictionary(g => g.Key, g => g.Count());
+    }
+
+    private string GetReactionEmoji(string reactionType)
+    {
+        return reactionType switch
+        {
+            "like" => "👍",
+            "thumbsup" => "👍",
+            "heart" => "❤️",
+            "celebrate" => "🎉",
+            _ => "👍"
+        };
+    }
+
+    private string GetTimeAgo(DateTime dateTime)
+    {
+        var timeSpan = DateTime.UtcNow - dateTime;
+
+        if (timeSpan.TotalMinutes < 1)
+            return "just now";
+        if (timeSpan.TotalMinutes < 60)
+            return $"{(int)timeSpan.TotalMinutes}m ago";
+        if (timeSpan.TotalHours < 24)
+            return $"{(int)timeSpan.TotalHours}h ago";
+        if (timeSpan.TotalDays < 7)
+            return $"{(int)timeSpan.TotalDays}d ago";
+        
+        return dateTime.ToString("MMM d, yyyy");
+    }
+}

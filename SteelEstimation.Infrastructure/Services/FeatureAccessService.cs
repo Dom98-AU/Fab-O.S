@@ -15,8 +15,8 @@ namespace SteelEstimation.Infrastructure.Services
 {
     public class FeatureAccessService : IFeatureAccessService
     {
-        private readonly ApplicationDbContext _context;
-        private readonly IAuthenticationService _authService;
+        private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
+        private readonly IFabOSAuthenticationService _authService;
         private readonly IMemoryCache _cache;
         private readonly IConfiguration _configuration;
         private readonly ILogger<FeatureAccessService> _logger;
@@ -24,13 +24,13 @@ namespace SteelEstimation.Infrastructure.Services
         private readonly TimeSpan _cacheExpiration = TimeSpan.FromMinutes(30);
 
         public FeatureAccessService(
-            ApplicationDbContext context,
-            IAuthenticationService authService,
+            IDbContextFactory<ApplicationDbContext> contextFactory,
+            IFabOSAuthenticationService authService,
             IMemoryCache cache,
             IConfiguration configuration,
             ILogger<FeatureAccessService> logger)
         {
-            _context = context;
+            _contextFactory = contextFactory;
             _authService = authService;
             _cache = cache;
             _configuration = configuration;
@@ -124,7 +124,9 @@ namespace SteelEstimation.Infrastructure.Services
             try
             {
                 var features = await GetEnabledFeaturesAsync(companyId.Value);
-                var groups = await _context.FeatureGroups
+                
+                using var context = await _contextFactory.CreateDbContextAsync();
+                var groups = await context.FeatureGroups
                     .Where(g => g.IsActive)
                     .OrderBy(g => g.DisplayOrder)
                     .ToListAsync();
@@ -216,9 +218,11 @@ namespace SteelEstimation.Infrastructure.Services
         private async Task<List<FeatureDto>> LoadFeaturesFromDatabaseAsync(int companyId)
         {
             // Check if features need to be synced (expired or missing)
-            var needsSync = await _context.FeatureCache
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
+            var needsSync = await context.FeatureCache
                 .Where(f => f.CompanyId == companyId)
-                .AnyAsync(f => f.ExpiresAt < DateTime.UtcNow || !_context.FeatureCache.Any(fc => fc.CompanyId == companyId));
+                .AnyAsync(f => f.ExpiresAt < DateTime.UtcNow || !context.FeatureCache.Any(fc => fc.CompanyId == companyId));
 
             if (needsSync)
             {
@@ -227,7 +231,7 @@ namespace SteelEstimation.Infrastructure.Services
             }
 
             // Load features from cache table
-            var features = await _context.FeatureCache
+            var features = await context.FeatureCache
                 .Where(f => f.CompanyId == companyId)
                 .Where(f => f.ExpiresAt == null || f.ExpiresAt > DateTime.UtcNow)
                 .Select(f => new FeatureDto

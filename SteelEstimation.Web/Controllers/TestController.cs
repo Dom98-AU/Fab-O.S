@@ -11,10 +11,10 @@ namespace SteelEstimation.Web.Controllers;
 public class TestController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
-    private readonly IAuthenticationService _authService;
+    private readonly IFabOSAuthenticationService _authService;
     private readonly ILogger<TestController> _logger;
 
-    public TestController(ApplicationDbContext context, IAuthenticationService authService, ILogger<TestController> logger)
+    public TestController(ApplicationDbContext context, IFabOSAuthenticationService authService, ILogger<TestController> logger)
     {
         _context = context;
         _authService = authService;

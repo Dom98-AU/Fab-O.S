@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using SteelEstimation.Web.Authentication;
+using SteelEstimation.Web.Middleware;
 using SteelEstimation.Infrastructure.Services;
 using System.Security.Claims;
 
@@ -79,6 +80,15 @@ builder.Services.AddServerSideBlazor()
         options.KeepAliveInterval = TimeSpan.FromSeconds(15);
     });
 builder.Services.AddControllers();
+
+// Add SignalR for real-time notifications
+builder.Services.AddSignalR(options =>
+{
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+    options.MaximumReceiveMessageSize = 32 * 1024; // 32KB
+    options.ClientTimeoutInterval = TimeSpan.FromSeconds(60);
+    options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+});
 
 // Configure Cookie Authentication for CloudDev
 builder.Services.AddAuthentication(options =>
@@ -253,6 +263,9 @@ builder.Services.AddScoped<SidebarService>();
 builder.Services.AddHttpClient<GitHubService>();
 builder.Services.AddScoped<DeploymentService>();
 
+// Add file upload service
+builder.Services.AddScoped<FileUploadService>();
+
 // Add circuit handler for authentication state management
 builder.Services.AddScoped<CircuitHandler, AuthenticationCircuitHandler>();
 
@@ -400,6 +413,12 @@ builder.Services.AddScoped<SteelEstimation.Core.Services.IFeatureAccessService, 
 // builder.Services.AddScoped<IEmailService, EmailService>();
 // builder.Services.AddScoped<IAuditService, AuditService>();
 
+// User Profile System Services
+builder.Services.AddScoped<IUserProfileService, SteelEstimation.Infrastructure.Services.UserProfileService>();
+builder.Services.AddScoped<ICommentService, SteelEstimation.Infrastructure.Services.CommentService>();
+builder.Services.AddScoped<INotificationService, SteelEstimation.Infrastructure.Services.NotificationService>();
+builder.Services.AddScoped<IUserActivityService, SteelEstimation.Infrastructure.Services.UserActivityService>();
+
 // Add ABN lookup service with HttpClient
 builder.Services.AddHttpClient<IABNLookupService, SteelEstimation.Infrastructure.Services.ABNLookupService>(client =>
 {
@@ -498,9 +517,13 @@ app.UseAuthorization();
 
 app.UseSession();
 
+// Add activity tracking middleware
+app.UseActivityTracking();
+
 app.MapBlazorHub();
 app.MapRazorPages();
 app.MapControllers();
+app.MapHub<SteelEstimation.Web.Hubs.NotificationHub>("/notificationHub");
 app.MapFallbackToPage("/_Host");
 
 // Run database migrations

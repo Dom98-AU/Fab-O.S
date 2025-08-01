@@ -84,6 +84,15 @@ public class ApplicationDbContext : DbContext
     public DbSet<UserProductAccess> UserProductAccess { get; set; }
     public DbSet<ProductRole> ProductRoles { get; set; }
     public DbSet<UserProductRole> UserProductRoles { get; set; }
+    
+    // User Profile System
+    public DbSet<UserProfile> UserProfiles { get; set; }
+    public DbSet<UserPreference> UserPreferences { get; set; }
+    public DbSet<Comment> Comments { get; set; }
+    public DbSet<CommentMention> CommentMentions { get; set; }
+    public DbSet<CommentReaction> CommentReactions { get; set; }
+    public DbSet<Notification> Notifications { get; set; }
+    public DbSet<UserActivity> UserActivities { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -863,6 +872,116 @@ public class ApplicationDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        // User Profile configuration
+        modelBuilder.Entity<UserProfile>(entity =>
+        {
+            entity.HasIndex(e => e.UserId).IsUnique();
+            entity.HasIndex(e => e.LastActivityAt);
+            
+            entity.HasOne(e => e.User)
+                .WithOne(u => u.Profile)
+                .HasForeignKey<UserProfile>(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        
+        // User Preference configuration
+        modelBuilder.Entity<UserPreference>(entity =>
+        {
+            entity.HasIndex(e => e.UserId).IsUnique();
+            
+            entity.HasOne(e => e.User)
+                .WithOne(u => u.Preferences)
+                .HasForeignKey<UserPreference>(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        
+        // Comment configuration
+        modelBuilder.Entity<Comment>(entity =>
+        {
+            entity.HasIndex(e => new { e.EntityType, e.EntityId });
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.CreatedAt);
+            
+            entity.HasOne(e => e.User)
+                .WithMany(u => u.Comments)
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            entity.HasOne(e => e.DeletedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.DeletedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            entity.HasOne(e => e.ParentComment)
+                .WithMany(c => c.Replies)
+                .HasForeignKey(e => e.ParentCommentId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+        
+        // Comment Mention configuration
+        modelBuilder.Entity<CommentMention>(entity =>
+        {
+            entity.HasIndex(e => e.MentionedUserId);
+            entity.HasIndex(e => e.IsRead);
+            
+            entity.HasOne(e => e.Comment)
+                .WithMany(c => c.Mentions)
+                .HasForeignKey(e => e.CommentId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            entity.HasOne(e => e.MentionedUser)
+                .WithMany(u => u.Mentions)
+                .HasForeignKey(e => e.MentionedUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+        
+        // Comment Reaction configuration
+        modelBuilder.Entity<CommentReaction>(entity =>
+        {
+            entity.HasIndex(e => new { e.CommentId, e.UserId }).IsUnique();
+            
+            entity.HasOne(e => e.Comment)
+                .WithMany(c => c.Reactions)
+                .HasForeignKey(e => e.CommentId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            entity.HasOne(e => e.User)
+                .WithMany(u => u.Reactions)
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+        
+        // Notification configuration
+        modelBuilder.Entity<Notification>(entity =>
+        {
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.IsRead);
+            entity.HasIndex(e => e.CreatedAt);
+            
+            entity.HasOne(e => e.User)
+                .WithMany(u => u.Notifications)
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            entity.HasOne(e => e.FromUser)
+                .WithMany()
+                .HasForeignKey(e => e.FromUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+        
+        // User Activity configuration
+        modelBuilder.Entity<UserActivity>(entity =>
+        {
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.ProductName);
+            entity.HasIndex(e => e.CreatedAt);
+            
+            entity.HasOne(e => e.User)
+                .WithMany(u => u.Activities)
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
         // Seed default roles
         modelBuilder.Entity<Role>().HasData(
             new Role { Id = 1, RoleName = "Administrator", Description = "Full system access", CanCreateProjects = true, CanEditProjects = true, CanDeleteProjects = true, CanViewAllProjects = true, CanManageUsers = true, CanExportData = true, CanImportData = true },
@@ -879,7 +998,8 @@ public class ApplicationDbContext : DbContext
             .Entries()
             .Where(e => e.Entity is Project || e.Entity is Package || e.Entity is PackageWorksheet || 
                        e.Entity is ProcessingItem || e.Entity is WeldingItem || e.Entity is User ||
-                       e.Entity is DeliveryBundle || e.Entity is PackBundle || e.Entity is WeldingConnection)
+                       e.Entity is DeliveryBundle || e.Entity is PackBundle || e.Entity is WeldingConnection ||
+                       e.Entity is UserProfile || e.Entity is UserPreference || e.Entity is Comment)
             .Where(e => e.State == EntityState.Modified);
 
         foreach (var entityEntry in entries)
@@ -923,6 +1043,18 @@ public class ApplicationDbContext : DbContext
             else if (entityEntry.Entity is WorksheetTemplate template)
             {
                 template.LastModified = DateTime.UtcNow;
+            }
+            else if (entityEntry.Entity is UserProfile profile)
+            {
+                profile.UpdatedAt = DateTime.UtcNow;
+            }
+            else if (entityEntry.Entity is UserPreference preference)
+            {
+                preference.UpdatedAt = DateTime.UtcNow;
+            }
+            else if (entityEntry.Entity is Comment comment)
+            {
+                comment.UpdatedAt = DateTime.UtcNow;
             }
         }
 

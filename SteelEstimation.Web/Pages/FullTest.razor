@@ -142,10 +142,10 @@
             
             // Test 5: Authentication Service
             output += "\n=== AUTHENTICATION SERVICE TEST ===\n";
-            var authService = ServiceProvider.GetService<IAuthenticationService>();
+            var authService = ServiceProvider.GetService<IFabOSAuthenticationService>();
             if (authService == null)
             {
-                output += "ERROR: IAuthenticationService not registered!\n";
+                output += "ERROR: IFabOSAuthenticationService not registered!\n";
                 hasError = true;
                 return;
             }

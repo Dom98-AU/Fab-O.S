@@ -10,11 +10,11 @@ namespace SteelEstimation.Infrastructure.Services;
 public class SettingsService : ISettingsService
 {
     private readonly IDbContextFactory<ApplicationDbContext> _dbContextFactory;
-    private readonly IAuthenticationService _authService;
+    private readonly IFabOSAuthenticationService _authService;
 
     public SettingsService(
         IDbContextFactory<ApplicationDbContext> dbContextFactory,
-        IAuthenticationService authService)
+        IFabOSAuthenticationService authService)
     {
         _dbContextFactory = dbContextFactory;
         _authService = authService;

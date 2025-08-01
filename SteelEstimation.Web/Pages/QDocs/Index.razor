@@ -1,0 +1,155 @@
+@page "/qdocs"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy = "QDocs.Access")]
+
+<PageTitle>QDocs - Quality Management System</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="page-header mb-4">
+                <h1 class="page-title">
+                    <i class="fas fa-clipboard-check text-primary"></i>
+                    QDocs - Quality Management System
+                </h1>
+                <p class="lead text-muted">Complete quality documentation and compliance management for fabrication projects</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card coming-soon-card">
+                <div class="card-body text-center py-5">
+                    <div class="coming-soon-icon mb-4">
+                        <i class="fas fa-clipboard-check"></i>
+                    </div>
+                    <h2 class="mb-3">Coming Soon</h2>
+                    <p class="lead mb-4">
+                        The QDocs module is currently under development and will be available soon.
+                    </p>
+                    <p class="text-muted mb-5">
+                        QDocs will manage all your quality documentation needs including ITPs, MDRs, 
+                        weld qualifications, training records, material certificates, and consumable 
+                        certificates, ensuring complete compliance and traceability.
+                    </p>
+
+                    <div class="features-preview">
+                        <h4 class="mb-4">Planned Features</h4>
+                        <div class="row g-4">
+                            <div class="col-md-6">
+                                <div class="feature-card p-3">
+                                    <i class="fas fa-tasks feature-icon mb-2"></i>
+                                    <h5>Inspection Test Plans (ITPs)</h5>
+                                    <p class="text-muted small">
+                                        Create and manage inspection test plans with approval workflows
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="feature-card p-3">
+                                    <i class="fas fa-file-contract feature-icon mb-2"></i>
+                                    <h5>Material Data Reports (MDRs)</h5>
+                                    <p class="text-muted small">
+                                        Complete material documentation and data book generation
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="feature-card p-3">
+                                    <i class="fas fa-fire feature-icon mb-2"></i>
+                                    <h5>Weld Qualifications</h5>
+                                    <p class="text-muted small">
+                                        Track welder qualifications, procedures, and certifications
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="feature-card p-3">
+                                    <i class="fas fa-user-graduate feature-icon mb-2"></i>
+                                    <h5>Training Records</h5>
+                                    <p class="text-muted small">
+                                        Manage employee training, certifications, and competencies
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="feature-card p-3">
+                                    <i class="fas fa-certificate feature-icon mb-2"></i>
+                                    <h5>Material Certificates</h5>
+                                    <p class="text-muted small">
+                                        Store and link material test certificates to projects
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="feature-card p-3">
+                                    <i class="fas fa-shield-alt feature-icon mb-2"></i>
+                                    <h5>Compliance Management</h5>
+                                    <p class="text-muted small">
+                                        Ensure compliance with industry standards and regulations
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-5">
+                        <a href="/" class="btn btn-primary">
+                            <i class="fas fa-arrow-left me-2"></i>
+                            Return to Estimate Module
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .page-header {
+        padding: 2rem 0;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .page-title {
+        font-size: 2rem;
+        font-weight: 600;
+        color: #212529;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .coming-soon-card {
+        border: none;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08);
+    }
+
+    .coming-soon-icon {
+        font-size: 5rem;
+        color: #e9ecef;
+    }
+
+    .features-preview {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+
+    .feature-card {
+        background: #f8f9fa;
+        border-radius: 0.5rem;
+        height: 100%;
+        transition: transform 0.2s ease;
+    }
+
+    .feature-card:hover {
+        transform: translateY(-2px);
+        background: #e9ecef;
+    }
+
+    .feature-icon {
+        font-size: 2rem;
+        color: #6c757d;
+    }
+</style>

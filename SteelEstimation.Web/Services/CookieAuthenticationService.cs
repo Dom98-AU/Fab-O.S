@@ -7,10 +7,10 @@ namespace SteelEstimation.Web.Services;
 public interface ICookieAuthenticationService
 {
     Task SignInAsync(HttpContext httpContext, string username, string role, string userId, 
-        string email, string companyId, string companyName, string? tenantId = null);
+        string email, string companyId, string companyName, string? tenantId = null, List<string>? products = null);
     Task SignOutAsync(HttpContext httpContext);
     ClaimsPrincipal CreateClaimsPrincipal(string username, string role, string userId, 
-        string email, string companyId, string companyName, string? tenantId = null);
+        string email, string companyId, string companyName, string? tenantId = null, List<string>? products = null);
 }
 
 public class CookieAuthenticationService : ICookieAuthenticationService
@@ -23,11 +23,11 @@ public class CookieAuthenticationService : ICookieAuthenticationService
     }
 
     public async Task SignInAsync(HttpContext httpContext, string username, string role, 
-        string userId, string email, string companyId, string companyName, string? tenantId = null)
+        string userId, string email, string companyId, string companyName, string? tenantId = null, List<string>? products = null)
     {
         try
         {
-            var principal = CreateClaimsPrincipal(username, role, userId, email, companyId, companyName, tenantId);
+            var principal = CreateClaimsPrincipal(username, role, userId, email, companyId, companyName, tenantId, products);
             
             await httpContext.SignInAsync(
                 CookieAuthenticationDefaults.AuthenticationScheme,
@@ -63,7 +63,7 @@ public class CookieAuthenticationService : ICookieAuthenticationService
     }
 
     public ClaimsPrincipal CreateClaimsPrincipal(string username, string role, string userId, 
-        string email, string companyId, string companyName, string? tenantId = null)
+        string email, string companyId, string companyName, string? tenantId = null, List<string>? products = null)
     {
         var claims = new List<Claim>
         {
@@ -71,7 +71,8 @@ public class CookieAuthenticationService : ICookieAuthenticationService
             new Claim(ClaimTypes.NameIdentifier, userId),
             new Claim(ClaimTypes.Email, email ?? string.Empty),
             new Claim("CompanyId", companyId),
-            new Claim("CompanyName", companyName ?? string.Empty)
+            new Claim("CompanyName", companyName ?? string.Empty),
+            new Claim("UserId", userId) // Add UserId claim for compatibility
         };
 
         // Add role claims (support multiple roles)
@@ -88,6 +89,15 @@ public class CookieAuthenticationService : ICookieAuthenticationService
         if (!string.IsNullOrEmpty(tenantId))
         {
             claims.Add(new Claim("TenantId", tenantId));
+        }
+
+        // Add product access claims
+        if (products != null && products.Any())
+        {
+            foreach (var product in products)
+            {
+                claims.Add(new Claim($"Product.{product}", "true"));
+            }
         }
 
         var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);

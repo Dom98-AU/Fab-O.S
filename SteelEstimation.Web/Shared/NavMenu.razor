@@ -1,74 +1,278 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using SteelEstimation.Web.Services
+@using SteelEstimation.Core.Interfaces
 @inject IJSRuntime JSRuntime
 @inject SidebarService SidebarService
+@inject NavigationManager NavigationManager
+@inject IFabOSAuthenticationService AuthService
+@inject AuthenticationStateProvider AuthStateProvider
 @implements IDisposable
 
 <div class="top-row navbar">
     <div class="d-flex align-items-center justify-content-center w-100">
-        <a class="navbar-brand" href="">
-            <i class="fas fa-industry"></i> 
-            <span>Steel Estimation</span>
+        <a class="navbar-brand" href="" @onclick="ToggleModuleDropdown" @onclick:preventDefault="true">
+            <img src="/images/f_symbol_square_auto.png" alt="Fab O.S" class="brand-logo" />
         </a>
     </div>
+    
+    @if (showModuleDropdown)
+    {
+        <div class="module-dropdown-menu">
+            <div class="module-header">
+                <span class="module-title">Fab O.S Modules</span>
+                <span class="module-subtitle">@currentModule</span>
+            </div>
+            @foreach (var module in availableModules)
+            {
+                <button class="module-item @(module.Name == currentModule ? "active" : "")" 
+                        @onclick="() => SwitchModule(module.Name)"
+                        disabled="@(!module.IsActive)">
+                    <i class="@GetModuleIcon(module.Name) item-icon"></i>
+                    <div class="item-info">
+                        <span class="item-name">@module.Name</span>
+                        <span class="item-description">@module.Description</span>
+                    </div>
+                    @if (!module.IsActive)
+                    {
+                        <span class="coming-soon">Coming Soon</span>
+                    }
+                </button>
+            }
+        </div>
+    }
 </div>
 
 <div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
     <nav class="flex-column">
         <AuthorizeView>
             <Authorized>
-                <div class="nav-item px-3 mb-1">
-                    <NavLink class="nav-link modern-nav-link" href="" Match="NavLinkMatch.All">
-                        <i class="fas fa-tachometer-alt nav-icon"></i>
-                        <span class="nav-text">Dashboard</span>
-                    </NavLink>
-                </div>
-                <div class="nav-item px-3 mb-1">
-                    <NavLink class="nav-link modern-nav-link" href="estimation">
-                        <i class="fas fa-drafting-compass nav-icon"></i>
-                        <span class="nav-text">Estimations</span>
-                    </NavLink>
-                </div>
-                <div class="nav-item px-3 mb-1">
-                    <NavLink class="nav-link modern-nav-link" href="customers">
-                        <i class="fas fa-handshake nav-icon"></i>
-                        <span class="nav-text">Customers</span>
-                    </NavLink>
-                </div>
-                <div class="nav-item px-3 mb-1">
-                    <NavLink class="nav-link modern-nav-link" href="reports">
-                        <i class="fas fa-chart-bar nav-icon"></i>
-                        <span class="nav-text">Reports</span>
-                    </NavLink>
-                </div>
-                <div class="nav-item px-3 mb-1">
-                    <NavLink class="nav-link modern-nav-link" href="time-analytics">
-                        <i class="fas fa-stopwatch nav-icon"></i>
-                        <span class="nav-text">Time Analytics</span>
-                    </NavLink>
-                </div>
-                <div class="nav-item px-3 mb-1">
-                    <NavLink class="nav-link modern-nav-link" href="import">
-                        <i class="fas fa-exchange-alt nav-icon"></i>
-                        <span class="nav-text">Import/Export</span>
-                    </NavLink>
-                </div>
-                <div class="nav-item px-3 mb-1">
-                    <NavLink class="nav-link modern-nav-link" href="worksheets/templates">
-                        <i class="fas fa-file-alt nav-icon"></i>
-                        <span class="nav-text">Worksheet Templates</span>
-                    </NavLink>
-                </div>
-                <AuthorizeView Roles="Administrator" Context="adminContext">
-                    <div class="nav-divider"></div>
-                    <div class="nav-section-title">Administration</div>
+                @if (currentModule == "Estimate")
+                {
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="" Match="NavLinkMatch.All">
+                            <i class="fas fa-tachometer-alt nav-icon"></i>
+                            <span class="nav-text">Dashboard</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="estimation">
+                            <i class="fas fa-drafting-compass nav-icon"></i>
+                            <span class="nav-text">Estimations</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="customers">
+                            <i class="fas fa-handshake nav-icon"></i>
+                            <span class="nav-text">Customers</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="reports">
+                            <i class="fas fa-chart-bar nav-icon"></i>
+                            <span class="nav-text">Reports</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="time-analytics">
+                            <i class="fas fa-stopwatch nav-icon"></i>
+                            <span class="nav-text">Time Analytics</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="import">
+                            <i class="fas fa-exchange-alt nav-icon"></i>
+                            <span class="nav-text">Import/Export</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="worksheets/templates">
+                            <i class="fas fa-file-alt nav-icon"></i>
+                            <span class="nav-text">Worksheet Templates</span>
+                        </NavLink>
+                    </div>
+                }
+                else if (currentModule == "Settings")
+                {
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="settings" Match="NavLinkMatch.All">
+                            <i class="fas fa-home nav-icon"></i>
+                            <span class="nav-text">Settings Home</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-section-title">User Management</div>
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="admin/users">
+                            <i class="fas fa-users nav-icon"></i>
+                            <span class="nav-text">Users</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="admin/invites">
+                            <i class="fas fa-envelope nav-icon"></i>
+                            <span class="nav-text">Invitations</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-section-title">Platform Configuration</div>
                     <div class="nav-item px-3 mb-1">
                         <NavLink class="nav-link modern-nav-link" href="admin/settings">
                             <i class="fas fa-cogs nav-icon"></i>
-                            <span class="nav-text">Administration</span>
+                            <span class="nav-text">General Settings</span>
                         </NavLink>
                     </div>
-                </AuthorizeView>
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="admin/environment-status">
+                            <i class="fas fa-server nav-icon"></i>
+                            <span class="nav-text">Environment Status</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-section-title">Module Management</div>
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="settings/modules">
+                            <i class="fas fa-th nav-icon"></i>
+                            <span class="nav-text">Modules</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="settings/product-roles">
+                            <i class="fas fa-user-tag nav-icon"></i>
+                            <span class="nav-text">Module Roles</span>
+                        </NavLink>
+                    </div>
+                }
+                else if (currentModule == "Trace")
+                {
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="trace" Match="NavLinkMatch.All">
+                            <i class="fas fa-home nav-icon"></i>
+                            <span class="nav-text">Trace Home</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="trace/takeoff">
+                            <i class="fas fa-ruler-combined nav-icon"></i>
+                            <span class="nav-text">PDF Take-off</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="trace/drawings">
+                            <i class="fas fa-file-pdf nav-icon"></i>
+                            <span class="nav-text">Drawing Library</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="trace/measurements">
+                            <i class="fas fa-tape nav-icon"></i>
+                            <span class="nav-text">Measurements</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="trace/reports">
+                            <i class="fas fa-chart-line nav-icon"></i>
+                            <span class="nav-text">Reports</span>
+                        </NavLink>
+                    </div>
+                }
+                else if (currentModule == "Fabmate")
+                {
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="fabmate" Match="NavLinkMatch.All">
+                            <i class="fas fa-home nav-icon"></i>
+                            <span class="nav-text">Fabmate Home</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="fabmate/inventory">
+                            <i class="fas fa-warehouse nav-icon"></i>
+                            <span class="nav-text">Inventory</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="fabmate/workorders">
+                            <i class="fas fa-clipboard-list nav-icon"></i>
+                            <span class="nav-text">Work Orders</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="fabmate/schedule">
+                            <i class="fas fa-calendar-alt nav-icon"></i>
+                            <span class="nav-text">Schedule</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="fabmate/shopfloor">
+                            <i class="fas fa-industry nav-icon"></i>
+                            <span class="nav-text">Shop Floor</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="fabmate/traceability">
+                            <i class="fas fa-barcode nav-icon"></i>
+                            <span class="nav-text">Traceability</span>
+                        </NavLink>
+                    </div>
+                }
+                else if (currentModule == "QDocs")
+                {
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="qdocs" Match="NavLinkMatch.All">
+                            <i class="fas fa-home nav-icon"></i>
+                            <span class="nav-text">QDocs Home</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="qdocs/itps">
+                            <i class="fas fa-clipboard-check nav-icon"></i>
+                            <span class="nav-text">ITPs</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="qdocs/mdrs">
+                            <i class="fas fa-file-medical nav-icon"></i>
+                            <span class="nav-text">MDRs</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="qdocs/welding">
+                            <i class="fas fa-fire nav-icon"></i>
+                            <span class="nav-text">Weld Qualifications</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="qdocs/certificates">
+                            <i class="fas fa-certificate nav-icon"></i>
+                            <span class="nav-text">Certificates</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3 mb-1">
+                        <NavLink class="nav-link modern-nav-link" href="qdocs/training">
+                            <i class="fas fa-graduation-cap nav-icon"></i>
+                            <span class="nav-text">Training Records</span>
+                        </NavLink>
+                    </div>
+                }
+                <div class="nav-divider"></div>
+                
+                <!-- User Section -->
+                <div class="nav-section-title">User</div>
+                <div class="nav-item px-3 mb-1">
+                    <NavLink class="nav-link modern-nav-link" href="profile" Match="NavLinkMatch.All">
+                        <i class="fas fa-user-circle nav-icon"></i>
+                        <span class="nav-text">My Profile</span>
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3 mb-1">
+                    <NavLink class="nav-link modern-nav-link" href="notifications">
+                        <i class="fas fa-bell nav-icon"></i>
+                        <span class="nav-text">Notifications</span>
+                        <NotificationBell />
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3 mb-1">
+                    <NavLink class="nav-link modern-nav-link" href="settings/preferences">
+                        <i class="fas fa-user-cog nav-icon"></i>
+                        <span class="nav-text">Preferences</span>
+                    </NavLink>
+                </div>
                 <div class="nav-divider"></div>
                 <div class="nav-item px-3 mb-1">
                     <a class="nav-link modern-nav-link text-danger" href="/Account/Logout">
@@ -97,10 +301,155 @@
 
 @code {
     private string? NavMenuCssClass => SidebarService.IsOpen ? null : "collapse";
+    private string currentModule = "Estimate";
+    private bool showModuleDropdown = false;
+    private List<Module> availableModules = new();
+    private int? currentUserId;
 
-    protected override void OnInitialized()
+    private class Module
+    {
+        public string Name { get; set; } = "";
+        public string Description { get; set; } = "";
+        public bool IsActive { get; set; }
+        public string Path { get; set; } = "";
+    }
+
+    protected override async Task OnInitializedAsync()
     {
         SidebarService.OnChange += StateHasChanged;
+        
+        // Get current module from session storage or URL
+        currentModule = await JSRuntime.InvokeAsync<string>("sessionStorage.getItem", "currentModule") ?? "Estimate";
+        
+        // Subscribe to navigation changes to update module
+        NavigationManager.LocationChanged += OnLocationChanged;
+        
+        // Load user modules
+        await LoadUserModules();
+    }
+
+    private async Task LoadUserModules()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        if (authState.User.Identity?.IsAuthenticated == true)
+        {
+            var userIdClaim = authState.User.FindFirst("UserId")?.Value 
+                            ?? authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            
+            if (int.TryParse(userIdClaim, out var userId))
+            {
+                currentUserId = userId;
+                var userProducts = await AuthService.GetUserProductsAsync(userId);
+                
+                // Define all modules with their metadata
+                var allModules = new List<Module>
+                {
+                    new Module 
+                    { 
+                        Name = "Estimate", 
+                        Description = "Fabrication estimation system",
+                        IsActive = userProducts.Contains("Estimate"),
+                        Path = "/"
+                    },
+                    new Module 
+                    { 
+                        Name = "Trace", 
+                        Description = "PDF-based take-off system",
+                        IsActive = userProducts.Contains("Trace"),
+                        Path = "/trace"
+                    },
+                    new Module 
+                    { 
+                        Name = "Fabmate", 
+                        Description = "Fabrication management system",
+                        IsActive = userProducts.Contains("Fabmate"),
+                        Path = "/fabmate"
+                    },
+                    new Module 
+                    { 
+                        Name = "QDocs", 
+                        Description = "Quality management system",
+                        IsActive = userProducts.Contains("QDocs"),
+                        Path = "/qdocs"
+                    }
+                };
+                
+                // Add Settings module if user has platform admin permission
+                var hasAdminRole = authState.User.IsInRole("Administrator") || authState.User.IsInRole("Admin");
+                if (hasAdminRole)
+                {
+                    allModules.Add(new Module 
+                    { 
+                        Name = "Settings", 
+                        Description = "Platform administration",
+                        IsActive = true,
+                        Path = "/settings"
+                    });
+                }
+                
+                // Show all modules but only active ones are clickable
+                availableModules = allModules;
+            }
+        }
+    }
+
+    private void ToggleModuleDropdown()
+    {
+        showModuleDropdown = !showModuleDropdown;
+    }
+
+    private async Task SwitchModule(string moduleName)
+    {
+        if (moduleName == currentModule)
+        {
+            showModuleDropdown = false;
+            return;
+        }
+
+        var module = availableModules.FirstOrDefault(m => m.Name == moduleName);
+        if (module != null && module.IsActive)
+        {
+            currentModule = moduleName;
+            showModuleDropdown = false;
+            
+            // Store current module in session storage
+            await JSRuntime.InvokeVoidAsync("sessionStorage.setItem", "currentModule", moduleName);
+            
+            // Navigate to module home
+            NavigationManager.NavigateTo(module.Path);
+        }
+    }
+
+    private string GetModuleIcon(string moduleName)
+    {
+        return moduleName switch
+        {
+            "Estimate" => "fas fa-calculator",
+            "Trace" => "fas fa-drafting-compass",
+            "Fabmate" => "fas fa-industry",
+            "QDocs" => "fas fa-clipboard-check",
+            "Settings" => "fas fa-cogs",
+            _ => "fas fa-cube"
+        };
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        var uri = new Uri(e.Location);
+        var path = uri.AbsolutePath.ToLower();
+        
+        if (path.StartsWith("/trace"))
+            currentModule = "Trace";
+        else if (path.StartsWith("/fabmate"))
+            currentModule = "Fabmate";
+        else if (path.StartsWith("/qdocs"))
+            currentModule = "QDocs";
+        else if (path.StartsWith("/settings") || path.StartsWith("/admin"))
+            currentModule = "Settings";
+        else
+            currentModule = "Estimate";
+            
+        InvokeAsync(StateHasChanged);
     }
 
     private void ToggleNavMenu()
@@ -108,8 +457,198 @@
         // Menu items inside sidebar don't need to toggle
     }
     
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Close dropdown when clicking outside
+            await JSRuntime.InvokeVoidAsync("eval", @"
+                document.addEventListener('click', function(event) {
+                    const navbar = document.querySelector('.top-row.navbar');
+                    if (navbar && !navbar.contains(event.target)) {
+                        // This will close the dropdown by Blazor re-render
+                        const brand = navbar.querySelector('.navbar-brand');
+                        if (brand && document.querySelector('.module-dropdown-menu')) {
+                            brand.click();
+                        }
+                    }
+                });
+            ");
+        }
+    }
+    
     public void Dispose()
     {
         SidebarService.OnChange -= StateHasChanged;
+        NavigationManager.LocationChanged -= OnLocationChanged;
     }
 }
+
+<style>
+    .navbar-brand {
+        cursor: pointer;
+        padding: 0.5rem;
+        transition: transform 0.2s ease;
+    }
+
+    .navbar-brand:hover {
+        transform: scale(1.05);
+    }
+
+    .navbar-brand .brand-logo {
+        height: 40px;
+        width: 40px;
+        object-fit: contain;
+    }
+
+    .module-dropdown-menu {
+        position: absolute;
+        top: 100%;
+        left: 10px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        overflow: hidden;
+        z-index: 1050;
+        min-width: 280px;
+        margin-top: 0.5rem;
+    }
+
+    .module-header {
+        padding: 1rem;
+        border-bottom: 1px solid #e9ecef;
+        text-align: center;
+    }
+
+    .module-title {
+        display: block;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #6c757d;
+    }
+
+    .module-subtitle {
+        display: block;
+        font-size: 1.125rem;
+        font-weight: 600;
+        margin-top: 0.25rem;
+        color: #212529;
+    }
+
+    .module-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.875rem 1rem;
+        width: 100%;
+        border: none;
+        background: none;
+        cursor: pointer;
+        transition: background 0.2s ease;
+        position: relative;
+        text-align: left;
+    }
+
+    .module-item:hover:not(:disabled) {
+        background: #f5f5f5;
+    }
+
+    .module-item.active {
+        background: #e3f2fd;
+    }
+
+    .module-item:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .item-icon {
+        font-size: 1.25rem;
+        color: #666;
+        width: 24px;
+        text-align: center;
+    }
+
+    .module-item.active .item-icon {
+        color: #1976d2;
+    }
+
+    .item-info {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        flex: 1;
+    }
+
+    .item-name {
+        font-weight: 600;
+        color: #333;
+        font-size: 0.875rem;
+    }
+
+    .item-description {
+        font-size: 0.75rem;
+        color: #666;
+        margin-top: 0.125rem;
+    }
+
+    .coming-soon {
+        position: absolute;
+        right: 1rem;
+        font-size: 0.75rem;
+        color: #ff9800;
+        font-weight: 500;
+        background: #fff3e0;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+    }
+
+    /* Dark mode support */
+    @@media (prefers-color-scheme: dark) {
+        .module-dropdown-menu {
+            background: #2a2a2a;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .module-item:hover:not(:disabled) {
+            background: #3a3a3a;
+        }
+
+        .module-item.active {
+            background: #1a237e;
+        }
+
+        .item-name {
+            color: #f5f5f5;
+        }
+
+        .item-description {
+            color: #aaa;
+        }
+
+        .item-icon {
+            color: #999;
+        }
+
+        .module-item.active .item-icon {
+            color: #64b5f6;
+        }
+    }
+
+    /* Navigation section titles */
+    .nav-section-title {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        color: #6c757d;
+        margin: 1.5rem 1rem 0.5rem 1rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid #e9ecef;
+    }
+
+    .nav-section-title:first-child {
+        border-top: none;
+        margin-top: 0.5rem;
+        padding-top: 0;
+    }
+</style>

@@ -1,10 +1,9 @@
-version: '3.8'
-
 services:
   web:
     build:
       context: .
       dockerfile: Dockerfile
+    image: steel-estimation-web:latest
     container_name: steel-estimation-web-dev
     environment:
       - ASPNETCORE_ENVIRONMENT=Development

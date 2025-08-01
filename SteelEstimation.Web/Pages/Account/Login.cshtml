@@ -1,7 +1,7 @@
 @page
 @model SteelEstimation.Web.Pages.Account.LoginModel
 @{
-    ViewData["Title"] = "Login";
+    ViewData["Title"] = "Login - Fab O.S";
     Layout = null; // Use custom layout
 }
 
@@ -10,152 +10,477 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - Steel Estimation Platform</title>
+    <title>@ViewData["Title"]</title>
+    <link rel="shortcut icon" type="image/x-icon" href="/fabos-favicon.ico?v=3">
+    <link rel="icon" type="image/png" href="/fabos-favicon.png?v=3">
+    <link rel="icon" type="image/png" sizes="32x32" href="/fabos-favicon-32.png?v=3">
+    <link rel="icon" type="image/png" sizes="16x16" href="/fabos-favicon-16.png?v=3">
+    <link rel="apple-touch-icon" href="/fabos-favicon.png?v=3">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bs-primary: rgb(13, 26, 128);
-            --bs-primary-rgb: 13, 26, 128;
+            --primary-color: #0d1a80;
+            --primary-hover: #0a1466;
+            --secondary-color: #6c757d;
+            --background-gradient-start: #0d1a80;
+            --background-gradient-end: #1a2b9e;
+            --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            --input-border: #e1e5eb;
+            --input-focus-border: #0d1a80;
+            --text-muted: #6c757d;
         }
-        .btn-primary {
-            background-color: rgb(13, 26, 128) !important;
-            border-color: rgb(13, 26, 128) !important;
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-        .btn-primary:hover {
-            background-color: rgb(10, 20, 102) !important;
-            border-color: rgb(10, 20, 102) !important;
-        }
-        .login-container {
-            display: flex;
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
             min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        /* Modern gradient background with animated shapes */
+        .background-container {
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
             bottom: 0;
+            background: linear-gradient(135deg, var(--background-gradient-start) 0%, var(--background-gradient-end) 100%);
+            overflow: hidden;
+            z-index: -1;
         }
-        .login-left {
-            flex: 1;
+
+        .background-shape {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.05);
+            animation: float 20s infinite ease-in-out;
+        }
+
+        .shape-1 {
+            width: 400px;
+            height: 400px;
+            top: -200px;
+            left: -200px;
+            animation-delay: 0s;
+        }
+
+        .shape-2 {
+            width: 300px;
+            height: 300px;
+            bottom: -150px;
+            right: -150px;
+            animation-delay: 5s;
+        }
+
+        .shape-3 {
+            width: 200px;
+            height: 200px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            animation-delay: 10s;
+        }
+
+        @@keyframes float {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            25% { transform: translateY(-20px) rotate(90deg); }
+            50% { transform: translateY(0) rotate(180deg); }
+            75% { transform: translateY(20px) rotate(270deg); }
+        }
+
+        /* Login card */
+        .login-card {
             background: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 2rem;
-        }
-        .login-right {
-            flex: 1;
-            background: rgb(13, 26, 128);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 2rem;
-        }
-        .login-content {
+            border-radius: 20px;
+            box-shadow: var(--card-shadow);
+            overflow: hidden;
             width: 100%;
-            max-width: 400px;
+            max-width: 440px;
+            animation: slideUp 0.5s ease-out;
         }
-        .logo-container {
+
+        @@keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .login-header {
+            background: linear-gradient(135deg, var(--background-gradient-start) 0%, var(--background-gradient-end) 100%);
+            padding: 2.5rem 2rem;
             text-align: center;
+            color: white;
         }
-        .nwi-logo {
-            max-width: 300px;
+
+        .logo-container {
+            margin-bottom: 1.5rem;
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: white;
+            border-radius: 16px;
+            padding: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .logo img {
             width: 100%;
-            height: auto;
+            height: 100%;
+            object-fit: contain;
         }
-        @@media (max-width: 768px) {
-            .login-container {
-                flex-direction: column;
-                position: relative;
+
+        .brand-name {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.5px;
+        }
+
+        .brand-tagline {
+            font-size: 1rem;
+            opacity: 0.9;
+            font-weight: 300;
+        }
+
+        .login-body {
+            padding: 2.5rem 2rem;
+        }
+
+        .welcome-text {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .welcome-text h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #1a202c;
+            margin-bottom: 0.5rem;
+        }
+
+        .welcome-text p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        /* Modern input styling */
+        .form-floating {
+            margin-bottom: 1.25rem;
+        }
+
+        .form-control {
+            border: 2px solid var(--input-border);
+            border-radius: 12px;
+            font-size: 1rem;
+            padding: 0.875rem 1rem;
+            transition: all 0.3s ease;
+            background-color: #f8f9fa;
+        }
+
+        .form-control:focus {
+            border-color: var(--input-focus-border);
+            background-color: white;
+            box-shadow: 0 0 0 4px rgba(13, 26, 128, 0.1);
+        }
+
+        .form-floating > label {
+            padding: 0.875rem 1rem;
+            color: var(--text-muted);
+        }
+
+        /* Modern button styling */
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%);
+            border: none;
+            border-radius: 12px;
+            padding: 0.875rem 2rem;
+            font-weight: 600;
+            font-size: 1rem;
+            letter-spacing: 0.3px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(13, 26, 128, 0.3);
+            background: linear-gradient(135deg, var(--primary-hover) 0%, var(--primary-color) 100%);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        /* Remember me checkbox */
+        .form-check {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-check-input {
+            width: 1.25rem;
+            height: 1.25rem;
+            border: 2px solid var(--input-border);
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .form-check-input:checked {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .form-check-input:focus {
+            box-shadow: 0 0 0 4px rgba(13, 26, 128, 0.1);
+        }
+
+        .form-check-label {
+            margin-left: 0.5rem;
+            color: #4a5568;
+            font-size: 0.95rem;
+        }
+
+        /* Links */
+        .auth-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            font-size: 0.95rem;
+        }
+
+        .auth-link:hover {
+            color: var(--primary-hover);
+            text-decoration: underline;
+        }
+
+        /* Social login section */
+        .divider {
+            text-align: center;
+            position: relative;
+            margin: 2rem 0;
+        }
+
+        .divider::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background-color: var(--input-border);
+        }
+
+        .divider span {
+            background-color: white;
+            padding: 0 1rem;
+            position: relative;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        .btn-social {
+            border: 2px solid var(--input-border);
+            background-color: white;
+            color: #4a5568;
+            border-radius: 12px;
+            padding: 0.75rem 1rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+        }
+
+        .btn-social:hover {
+            background-color: #f8f9fa;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        /* Footer */
+        .login-footer {
+            text-align: center;
+            padding: 1.5rem 2rem;
+            background-color: #f8f9fa;
+            border-top: 1px solid var(--input-border);
+        }
+
+        .login-footer p {
+            margin: 0;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        /* Error messages */
+        .alert {
+            border-radius: 12px;
+            border: none;
+            padding: 1rem 1.25rem;
+            font-size: 0.95rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .alert-danger {
+            background-color: #fee;
+            color: #dc3545;
+        }
+
+        /* Responsive */
+        @@media (max-width: 480px) {
+            .login-card {
+                margin: 1rem;
+                border-radius: 16px;
             }
-            .login-right {
-                order: -1;
-                flex: 0 0 200px;
+
+            .login-header, .login-body {
+                padding: 2rem 1.5rem;
             }
-            .nwi-logo {
-                max-width: 200px;
+
+            .brand-name {
+                font-size: 1.75rem;
             }
+        }
+
+        /* Loading spinner */
+        .spinner {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @@keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .btn-primary:disabled .spinner {
+            display: inline-block;
+            margin-right: 0.5rem;
         }
     </style>
 </head>
 <body>
-    <div class="login-container">
-        <div class="login-left">
-            <div class="login-content">
-                <div class="login-brand mb-5">
-                    <h1 class="h2 mb-2">Steel Estimation Platform</h1>
-                    <p class="text-muted">Sign in to your account</p>
-                    <small class="text-muted d-block">Version 2.0 - Razor Pages</small>
+    <div class="background-container">
+        <div class="background-shape shape-1"></div>
+        <div class="background-shape shape-2"></div>
+        <div class="background-shape shape-3"></div>
+    </div>
+
+    <div class="login-card">
+        <div class="login-header">
+            <div class="logo-container">
+                <div class="logo">
+                    <img src="/images/f_symbol_square_auto.png" alt="Fab O.S Logo" />
+                </div>
+            </div>
+            <h1 class="brand-name">Fab O.S</h1>
+        </div>
+
+        <div class="login-body">
+            <div class="welcome-text">
+                <h2>Welcome back</h2>
+                <p>Please sign in to continue to your dashboard</p>
+            </div>
+
+            <form method="post" id="loginForm">
+                <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert" style="display: none;"></div>
+                
+                <div class="form-floating">
+                    <input asp-for="Input.Email" class="form-control" id="email" placeholder="name@company.com" autocomplete="email" />
+                    <label for="email">Email or Username</label>
+                    <span asp-validation-for="Input.Email" class="text-danger small"></span>
                 </div>
                 
-                <div class="login-form">
-                    <form method="post">
-                        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-                        
-                        <div class="mb-4">
-                            <label asp-for="Input.Email" class="form-label">Email or Username</label>
-                            <input asp-for="Input.Email" class="form-control form-control-lg" placeholder="Enter your email or username" />
-                            <span asp-validation-for="Input.Email" class="text-danger"></span>
-                        </div>
-                        
-                        <div class="mb-4">
-                            <label asp-for="Input.Password" class="form-label">Password</label>
-                            <input asp-for="Input.Password" class="form-control form-control-lg" placeholder="Enter your password" />
-                            <span asp-validation-for="Input.Password" class="text-danger"></span>
-                        </div>
-                        
-                        <button type="submit" class="btn btn-primary btn-lg w-100 mb-3">
-                            Sign In
-                        </button>
-                        
-                        <div class="text-center mb-3">
-                            <a href="/forgot-password" class="text-decoration-none">Forgot Password?</a>
-                        </div>
-                    </form>
-                    
-                    @if (Model.EnabledProviders?.Any() == true)
-                    {
-                        <div class="social-login-section">
-                            <div class="position-relative my-4">
-                                <hr class="bg-secondary" />
-                                <div class="position-absolute top-50 start-50 translate-middle bg-white px-3">
-                                    <span class="text-muted">or continue with</span>
-                                </div>
-                            </div>
-                            
-                            <div class="d-grid gap-2">
-                                @foreach (var provider in Model.EnabledProviders)
-                                {
-                                    <form method="post" asp-page-handler="ExternalLogin" asp-route-provider="@provider.ProviderName">
-                                        <button type="submit" class="btn btn-outline-secondary btn-lg w-100 d-flex align-items-center justify-content-center gap-2" 
-                                                style="@(!string.IsNullOrEmpty(provider.ButtonColor) ? $"border-color: {provider.ButtonColor}; color: {provider.ButtonColor};" : "")">
-                                            @if (!string.IsNullOrEmpty(provider.IconClass))
-                                            {
-                                                <i class="@provider.IconClass"></i>
-                                            }
-                                            <span>@provider.DisplayName</span>
-                                        </button>
-                                    </form>
-                                }
-                            </div>
-                        </div>
-                    }
-                    
-                    <div class="text-center mt-4 pt-3 border-top">
-                        <span class="text-muted">Don't have an account?</span>
-                        <a href="/Account/Register" class="text-decoration-none ms-1">Sign up</a>
-                    </div>
+                <div class="form-floating">
+                    <input asp-for="Input.Password" class="form-control" id="password" placeholder="Password" autocomplete="current-password" />
+                    <label for="password">Password</label>
+                    <span asp-validation-for="Input.Password" class="text-danger small"></span>
                 </div>
-            </div>
+                
+                <div class="text-end mb-4">
+                    <a href="/forgot-password" class="auth-link">Forgot password?</a>
+                </div>
+                
+                <button type="submit" class="btn btn-primary w-100" id="loginButton">
+                    <span class="spinner"></span>
+                    <span class="button-text">Sign In</span>
+                </button>
+            </form>
+            
+            @if (Model.EnabledProviders?.Any() == true)
+            {
+                <div class="divider">
+                    <span>or continue with</span>
+                </div>
+                
+                <div class="d-grid gap-2">
+                    @foreach (var provider in Model.EnabledProviders)
+                    {
+                        <form method="post" asp-page-handler="ExternalLogin" asp-route-provider="@provider.ProviderName">
+                            <button type="submit" class="btn btn-social w-100">
+                                @if (!string.IsNullOrEmpty(provider.IconClass))
+                                {
+                                    <i class="@provider.IconClass"></i>
+                                }
+                                <span>Continue with @provider.DisplayName</span>
+                            </button>
+                        </form>
+                    }
+                </div>
+            }
         </div>
-        
-        <div class="login-right">
-            <div class="logo-container">
-                <img src="/images/nwi-group-logo-white.png" alt="NWI Group" class="nwi-logo" />
-            </div>
+
+        <div class="login-footer">
+            <p>
+                Don't have an account? 
+                <a href="/Account/Register" class="auth-link">Create one now</a>
+            </p>
         </div>
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Modern form interaction
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            const button = document.getElementById('loginButton');
+            button.disabled = true;
+            button.querySelector('.button-text').textContent = 'Signing in...';
+        });
+
+        // Show validation summary if there are errors
+        const validationSummary = document.querySelector('.validation-summary-errors');
+        if (validationSummary && validationSummary.children.length > 0) {
+            const alert = document.querySelector('.alert-danger');
+            if (alert) {
+                alert.style.display = 'block';
+            }
+        }
+    </script>
 </body>
 </html>

@@ -1,0 +1,163 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using SteelEstimation.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@using SteelEstimation.Core.Interfaces
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject IUserProfileService ProfileService
+
+@if (_isAuthenticated)
+{
+    <div class="user-indicator d-flex align-items-center gap-2">
+        @if (!string.IsNullOrEmpty(_avatarUrl))
+        {
+            <img src="@_avatarUrl" alt="@_fullName" class="user-avatar" />
+        }
+        else
+        {
+            <div class="user-avatar-placeholder">
+                <span>@GetInitials()</span>
+            </div>
+        }
+        <div class="user-info d-none d-md-block">
+            <div class="user-name">@_fullName</div>
+            <div class="user-role">@_role</div>
+        </div>
+    </div>
+}
+
+<style>
+    .user-indicator {
+        padding: 0.25rem 0.75rem;
+        border-radius: 8px;
+        background-color: rgba(0, 0, 0, 0.03);
+        transition: background-color 0.2s;
+    }
+    
+    .user-indicator:hover {
+        background-color: rgba(0, 0, 0, 0.05);
+    }
+    
+    .user-avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2px solid #dee2e6;
+    }
+    
+    .user-avatar-placeholder {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 0.875rem;
+        border: 2px solid #dee2e6;
+    }
+    
+    .user-info {
+        text-align: right;
+        line-height: 1.2;
+    }
+    
+    .user-name {
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: #212529;
+    }
+    
+    .user-role {
+        font-size: 0.75rem;
+        color: #6c757d;
+    }
+    
+    /* Dark theme support */
+    .dark-theme .user-indicator {
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+    
+    .dark-theme .user-indicator:hover {
+        background-color: rgba(255, 255, 255, 0.08);
+    }
+    
+    .dark-theme .user-avatar,
+    .dark-theme .user-avatar-placeholder {
+        border-color: var(--dark-border);
+    }
+    
+    .dark-theme .user-name {
+        color: var(--dark-text-primary);
+    }
+    
+    .dark-theme .user-role {
+        color: var(--dark-text-secondary);
+    }
+</style>
+
+@code {
+    private bool _isAuthenticated;
+    private string _userName = "User";
+    private string _fullName = "User";
+    private string _role = "User";
+    private string? _avatarUrl;
+    private int _userId;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
+        
+        if (_isAuthenticated)
+        {
+            _userName = authState.User.Identity?.Name ?? "User";
+            _role = authState.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "User";
+            
+            // Get user details from database
+            var userIdClaim = authState.User.FindFirst("UserId")?.Value ?? 
+                             authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            
+            if (int.TryParse(userIdClaim, out _userId))
+            {
+                // First try to get from UserProfile
+                var profile = await ProfileService.GetUserProfileAsync(_userId);
+                if (profile != null)
+                {
+                    _fullName = profile.User.FullName;
+                    _avatarUrl = profile.AvatarUrl;
+                }
+                else
+                {
+                    // Fallback to direct user query
+                    using var context = await DbContextFactory.CreateDbContextAsync();
+                    var user = await context.Users
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(u => u.Id == _userId);
+                    
+                    if (user != null)
+                    {
+                        _fullName = user.FullName;
+                    }
+                }
+            }
+        }
+    }
+    
+    private string GetInitials()
+    {
+        var parts = _fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2)
+        {
+            return $"{parts[0][0]}{parts[1][0]}".ToUpper();
+        }
+        else if (parts.Length == 1)
+        {
+            return parts[0].Substring(0, Math.Min(2, parts[0].Length)).ToUpper();
+        }
+        return "U";
+    }
+}

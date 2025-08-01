@@ -71,6 +71,15 @@ public class User
     public virtual ICollection<Project> OwnedProjects { get; set; } = new List<Project>();
     public virtual ICollection<UserAuthMethod> AuthMethods { get; set; } = new List<UserAuthMethod>();
     
+    // New user system navigation properties
+    public virtual UserProfile? Profile { get; set; }
+    public virtual UserPreference? Preferences { get; set; }
+    public virtual ICollection<Comment> Comments { get; set; } = new List<Comment>();
+    public virtual ICollection<CommentMention> Mentions { get; set; } = new List<CommentMention>();
+    public virtual ICollection<CommentReaction> Reactions { get; set; } = new List<CommentReaction>();
+    public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
+    public virtual ICollection<UserActivity> Activities { get; set; } = new List<UserActivity>();
+    
     // Computed properties
     [NotMapped]
     public string FullName => $"{FirstName} {LastName}".Trim();

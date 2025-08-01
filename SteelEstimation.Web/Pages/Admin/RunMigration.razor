@@ -1,0 +1,190 @@
+@page "/admin/run-migration"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using SteelEstimation.Infrastructure.Data
+@attribute [Authorize(Roles = "Administrator")]
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject ILogger<RunMigration> Logger
+@inject NavigationManager Navigation
+
+<PageTitle>Run Product Licensing Migration</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h3 class="mb-0">Product Licensing Migration</h3>
+                </div>
+                <div class="card-body">
+                    @if (!hasRun)
+                    {
+                        <div class="alert alert-info">
+                            <h5>About this migration:</h5>
+                            <p>This migration will:</p>
+                            <ul>
+                                <li>Create ProductLicenses, ProductRoles, UserProductAccess, and UserProductRoles tables</li>
+                                <li>Grant all existing companies an "Estimate" product license</li>
+                                <li>Grant all active users access to the Estimate product</li>
+                                <li>Create default roles for all four products (Estimate, Trace, Fabmate, QDocs)</li>
+                            </ul>
+                        </div>
+
+                        <button class="btn btn-primary" @onclick="ExecuteMigration" disabled="@isRunning">
+                            @if (isRunning)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                <span>Running Migration...</span>
+                            }
+                            else
+                            {
+                                <i class="fas fa-play me-2"></i>
+                                <span>Run Migration</span>
+                            }
+                        </button>
+                    }
+
+                    @if (result != null)
+                    {
+                        <div class="alert @(result.Success ? "alert-success" : "alert-danger") mt-3">
+                            <h5>@(result.Success ? "Success!" : "Error")</h5>
+                            <p>@result.Message</p>
+                            @if (result.Details.Any())
+                            {
+                                <hr />
+                                <ul class="mb-0">
+                                    @foreach (var detail in result.Details)
+                                    {
+                                        <li>@detail</li>
+                                    }
+                                </ul>
+                            }
+                        </div>
+
+                        @if (result.Success)
+                        {
+                            <div class="mt-3">
+                                <h5>Next Steps:</h5>
+                                <ol>
+                                    <li>Log out and back in to get product access claims</li>
+                                    <li>The module switcher will appear in the top navigation bar</li>
+                                    <li>You can now switch between available modules</li>
+                                </ol>
+                                <a href="/" class="btn btn-success mt-3">
+                                    <i class="fas fa-home me-2"></i>
+                                    Go to Dashboard
+                                </a>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool isRunning = false;
+    private bool hasRun = false;
+    private MigrationResult? result;
+
+    private class MigrationResult
+    {
+        public bool Success { get; set; }
+        public string Message { get; set; } = "";
+        public List<string> Details { get; set; } = new();
+    }
+
+    private async Task ExecuteMigration()
+    {
+        isRunning = true;
+        result = new MigrationResult();
+
+        try
+        {
+            using var context = await DbContextFactory.CreateDbContextAsync();
+            
+            // Check if migration has already been run
+            var tableExists = await context.Database.ExecuteSqlRawAsync(
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'ProductLicenses'") > 0;
+
+            if (tableExists)
+            {
+                // Check if we have data
+                var hasData = await context.Database.ExecuteSqlRawAsync(
+                    "SELECT COUNT(*) FROM ProductLicenses") > 0;
+
+                if (hasData)
+                {
+                    result.Success = true;
+                    result.Message = "Migration has already been applied successfully.";
+                    
+                    // Get some stats
+                    var licenseCount = await context.Database.ExecuteSqlRawAsync(
+                        "SELECT COUNT(*) FROM ProductLicenses");
+                    var roleCount = await context.Database.ExecuteSqlRawAsync(
+                        "SELECT COUNT(*) FROM ProductRoles");
+                    var accessCount = await context.Database.ExecuteSqlRawAsync(
+                        "SELECT COUNT(*) FROM UserProductAccess");
+
+                    result.Details.Add($"Product Licenses: {licenseCount}");
+                    result.Details.Add($"Product Roles: {roleCount}");
+                    result.Details.Add($"User Access Records: {accessCount}");
+                    
+                    hasRun = true;
+                    return;
+                }
+            }
+
+            // Read and execute the migration script
+            var scriptPath = Path.Combine(Directory.GetCurrentDirectory(), "SQL_Migrations", "AddProductLicensing.sql");
+            
+            if (!File.Exists(scriptPath))
+            {
+                result.Success = false;
+                result.Message = "Migration script not found.";
+                result.Details.Add($"Expected path: {scriptPath}");
+                return;
+            }
+
+            var script = await File.ReadAllTextAsync(scriptPath);
+            
+            // Execute the migration
+            await context.Database.ExecuteSqlRawAsync(script);
+
+            result.Success = true;
+            result.Message = "Migration completed successfully!";
+            
+            // Get results
+            var companiesUpdated = await context.Database.ExecuteSqlRawAsync(
+                "SELECT COUNT(DISTINCT CompanyId) FROM ProductLicenses WHERE ProductName = 'Estimate'");
+            var usersGranted = await context.Database.ExecuteSqlRawAsync(
+                "SELECT COUNT(*) FROM UserProductAccess");
+            var rolesCreated = await context.Database.ExecuteSqlRawAsync(
+                "SELECT COUNT(*) FROM ProductRoles");
+
+            result.Details.Add($"Companies granted Estimate license: {companiesUpdated}");
+            result.Details.Add($"Users granted product access: {usersGranted}");
+            result.Details.Add($"Product roles created: {rolesCreated}");
+            
+            hasRun = true;
+        }
+        catch (Exception ex)
+        {
+            result.Success = false;
+            result.Message = "Migration failed with an error.";
+            result.Details.Add(ex.Message);
+            
+            if (ex.InnerException != null)
+            {
+                result.Details.Add($"Inner: {ex.InnerException.Message}");
+            }
+            
+            Logger.LogError(ex, "Failed to run product licensing migration");
+        }
+        finally
+        {
+            isRunning = false;
+        }
+    }
+}

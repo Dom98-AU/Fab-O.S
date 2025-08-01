@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Table View Modes Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="SteelEstimation.Web/wwwroot/css/site.css" rel="stylesheet">
+    <style>
+        body {
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .test-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .sample-table {
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1 class="mb-4">Enhanced Table View Modes Test</h1>
+        
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Test Instructions</h5>
+            </div>
+            <div class="card-body">
+                <ol>
+                    <li>Open this file in a browser after running the application</li>
+                    <li>Test switching between List, Compact List, and Card View modes</li>
+                    <li>Verify filters work in all views</li>
+                    <li>Check that frozen columns work in list views but show disabled message in card view</li>
+                    <li>Test save/load view functionality with different view modes</li>
+                    <li>Verify responsive behavior on mobile devices</li>
+                </ol>
+            </div>
+        </div>
+
+        <div id="tableContainer" class="enhanced-table-container">
+            <!-- View controls will be injected here -->
+            <div id="viewControls"></div>
+            
+            <!-- Table will be rendered here -->
+            <div id="tableWrapper">
+                <table class="table table-striped enhanced-table sample-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Item Number</th>
+                            <th>Description</th>
+                            <th>Quantity</th>
+                            <th>Unit Weight</th>
+                            <th>Total Weight</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>1</td>
+                            <td>STL-001</td>
+                            <td>Steel Beam - W12x26</td>
+                            <td>10</td>
+                            <td>26.0</td>
+                            <td>260.0</td>
+                            <td><span class="badge bg-success">Active</span></td>
+                            <td>
+                                <button class="btn btn-sm btn-primary"><i class="fas fa-edit"></i></button>
+                                <button class="btn btn-sm btn-danger"><i class="fas fa-trash"></i></button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>2</td>
+                            <td>STL-002</td>
+                            <td>Steel Column - HSS 8x8x1/2</td>
+                            <td>5</td>
+                            <td>48.8</td>
+                            <td>244.0</td>
+                            <td><span class="badge bg-warning">Pending</span></td>
+                            <td>
+                                <button class="btn btn-sm btn-primary"><i class="fas fa-edit"></i></button>
+                                <button class="btn btn-sm btn-danger"><i class="fas fa-trash"></i></button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>3</td>
+                            <td>STL-003</td>
+                            <td>Steel Plate - 1" Thick</td>
+                            <td>20</td>
+                            <td>40.8</td>
+                            <td>816.0</td>
+                            <td><span class="badge bg-success">Active</span></td>
+                            <td>
+                                <button class="btn btn-sm btn-primary"><i class="fas fa-edit"></i></button>
+                                <button class="btn btn-sm btn-danger"><i class="fas fa-trash"></i></button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>4</td>
+                            <td>STL-004</td>
+                            <td>Angle Iron - L4x4x1/2</td>
+                            <td>15</td>
+                            <td>12.8</td>
+                            <td>192.0</td>
+                            <td><span class="badge bg-danger">Inactive</span></td>
+                            <td>
+                                <button class="btn btn-sm btn-primary"><i class="fas fa-edit"></i></button>
+                                <button class="btn btn-sm btn-danger"><i class="fas fa-trash"></i></button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>5</td>
+                            <td>STL-005</td>
+                            <td>Channel - C10x15.3</td>
+                            <td>8</td>
+                            <td>15.3</td>
+                            <td>122.4</td>
+                            <td><span class="badge bg-success">Active</span></td>
+                            <td>
+                                <button class="btn btn-sm btn-primary"><i class="fas fa-edit"></i></button>
+                                <button class="btn btn-sm btn-danger"><i class="fas fa-trash"></i></button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="SteelEstimation.Web/wwwroot/js/enhanced-table.js"></script>
+    <script>
+        // Initialize enhanced table
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize the enhanced table with test configuration
+            window.enhancedTable.init('.sample-table', {
+                enableFilters: true,
+                enableSorting: true,
+                enableColumnResize: true,
+                enableColumnReorder: true,
+                enableFreezeColumns: true,
+                enableViews: true,
+                tableType: 'TestTable',
+                onEdit: function(id) {
+                    console.log('Edit clicked for ID:', id);
+                    alert('Edit functionality would be implemented here for ID: ' + id);
+                },
+                onDelete: function(id) {
+                    console.log('Delete clicked for ID:', id);
+                    if (confirm('Delete this item?')) {
+                        alert('Delete functionality would be implemented here for ID: ' + id);
+                    }
+                },
+                cardConfig: {
+                    titleField: 'Item Number',
+                    subtitleField: 'Description',
+                    fields: [
+                        { label: 'ID', field: 'ID' },
+                        { label: 'Quantity', field: 'Quantity' },
+                        { label: 'Unit Weight', field: 'Unit Weight' },
+                        { label: 'Total Weight', field: 'Total Weight' },
+                        { label: 'Status', field: 'Status', isHtml: true }
+                    ]
+                }
+            });
+            
+            // Add some test data for filtering
+            console.log('Enhanced table initialized. Test the following features:');
+            console.log('1. Switch between view modes using the buttons');
+            console.log('2. Try filtering in each view mode');
+            console.log('3. Test frozen columns in list view');
+            console.log('4. Save and load views with different modes');
+            console.log('5. Test responsive behavior');
+        });
+    </script>
+</body>
+</html>

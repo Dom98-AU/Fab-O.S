@@ -1,0 +1,256 @@
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Core.DTOs
+
+<div class="comment-item @(Comment.IsDeleted ? "deleted" : "")">
+    <div class="d-flex">
+        <div class="avatar-sm me-3">
+            @if (!string.IsNullOrEmpty(Comment.User.Profile?.AvatarUrl))
+            {
+                <img src="@Comment.User.Profile.AvatarUrl" alt="@Comment.User.FullName" class="rounded-circle" />
+            }
+            else
+            {
+                <div class="avatar-placeholder-sm">
+                    <span>@GetInitials(Comment.User.FullName)</span>
+                </div>
+            }
+        </div>
+        <div class="flex-grow-1">
+            <div class="comment-header">
+                <a href="/profile/@Comment.User.Username" class="fw-bold text-decoration-none">
+                    @Comment.User.FullName
+                </a>
+                <span class="text-muted ms-2">
+                    <i class="fas fa-clock"></i>
+                    @GetTimeAgo(Comment.CreatedAt)
+                </span>
+                @if (Comment.IsEdited)
+                {
+                    <span class="text-muted ms-2" title="Edited @Comment.EditedAt">
+                        <i class="fas fa-edit"></i> edited
+                    </span>
+                }
+            </div>
+            
+            <div class="comment-content mt-1">
+                @if (Comment.IsDeleted)
+                {
+                    <em class="text-muted">This comment has been deleted.</em>
+                }
+                else
+                {
+                    @((MarkupString)ParseCommentContent(Comment.Content))
+                }
+            </div>
+            
+            @if (!Comment.IsDeleted)
+            {
+                <div class="comment-actions mt-2">
+                    <!-- Reactions -->
+                    <div class="btn-group btn-group-sm me-2">
+                        <button class="btn btn-outline-secondary reaction-btn @(HasUserReacted("like") ? "active" : "")" 
+                                @onclick="@(async () => await OnReact.InvokeAsync((Comment, "like")))">
+                            👍 @GetReactionCount("like")
+                        </button>
+                        <button class="btn btn-outline-secondary reaction-btn @(HasUserReacted("heart") ? "active" : "")" 
+                                @onclick="@(async () => await OnReact.InvokeAsync((Comment, "heart")))">
+                            ❤️ @GetReactionCount("heart")
+                        </button>
+                        <button class="btn btn-outline-secondary reaction-btn @(HasUserReacted("celebrate") ? "active" : "")" 
+                                @onclick="@(async () => await OnReact.InvokeAsync((Comment, "celebrate")))">
+                            🎉 @GetReactionCount("celebrate")
+                        </button>
+                    </div>
+                    
+                    <!-- Actions -->
+                    <button class="btn btn-sm btn-link text-decoration-none" @onclick="() => OnReply.InvokeAsync(Comment)">
+                        <i class="fas fa-reply"></i> Reply
+                    </button>
+                    
+                    @if (Comment.UserId == CurrentUserId)
+                    {
+                        <button class="btn btn-sm btn-link text-decoration-none" @onclick="() => OnEdit.InvokeAsync(Comment)">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                        <button class="btn btn-sm btn-link text-danger text-decoration-none" @onclick="() => OnDelete.InvokeAsync(Comment)">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    }
+                </div>
+                
+                <!-- Mentions -->
+                @if (Comment.Mentions.Any())
+                {
+                    <div class="comment-mentions mt-2">
+                        <small class="text-muted">
+                            <i class="fas fa-at"></i> Mentioned: 
+                            @foreach (var mention in Comment.Mentions)
+                            {
+                                <a href="/profile/@mention.MentionedUser.Username" class="text-decoration-none">
+                                    @@@mention.MentionedUser.Username
+                                </a>
+                                @if (mention != Comment.Mentions.Last())
+                                {
+                                    <span>, </span>
+                                }
+                            }
+                        </small>
+                    </div>
+                }
+            }
+            
+            <!-- Replies -->
+            @if (Comment.Replies.Any())
+            {
+                <div class="comment-replies mt-3">
+                    @foreach (var reply in Comment.Replies)
+                    {
+                        <CommentItem Comment="reply" 
+                                     CurrentUserId="CurrentUserId"
+                                     OnReply="OnReply"
+                                     OnEdit="OnEdit"
+                                     OnDelete="OnDelete"
+                                     OnReact="OnReact" />
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+    .comment-item {
+        margin-bottom: 20px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .comment-item:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+    }
+
+    .comment-item.deleted {
+        opacity: 0.6;
+    }
+
+    .avatar-sm img,
+    .avatar-placeholder-sm {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        object-fit: cover;
+    }
+
+    .avatar-placeholder-sm {
+        background: #007bff;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 14px;
+    }
+
+    .comment-header {
+        font-size: 0.9rem;
+    }
+
+    .comment-content {
+        font-size: 0.95rem;
+        line-height: 1.5;
+    }
+
+    .comment-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .reaction-btn {
+        padding: 2px 8px;
+        font-size: 0.85rem;
+        border-radius: 12px;
+    }
+
+    .reaction-btn.active {
+        background-color: #e3f2fd;
+        border-color: #2196f3;
+    }
+
+    .comment-replies {
+        margin-left: 40px;
+        padding-left: 20px;
+        border-left: 2px solid #e9ecef;
+    }
+
+    .comment-mention {
+        color: #007bff;
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+    .comment-mention:hover {
+        text-decoration: underline;
+    }
+</style>
+
+@code {
+    [Parameter] public Comment Comment { get; set; } = null!;
+    [Parameter] public int CurrentUserId { get; set; }
+    [Parameter] public EventCallback<Comment> OnReply { get; set; }
+    [Parameter] public EventCallback<Comment> OnEdit { get; set; }
+    [Parameter] public EventCallback<Comment> OnDelete { get; set; }
+    [Parameter] public EventCallback<(Comment, string)> OnReact { get; set; }
+
+    private string GetInitials(string fullName)
+    {
+        var parts = fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2)
+            return $"{parts[0][0]}{parts[1][0]}".ToUpper();
+        else if (parts.Length == 1)
+            return parts[0].Substring(0, Math.Min(2, parts[0].Length)).ToUpper();
+        return "U";
+    }
+
+    private string GetTimeAgo(DateTime dateTime)
+    {
+        var timeSpan = DateTime.UtcNow - dateTime;
+
+        if (timeSpan.TotalMinutes < 1)
+            return "just now";
+        if (timeSpan.TotalMinutes < 60)
+            return $"{(int)timeSpan.TotalMinutes}m ago";
+        if (timeSpan.TotalHours < 24)
+            return $"{(int)timeSpan.TotalHours}h ago";
+        if (timeSpan.TotalDays < 7)
+            return $"{(int)timeSpan.TotalDays}d ago";
+        
+        return dateTime.ToString("MMM d, yyyy");
+    }
+
+    private string ParseCommentContent(string content)
+    {
+        // Convert mentions to links
+        var parsed = System.Text.RegularExpressions.Regex.Replace(
+            content, 
+            @"@(\w+)", 
+            "<a href='/profile/$1' class='comment-mention'>@$1</a>"
+        );
+
+        // Convert line breaks
+        parsed = parsed.Replace("\n", "<br />");
+
+        return parsed;
+    }
+
+    private int GetReactionCount(string reactionType)
+    {
+        return Comment.Reactions.Count(r => r.ReactionType == reactionType);
+    }
+
+    private bool HasUserReacted(string reactionType)
+    {
+        return Comment.Reactions.Any(r => r.UserId == CurrentUserId && r.ReactionType == reactionType);
+    }
+}

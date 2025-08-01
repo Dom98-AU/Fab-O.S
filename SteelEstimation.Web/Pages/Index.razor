@@ -5,16 +5,16 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
 @inject IDashboardMetricsService DashboardMetricsService
+@inject ILogger<Index> Logger
 
-<PageTitle>Steel Estimation Platform</PageTitle>
+<PageTitle>Fab O.S</PageTitle>
 
-<div class="container-fluid">
-    <h1 class="mb-4">Steel Estimation Platform</h1>
-    
-    <!-- DEPLOYMENT TEST: Version 3.0 - Updated @DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") UTC -->
-    
-    <AuthorizeView>
-        <Authorized>
+<AuthorizeView>
+    <Authorized>
+        <div class="container-fluid">
+            <h1 class="mb-4">Fab O.S Dashboard</h1>
+            
+            <!-- DEPLOYMENT TEST: Version 3.0 - Updated @DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") UTC -->
             @if (dashboardMetrics == null)
             {
                 <div class="text-center">
@@ -220,18 +220,28 @@
                     }
                 </div>
             </div>
-        </Authorized>
-        <NotAuthorized>
-            <div class="text-center mt-5">
-                <h2>Welcome to Steel Estimation Platform</h2>
-                <p class="lead">Professional steel fabrication estimation tool</p>
-                <div class="mt-4">
-                    <a href="/login" class="btn btn-primary btn-lg">Sign In</a>
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <div class="unauthorized-container">
+                <div class="unauthorized-content">
+                    <div class="logo-section">
+                        <img src="/images/f_symbol_square_auto.png" alt="Fab O.S" class="unauthorized-logo" />
+                    </div>
+                    <h1 class="unauthorized-title">Welcome to Fab O.S</h1>
+                    <p class="unauthorized-subtitle">The Future of Fabrication</p>
+                    <p class="unauthorized-description">
+                        Please sign in to access your dashboard and tools.
+                    </p>
+                    <div class="unauthorized-actions">
+                        <a href="/Account/Login" class="btn btn-primary btn-lg">
+                            <i class="fas fa-sign-in-alt me-2"></i>Sign In
+                        </a>
+                    </div>
                 </div>
             </div>
         </NotAuthorized>
     </AuthorizeView>
-</div>
 
 @code {
     private bool isAuthenticated = false;
@@ -332,3 +342,106 @@
         }
     }
 }
+
+<style>
+    .unauthorized-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: calc(100vh - 4rem);
+        padding: 2rem;
+    }
+
+    .unauthorized-content {
+        text-align: center;
+        max-width: 500px;
+        animation: fadeInUp 0.6s ease-out;
+    }
+
+    @@keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .logo-section {
+        margin-bottom: 2rem;
+    }
+
+    .unauthorized-logo {
+        width: 120px;
+        height: 120px;
+        background: white;
+        padding: 20px;
+        border-radius: 24px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+        object-fit: contain;
+    }
+
+    .unauthorized-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #1a202c;
+        margin-bottom: 0.5rem;
+        letter-spacing: -0.5px;
+    }
+
+    .unauthorized-subtitle {
+        font-size: 1.25rem;
+        color: #0d1a80;
+        margin-bottom: 1.5rem;
+        font-weight: 500;
+    }
+
+    .unauthorized-description {
+        font-size: 1.1rem;
+        color: #6c757d;
+        margin-bottom: 2rem;
+        line-height: 1.6;
+    }
+
+    .unauthorized-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .unauthorized-actions .btn-lg {
+        padding: 0.875rem 2.5rem;
+        font-size: 1.125rem;
+        border-radius: 12px;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 12px rgba(13, 26, 128, 0.2);
+    }
+
+    .unauthorized-actions .btn-primary {
+        background: linear-gradient(135deg, #0d1a80 0%, #1a2b9e 100%);
+        border: none;
+    }
+
+    .unauthorized-actions .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(13, 26, 128, 0.3);
+    }
+
+    @@media (max-width: 768px) {
+        .unauthorized-title {
+            font-size: 2rem;
+        }
+        
+        .unauthorized-subtitle {
+            font-size: 1.1rem;
+        }
+        
+        .unauthorized-logo {
+            width: 100px;
+            height: 100px;
+        }
+    }
+</style>

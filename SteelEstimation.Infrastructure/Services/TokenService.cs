@@ -19,16 +19,16 @@ namespace SteelEstimation.Infrastructure.Services
     public class TokenService : ITokenService
     {
         private readonly IConfiguration _configuration;
-        private readonly ApplicationDbContext _context;
+        private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
         private readonly ILogger<TokenService> _logger;
 
         public TokenService(
             IConfiguration configuration,
-            ApplicationDbContext context,
+            IDbContextFactory<ApplicationDbContext> contextFactory,
             ILogger<TokenService> logger)
         {
             _configuration = configuration;
-            _context = context;
+            _contextFactory = contextFactory;
             _logger = logger;
         }
 
@@ -104,8 +104,10 @@ namespace SteelEstimation.Infrastructure.Services
                 
                 if (userIdClaim != null && securityStampClaim != null)
                 {
+                    using var context = await _contextFactory.CreateDbContextAsync();
+                    
                     var userId = int.Parse(userIdClaim.Value);
-                    var user = await _context.Users.FindAsync(userId);
+                    var user = await context.Users.FindAsync(userId);
                     
                     if (user == null || user.SecurityStamp != securityStampClaim.Value)
                     {

@@ -1,0 +1,433 @@
+@page "/notifications"
+@using Microsoft.AspNetCore.Authorization
+@using SteelEstimation.Core.Interfaces
+@using SteelEstimation.Core.Entities
+@attribute [Authorize]
+@inject INotificationService NotificationService
+@inject IFabOSAuthenticationService AuthService
+@inject NavigationManager Navigation
+
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Notifications</h2>
+                <div>
+                    @if (unreadCount > 0)
+                    {
+                        <button class="btn btn-outline-primary me-2" @onclick="MarkAllAsRead">
+                            <i class="fas fa-check-double me-2"></i>Mark All as Read
+                        </button>
+                    }
+                    <button class="btn btn-outline-secondary" @onclick="ToggleFilters">
+                        <i class="fas fa-filter me-2"></i>Filter
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            @if (showFilters)
+            {
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label class="form-label">Type</label>
+                                <select class="form-select" @bind="filterType">
+                                    <option value="">All Types</option>
+                                    <option value="mention">Mentions</option>
+                                    <option value="comment">Comments</option>
+                                    <option value="system">System</option>
+                                    <option value="invite">Invites</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Status</label>
+                                <select class="form-select" @bind="filterStatus">
+                                    <option value="">All</option>
+                                    <option value="unread">Unread</option>
+                                    <option value="read">Read</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Product</label>
+                                <select class="form-select" @bind="filterProduct">
+                                    <option value="">All Products</option>
+                                    <option value="Estimate">Estimate</option>
+                                    <option value="Trace">Trace</option>
+                                    <option value="Fabmate">Fabmate</option>
+                                    <option value="QDocs">QDocs</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <button class="btn btn-primary btn-sm" @onclick="ApplyFilters">Apply Filters</button>
+                            <button class="btn btn-secondary btn-sm ms-2" @onclick="ClearFilters">Clear</button>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- Notifications List -->
+            @if (isLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            }
+            else if (!notifications.Any())
+            {
+                <div class="card">
+                    <div class="card-body text-center py-5">
+                        <i class="fas fa-bell-slash fa-4x text-muted mb-3"></i>
+                        <h4>No notifications</h4>
+                        <p class="text-muted">You're all caught up!</p>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="notifications-list">
+                    @foreach (var notification in notifications)
+                    {
+                        <div class="notification-card @(!notification.IsRead ? "unread" : "")" @onclick="() => ViewNotification(notification)">
+                            <div class="notification-icon @GetNotificationColorClass(notification.Type)">
+                                <i class="@GetNotificationIcon(notification.Type)"></i>
+                            </div>
+                            <div class="notification-body">
+                                <div class="notification-header">
+                                    <h6 class="mb-1">@notification.Title</h6>
+                                    <span class="notification-time">@GetTimeAgo(notification.CreatedAt)</span>
+                                </div>
+                                @if (!string.IsNullOrEmpty(notification.Message))
+                                {
+                                    <p class="notification-message mb-2">@notification.Message</p>
+                                }
+                                <div class="notification-meta">
+                                    @if (notification.FromUser != null)
+                                    {
+                                        <span class="me-3">
+                                            <i class="fas fa-user me-1"></i>
+                                            <a href="/profile/@notification.FromUser.Username" @onclick:stopPropagation="true">
+                                                @notification.FromUser.FullName
+                                            </a>
+                                        </span>
+                                    }
+                                    @if (!string.IsNullOrEmpty(notification.ProductName))
+                                    {
+                                        <span class="badge bg-secondary">@notification.ProductName</span>
+                                    }
+                                    @if (notification.Priority == "high" || notification.Priority == "urgent")
+                                    {
+                                        <span class="badge bg-danger ms-2">@notification.Priority</span>
+                                    }
+                                </div>
+                            </div>
+                            <div class="notification-actions">
+                                @if (!notification.IsRead)
+                                {
+                                    <button class="btn btn-sm btn-outline-primary" @onclick:stopPropagation="true" @onclick="() => MarkAsRead(notification)">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                }
+                                <button class="btn btn-sm btn-outline-danger" @onclick:stopPropagation="true" @onclick="() => DeleteNotification(notification)">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                @if (hasMore)
+                {
+                    <div class="text-center mt-4">
+                        <button class="btn btn-outline-primary" @onclick="LoadMore" disabled="@isLoadingMore">
+                            @if (isLoadingMore)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                            }
+                            Load More
+                        </button>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+    .notifications-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .notification-card {
+        display: flex;
+        align-items: start;
+        padding: 1.25rem;
+        background: white;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .notification-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        transform: translateY(-1px);
+    }
+
+    .notification-card.unread {
+        background-color: #f0f8ff;
+        border-color: #b8daff;
+    }
+
+    .notification-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        margin-right: 1rem;
+        flex-shrink: 0;
+    }
+
+    .notification-body {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .notification-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        margin-bottom: 0.5rem;
+    }
+
+    .notification-header h6 {
+        margin: 0;
+        font-weight: 600;
+    }
+
+    .notification-time {
+        font-size: 0.875rem;
+        color: #6c757d;
+        white-space: nowrap;
+    }
+
+    .notification-message {
+        color: #495057;
+        font-size: 0.95rem;
+        margin: 0;
+    }
+
+    .notification-meta {
+        font-size: 0.875rem;
+        color: #6c757d;
+    }
+
+    .notification-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-left: 1rem;
+    }
+
+    .bg-mention { background-color: #9c27b0; }
+    .bg-comment { background-color: #2196f3; }
+    .bg-system { background-color: #607d8b; }
+    .bg-invite { background-color: #4caf50; }
+</style>
+
+@code {
+    private List<Notification> notifications = new();
+    private int currentUserId;
+    private int unreadCount;
+    private bool isLoading = true;
+    private bool isLoadingMore;
+    private bool hasMore = true;
+    private bool showFilters;
+    private int currentPage = 1;
+    private const int pageSize = 20;
+
+    // Filters
+    private string filterType = "";
+    private string filterStatus = "";
+    private string filterProduct = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        currentUserId = await AuthService.GetCurrentUserIdAsync() ?? 0;
+        await LoadNotifications();
+    }
+
+    private async Task LoadNotifications()
+    {
+        isLoading = true;
+        try
+        {
+            IEnumerable<Notification> result;
+            
+            if (!string.IsNullOrEmpty(filterType))
+            {
+                result = await NotificationService.GetNotificationsByTypeAsync(currentUserId, filterType, currentPage, pageSize);
+            }
+            else if (!string.IsNullOrEmpty(filterProduct))
+            {
+                result = await NotificationService.GetProductNotificationsAsync(currentUserId, filterProduct, filterStatus == "unread");
+            }
+            else
+            {
+                result = await NotificationService.GetUserNotificationsAsync(currentUserId, filterStatus == "unread", currentPage, pageSize);
+            }
+
+            notifications = result.ToList();
+            unreadCount = await NotificationService.GetUnreadCountAsync(currentUserId);
+            hasMore = notifications.Count == pageSize;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadMore()
+    {
+        isLoadingMore = true;
+        currentPage++;
+        
+        try
+        {
+            IEnumerable<Notification> result;
+            
+            if (!string.IsNullOrEmpty(filterType))
+            {
+                result = await NotificationService.GetNotificationsByTypeAsync(currentUserId, filterType, currentPage, pageSize);
+            }
+            else
+            {
+                result = await NotificationService.GetUserNotificationsAsync(currentUserId, filterStatus == "unread", currentPage, pageSize);
+            }
+
+            var moreNotifications = result.ToList();
+            notifications.AddRange(moreNotifications);
+            hasMore = moreNotifications.Count == pageSize;
+        }
+        finally
+        {
+            isLoadingMore = false;
+        }
+    }
+
+    private async Task ViewNotification(Notification notification)
+    {
+        if (!notification.IsRead)
+        {
+            await NotificationService.MarkAsReadAsync(notification.Id, currentUserId);
+            notification.IsRead = true;
+            unreadCount = Math.Max(0, unreadCount - 1);
+        }
+
+        if (!string.IsNullOrEmpty(notification.ActionUrl))
+        {
+            Navigation.NavigateTo(notification.ActionUrl);
+        }
+    }
+
+    private async Task MarkAsRead(Notification notification)
+    {
+        if (!notification.IsRead)
+        {
+            await NotificationService.MarkAsReadAsync(notification.Id, currentUserId);
+            notification.IsRead = true;
+            unreadCount = Math.Max(0, unreadCount - 1);
+        }
+    }
+
+    private async Task MarkAllAsRead()
+    {
+        await NotificationService.MarkAllAsReadAsync(currentUserId);
+        
+        foreach (var notification in notifications.Where(n => !n.IsRead))
+        {
+            notification.IsRead = true;
+        }
+        
+        unreadCount = 0;
+    }
+
+    private async Task DeleteNotification(Notification notification)
+    {
+        await NotificationService.DeleteNotificationAsync(notification.Id, currentUserId);
+        notifications.Remove(notification);
+        
+        if (!notification.IsRead)
+        {
+            unreadCount = Math.Max(0, unreadCount - 1);
+        }
+    }
+
+    private void ToggleFilters()
+    {
+        showFilters = !showFilters;
+    }
+
+    private async Task ApplyFilters()
+    {
+        currentPage = 1;
+        await LoadNotifications();
+    }
+
+    private async Task ClearFilters()
+    {
+        filterType = "";
+        filterStatus = "";
+        filterProduct = "";
+        currentPage = 1;
+        await LoadNotifications();
+    }
+
+    private string GetNotificationIcon(string type)
+    {
+        return type switch
+        {
+            "mention" => "fas fa-at",
+            "comment" => "fas fa-comment",
+            "system" => "fas fa-info-circle",
+            "invite" => "fas fa-envelope",
+            _ => "fas fa-bell"
+        };
+    }
+
+    private string GetNotificationColorClass(string type)
+    {
+        return type switch
+        {
+            "mention" => "bg-mention",
+            "comment" => "bg-comment",
+            "system" => "bg-system",
+            "invite" => "bg-invite",
+            _ => "bg-primary"
+        };
+    }
+
+    private string GetTimeAgo(DateTime dateTime)
+    {
+        var timeSpan = DateTime.UtcNow - dateTime;
+
+        if (timeSpan.TotalMinutes < 1)
+            return "just now";
+        if (timeSpan.TotalMinutes < 60)
+            return $"{(int)timeSpan.TotalMinutes} minutes ago";
+        if (timeSpan.TotalHours < 24)
+            return $"{(int)timeSpan.TotalHours} hours ago";
+        if (timeSpan.TotalDays < 7)
+            return $"{(int)timeSpan.TotalDays} days ago";
+        
+        return dateTime.ToString("MMM d, yyyy");
+    }
+}

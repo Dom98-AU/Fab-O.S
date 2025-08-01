@@ -9,28 +9,29 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using SteelEstimation.Core.DTOs;
 using SteelEstimation.Core.Entities;
 using SteelEstimation.Core.Interfaces;
 using SteelEstimation.Infrastructure.Data;
 
 namespace SteelEstimation.Infrastructure.Services
 {
-    public class MultiAuthService : IMultiAuthService
+    public class MultiAuthService : IMultiAuthService, IFabOSAuthenticationService
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
         private readonly IConfiguration _configuration;
         private readonly ILogger<MultiAuthService> _logger;
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly FabOSAuthenticationService _fabOSService;
 
         public MultiAuthService(
-            ApplicationDbContext context,
+            IDbContextFactory<ApplicationDbContext> contextFactory,
             IConfiguration configuration,
             ILogger<MultiAuthService> logger,
             IHttpContextAccessor httpContextAccessor,
             FabOSAuthenticationService fabOSService)
         {
-            _context = context;
+            _contextFactory = contextFactory;
             _configuration = configuration;
             _logger = logger;
             _httpContextAccessor = httpContextAccessor;
@@ -43,7 +44,9 @@ namespace SteelEstimation.Infrastructure.Services
             try
             {
                 // Check if email already exists
-                var existingUser = await _context.Users
+                using var context = await _contextFactory.CreateDbContextAsync();
+                
+                var existingUser = await context.Users
                     .FirstOrDefaultAsync(u => u.Email == email && u.IsActive);
                 
                 if (existingUser != null)
@@ -75,8 +78,8 @@ namespace SteelEstimation.Infrastructure.Services
                     CreatedDate = DateTime.UtcNow
                 };
 
-                _context.Users.Add(user);
-                await _context.SaveChangesAsync();
+                context.Users.Add(user);
+                await context.SaveChangesAsync();
 
                 // Create auth method record
                 var authMethod = new UserAuthMethod
@@ -89,12 +92,12 @@ namespace SteelEstimation.Infrastructure.Services
                     IsActive = true
                 };
 
-                _context.UserAuthMethods.Add(authMethod);
+                context.UserAuthMethods.Add(authMethod);
 
                 // Grant default Estimate product access
-                await GrantDefaultProductAccessAsync(user.Id, company.Id);
+                await GrantDefaultProductAccessAsync(user.Id, company.Id, context);
 
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
 
                 // Log the event
                 await LogSocialLoginEventAsync(user.Id, "Local", "SignUp", true);
@@ -144,14 +147,16 @@ namespace SteelEstimation.Infrastructure.Services
                 }
 
                 // Check if user exists
-                var existingUser = await _context.Users
+                using var context = await _contextFactory.CreateDbContextAsync();
+                
+                var existingUser = await context.Users
                     .Include(u => u.Company)
                     .FirstOrDefaultAsync(u => u.Email == email && u.IsActive);
 
                 if (existingUser != null)
                 {
                     // Existing user - link the auth method if needed
-                    var authMethod = await _context.UserAuthMethods
+                    var authMethod = await context.UserAuthMethods
                         .FirstOrDefaultAsync(am => am.UserId == existingUser.Id && 
                                                   am.AuthProvider == provider && 
                                                   am.IsActive);
@@ -170,7 +175,7 @@ namespace SteelEstimation.Infrastructure.Services
                             LastUsedDate = DateTime.UtcNow,
                             IsActive = true
                         };
-                        _context.UserAuthMethods.Add(authMethod);
+                        context.UserAuthMethods.Add(authMethod);
                     }
                     else
                     {
@@ -180,7 +185,7 @@ namespace SteelEstimation.Infrastructure.Services
                     }
 
                     existingUser.LastLoginDate = DateTime.UtcNow;
-                    await _context.SaveChangesAsync();
+                    await context.SaveChangesAsync();
 
                     await LogSocialLoginEventAsync(existingUser.Id, provider, "Login", true);
 
@@ -209,8 +214,8 @@ namespace SteelEstimation.Infrastructure.Services
                             CreatedDate = DateTime.UtcNow
                     };
 
-                    _context.Users.Add(user);
-                    await _context.SaveChangesAsync();
+                    context.Users.Add(user);
+                    await context.SaveChangesAsync();
 
                     // Create auth method record
                     var authMethod = new UserAuthMethod
@@ -225,12 +230,12 @@ namespace SteelEstimation.Infrastructure.Services
                         IsActive = true
                     };
 
-                    _context.UserAuthMethods.Add(authMethod);
+                    context.UserAuthMethods.Add(authMethod);
 
                     // Grant default product access
-                    await GrantDefaultProductAccessAsync(user.Id, company.Id);
+                    await GrantDefaultProductAccessAsync(user.Id, company.Id, context);
 
-                    await _context.SaveChangesAsync();
+                    await context.SaveChangesAsync();
 
                     await LogSocialLoginEventAsync(user.Id, provider, "SignUp", true);
 
@@ -262,7 +267,9 @@ namespace SteelEstimation.Infrastructure.Services
         {
             try
             {
-                var user = await _context.Users
+                using var context = await _contextFactory.CreateDbContextAsync();
+                
+                var user = await context.Users
                     .Include(u => u.Company)
                     .FirstOrDefaultAsync(u => u.Email == email && u.IsActive);
 
@@ -304,14 +311,14 @@ namespace SteelEstimation.Infrastructure.Services
                 user.LastLoginDate = DateTime.UtcNow;
                 
                 // Update auth method last used
-                var authMethod = await _context.UserAuthMethods
+                var authMethod = await context.UserAuthMethods
                     .FirstOrDefaultAsync(am => am.UserId == user.Id && am.AuthProvider == "Local");
                 if (authMethod != null)
                 {
                     authMethod.LastUsedDate = DateTime.UtcNow;
                 }
 
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
 
                 await LogSocialLoginEventAsync(user.Id, "Local", "Login", true);
 
@@ -357,7 +364,9 @@ namespace SteelEstimation.Infrastructure.Services
                 }
 
                 // Check if already linked
-                var existingLink = await _context.UserAuthMethods
+                using var context = await _contextFactory.CreateDbContextAsync();
+                
+                var existingLink = await context.UserAuthMethods
                     .AnyAsync(am => am.UserId == userId && am.AuthProvider == provider && am.IsActive);
 
                 if (existingLink)
@@ -367,7 +376,7 @@ namespace SteelEstimation.Infrastructure.Services
                 }
 
                 // Check if this external account is linked to another user
-                var otherUser = await _context.UserAuthMethods
+                var otherUser = await context.UserAuthMethods
                     .AnyAsync(am => am.AuthProvider == provider && 
                                    am.ExternalUserId == externalId && 
                                    am.UserId != userId &&
@@ -392,8 +401,8 @@ namespace SteelEstimation.Infrastructure.Services
                     IsActive = true
                 };
 
-                _context.UserAuthMethods.Add(authMethod);
-                await _context.SaveChangesAsync();
+                context.UserAuthMethods.Add(authMethod);
+                await context.SaveChangesAsync();
 
                 await LogSocialLoginEventAsync(userId, provider, "Link", true);
                 return true;
@@ -411,7 +420,9 @@ namespace SteelEstimation.Infrastructure.Services
             try
             {
                 // Don't allow unlinking if it's the only auth method
-                var authMethodCount = await _context.UserAuthMethods
+                using var context = await _contextFactory.CreateDbContextAsync();
+                
+                var authMethodCount = await context.UserAuthMethods
                     .CountAsync(am => am.UserId == userId && am.IsActive);
 
                 if (authMethodCount <= 1)
@@ -420,7 +431,7 @@ namespace SteelEstimation.Infrastructure.Services
                     return false;
                 }
 
-                var authMethod = await _context.UserAuthMethods
+                var authMethod = await context.UserAuthMethods
                     .FirstOrDefaultAsync(am => am.UserId == userId && 
                                               am.AuthProvider == provider && 
                                               am.IsActive);
@@ -431,7 +442,7 @@ namespace SteelEstimation.Infrastructure.Services
                 }
 
                 authMethod.IsActive = false;
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
 
                 await LogSocialLoginEventAsync(userId, provider, "Unlink", true);
                 return true;
@@ -446,7 +457,9 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<List<UserAuthMethod>> GetUserAuthMethodsAsync(int userId)
         {
-            return await _context.UserAuthMethods
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
+            return await context.UserAuthMethods
                 .Where(am => am.UserId == userId && am.IsActive)
                 .OrderBy(am => am.LinkedDate)
                 .ToListAsync();
@@ -455,7 +468,9 @@ namespace SteelEstimation.Infrastructure.Services
         // Provider Management
         public async Task<List<OAuthProviderSettings>> GetEnabledProvidersAsync()
         {
-            return await _context.OAuthProviderSettings
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
+            return await context.OAuthProviderSettings
                 .Where(p => p.IsEnabled)
                 .OrderBy(p => p.SortOrder)
                 .ToListAsync();
@@ -463,7 +478,9 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<bool> IsProviderEnabledAsync(string provider)
         {
-            return await _context.OAuthProviderSettings
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
+            return await context.OAuthProviderSettings
                 .AnyAsync(p => p.ProviderName == provider && p.IsEnabled);
         }
 
@@ -472,6 +489,8 @@ namespace SteelEstimation.Infrastructure.Services
         {
             try
             {
+                using var context = await _contextFactory.CreateDbContextAsync();
+                
                 var audit = new SocialLoginAudit
                 {
                     UserId = userId,
@@ -484,8 +503,8 @@ namespace SteelEstimation.Infrastructure.Services
                     EventDate = DateTime.UtcNow
                 };
 
-                _context.SocialLoginAudits.Add(audit);
-                await _context.SaveChangesAsync();
+                context.SocialLoginAudits.Add(audit);
+                await context.SaveChangesAsync();
             }
             catch (Exception ex)
             {
@@ -517,10 +536,54 @@ namespace SteelEstimation.Infrastructure.Services
         public async Task RecordUserActivityAsync(int userId, string productName)
             => await _fabOSService.RecordUserActivityAsync(userId, productName);
 
+        // Additional IFabOSAuthenticationService methods
+        public async Task<int?> GetCurrentUserIdAsync()
+            => await _fabOSService.GetCurrentUserIdAsync();
+            
+        public async Task<int?> GetUserCompanyIdAsync()
+            => await _fabOSService.GetUserCompanyIdAsync();
+            
+        public async Task<AuthResult> LoginAsync(string usernameOrEmail, string password)
+            => await _fabOSService.LoginAsync(usernameOrEmail, password);
+            
+        public async Task<AuthResult> RegisterAsync(RegisterRequest request)
+            => await _fabOSService.RegisterAsync(request);
+            
+        public async Task<bool> LogoutAsync()
+            => await _fabOSService.LogoutAsync();
+            
+        public async Task<AuthResult> RefreshTokenAsync(string refreshToken)
+            => await _fabOSService.RefreshTokenAsync(refreshToken);
+            
+        public async Task<bool> ChangePasswordAsync(int userId, string currentPassword, string newPassword)
+            => await _fabOSService.ChangePasswordAsync(userId, currentPassword, newPassword);
+            
+        public async Task<bool> ResetPasswordAsync(string email)
+            => await _fabOSService.ResetPasswordAsync(email);
+            
+        public async Task<bool> ConfirmPasswordResetAsync(string token, string newPassword)
+            => await _fabOSService.ConfirmPasswordResetAsync(token, newPassword);
+            
+        public async Task<bool> ConfirmEmailAsync(string token)
+            => await _fabOSService.ConfirmEmailAsync(token);
+            
+        public async Task<User?> GetCurrentUserAsync()
+            => await _fabOSService.GetCurrentUserAsync();
+            
+        public async Task<bool> IsUserInRoleAsync(int userId, string roleName)
+            => await _fabOSService.IsUserInRoleAsync(userId, roleName);
+            
+        public async Task<IEnumerable<string>> GetUserRolesAsync(int userId)
+        {
+            return await _fabOSService.GetUserRolesAsync(userId);
+        }
+
         // Helper methods
         private async Task<Company> GetOrCreateCompanyAsync(string companyName)
         {
-            var company = await _context.Companies
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
+            var company = await context.Companies
                 .FirstOrDefaultAsync(c => c.Name == companyName && c.IsActive);
 
             if (company == null)
@@ -532,16 +595,16 @@ namespace SteelEstimation.Infrastructure.Services
                     IsActive = true,
                     CreatedDate = DateTime.UtcNow
                 };
-                _context.Companies.Add(company);
-                await _context.SaveChangesAsync();
+                context.Companies.Add(company);
+                await context.SaveChangesAsync();
             }
 
             return company;
         }
 
-        private async Task GrantDefaultProductAccessAsync(int userId, int companyId)
+        private async Task GrantDefaultProductAccessAsync(int userId, int companyId, ApplicationDbContext context)
         {
-            var estimateLicense = await _context.ProductLicenses
+            var estimateLicense = await context.ProductLicenses
                 .FirstOrDefaultAsync(pl => pl.CompanyId == companyId && 
                                           pl.ProductName == "Estimate" && 
                                           pl.IsActive);
@@ -553,7 +616,7 @@ namespace SteelEstimation.Infrastructure.Services
                     UserId = userId,
                     ProductLicenseId = estimateLicense.Id
                 };
-                _context.UserProductAccess.Add(access);
+                context.UserProductAccess.Add(access);
             }
         }
 

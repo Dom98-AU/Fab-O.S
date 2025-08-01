@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SixLabors.ImageSharp;
@@ -11,7 +12,7 @@ namespace SteelEstimation.Infrastructure.Services;
 
 public class ImageUploadService : IImageUploadService
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
     private readonly IConfiguration _configuration;
     private readonly ILogger<ImageUploadService> _logger;
     private readonly string _uploadPath;
@@ -21,11 +22,11 @@ public class ImageUploadService : IImageUploadService
     private readonly int _thumbnailSize;
 
     public ImageUploadService(
-        ApplicationDbContext context,
+        IDbContextFactory<ApplicationDbContext> contextFactory,
         IConfiguration configuration,
         ILogger<ImageUploadService> logger)
     {
-        _context = context;
+        _contextFactory = contextFactory;
         _configuration = configuration;
         _logger = logger;
         
@@ -98,8 +99,10 @@ public class ImageUploadService : IImageUploadService
             UploadedDate = DateTime.UtcNow
         };
 
-        _context.ImageUploads.Add(imageUpload);
-        await _context.SaveChangesAsync();
+        using var context = await _contextFactory.CreateDbContextAsync();
+        
+        context.ImageUploads.Add(imageUpload);
+        await context.SaveChangesAsync();
 
         return imageUpload;
     }
@@ -150,7 +153,9 @@ public class ImageUploadService : IImageUploadService
 
     public async Task DeleteImageAsync(int imageId)
     {
-        var image = await _context.ImageUploads.FindAsync(imageId);
+        using var context = await _contextFactory.CreateDbContextAsync();
+        
+        var image = await context.ImageUploads.FindAsync(imageId);
         if (image == null) return;
 
         // Delete physical files
@@ -170,8 +175,8 @@ public class ImageUploadService : IImageUploadService
         }
 
         // Remove from database
-        _context.ImageUploads.Remove(image);
-        await _context.SaveChangesAsync();
+        context.ImageUploads.Remove(image);
+        await context.SaveChangesAsync();
     }
 
     public async Task<byte[]> GetImageBytesAsync(string filePath)

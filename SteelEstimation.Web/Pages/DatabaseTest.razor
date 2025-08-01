@@ -120,15 +120,15 @@
             
             // Test 5: Check AuthService
             results += "\n=== Testing Authentication Service ===\n";
-            var authService = ServiceProvider.GetService<IAuthenticationService>();
+            var authService = ServiceProvider.GetService<IFabOSAuthenticationService>();
             if (authService == null)
             {
-                results += "✗ IAuthenticationService is not registered!\n";
+                results += "✗ IFabOSAuthenticationService is not registered!\n";
                 hasError = true;
             }
             else
             {
-                results += $"✓ IAuthenticationService is registered\n";
+                results += $"✓ IFabOSAuthenticationService is registered\n";
                 results += $"  Type: {authService.GetType().FullName}\n";
                 
                 try

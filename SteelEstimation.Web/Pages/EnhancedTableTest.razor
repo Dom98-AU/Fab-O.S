@@ -1,0 +1,94 @@
+@page "/enhanced-table-test"
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Enhanced Table Test</PageTitle>
+
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col">
+            <h1>Enhanced Table View Modes Test</h1>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <p>Testing enhanced table view modes feature...</p>
+            
+            <table class="table table-hover test-enhanced-table">
+                <thead>
+                    <tr>
+                        <th>Company Name</th>
+                        <th>Contact</th>
+                        <th>Phone</th>
+                        <th>Email</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Acme Corporation</td>
+                        <td>John Smith</td>
+                        <td>(555) 123-4567</td>
+                        <td>john@acme.com</td>
+                        <td><span class="badge bg-success">Active</span></td>
+                    </tr>
+                    <tr>
+                        <td>Tech Solutions Inc</td>
+                        <td>Jane Doe</td>
+                        <td>(555) 987-6543</td>
+                        <td>jane@techsolutions.com</td>
+                        <td><span class="badge bg-success">Active</span></td>
+                    </tr>
+                    <tr>
+                        <td>Global Industries</td>
+                        <td>Bob Johnson</td>
+                        <td>(555) 456-7890</td>
+                        <td>bob@global.com</td>
+                        <td><span class="badge bg-warning">Pending</span></td>
+                    </tr>
+                    <tr>
+                        <td>Innovate Partners</td>
+                        <td>Alice Brown</td>
+                        <td>(555) 321-0987</td>
+                        <td>alice@innovate.com</td>
+                        <td><span class="badge bg-success">Active</span></td>
+                    </tr>
+                    <tr>
+                        <td>Digital Works</td>
+                        <td>Charlie Davis</td>
+                        <td>(555) 654-3210</td>
+                        <td>charlie@digitalworks.com</td>
+                        <td><span class="badge bg-danger">Inactive</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Initialize enhanced table with view modes
+            await JSRuntime.InvokeVoidAsync("enhancedTable.init", ".test-enhanced-table", new
+            {
+                enableResize = true,
+                enableReorder = true,
+                enableViewSaving = false, // Disable view saving for test
+                enableFreezeColumns = true,
+                freezeColumns = 1,
+                tableType = "Test",
+                viewMode = "list", // Start with list view
+                enableViewModes = true, // Enable view mode switcher
+                cardViewConfig = new
+                {
+                    columns = new[] { "Company Name", "Contact", "Email" },
+                    mainField = "Company Name",
+                    badgeField = "Status"
+                }
+            });
+        }
+    }
+}

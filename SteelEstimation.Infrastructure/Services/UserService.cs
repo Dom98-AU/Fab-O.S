@@ -15,18 +15,20 @@ namespace SteelEstimation.Infrastructure.Services
 {
     public class UserService : IUserService
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
         private readonly ILogger<UserService> _logger;
 
-        public UserService(ApplicationDbContext context, ILogger<UserService> logger)
+        public UserService(IDbContextFactory<ApplicationDbContext> contextFactory, ILogger<UserService> logger)
         {
-            _context = context;
+            _contextFactory = contextFactory;
             _logger = logger;
         }
 
         public async Task<User?> GetUserByIdAsync(int userId)
         {
-            return await _context.Users
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
+            return await context.Users
                 .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
                 .FirstOrDefaultAsync(u => u.Id == userId);
@@ -34,7 +36,9 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<User?> GetUserByUsernameAsync(string username)
         {
-            return await _context.Users
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
+            return await context.Users
                 .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
                 .FirstOrDefaultAsync(u => u.Username == username);
@@ -42,7 +46,9 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<User?> GetUserByEmailAsync(string email)
         {
-            return await _context.Users
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
+            return await context.Users
                 .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
                 .FirstOrDefaultAsync(u => u.Email == email);
@@ -50,7 +56,9 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<IEnumerable<User>> GetAllUsersAsync()
         {
-            return await _context.Users
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
+            return await context.Users
                 .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
                 .OrderBy(u => u.Username)
@@ -59,7 +67,9 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<IEnumerable<User>> GetActiveUsersAsync()
         {
-            return await _context.Users
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
+            return await context.Users
                 .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
                 .Where(u => u.IsActive)
@@ -69,13 +79,15 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<User> CreateUserAsync(CreateUserRequest request)
         {
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
             try
             {
                 // Validate uniqueness
-                if (await _context.Users.AnyAsync(u => u.Username == request.Username))
+                if (await context.Users.AnyAsync(u => u.Username == request.Username))
                     throw new InvalidOperationException("Username already exists");
 
-                if (await _context.Users.AnyAsync(u => u.Email == request.Email))
+                if (await context.Users.AnyAsync(u => u.Email == request.Email))
                     throw new InvalidOperationException("Email already registered");
 
                 // Create user
@@ -96,20 +108,20 @@ namespace SteelEstimation.Infrastructure.Services
                     LastModified = DateTime.UtcNow
                 };
 
-                _context.Users.Add(user);
-                await _context.SaveChangesAsync();
+                context.Users.Add(user);
+                await context.SaveChangesAsync();
 
                 // Assign role
-                var role = await _context.Roles.FirstOrDefaultAsync(r => r.RoleName == request.RoleName);
+                var role = await context.Roles.FirstOrDefaultAsync(r => r.RoleName == request.RoleName);
                 if (role != null)
                 {
-                    _context.UserRoles.Add(new UserRole
+                    context.UserRoles.Add(new UserRole
                     {
                         UserId = user.Id,
                         RoleId = role.Id,
                         AssignedDate = DateTime.UtcNow
                     });
-                    await _context.SaveChangesAsync();
+                    await context.SaveChangesAsync();
                 }
 
                 // TODO: Send welcome email if requested
@@ -130,15 +142,17 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<User?> UpdateUserAsync(int userId, UpdateUserRequest request)
         {
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
             try
             {
-                var user = await _context.Users.FindAsync(userId);
+                var user = await context.Users.FindAsync(userId);
                 if (user == null) return null;
 
                 // Update email if changed
                 if (!string.IsNullOrEmpty(request.Email) && request.Email != user.Email)
                 {
-                    if (await _context.Users.AnyAsync(u => u.Email == request.Email && u.Id != userId))
+                    if (await context.Users.AnyAsync(u => u.Email == request.Email && u.Id != userId))
                         throw new InvalidOperationException("Email already in use");
                     
                     user.Email = request.Email;
@@ -156,7 +170,7 @@ namespace SteelEstimation.Infrastructure.Services
 
                 user.LastModified = DateTime.UtcNow;
 
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
                 _logger.LogInformation("User updated: {UserId}", userId);
                 
                 return user;
@@ -170,16 +184,18 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<bool> DeleteUserAsync(int userId)
         {
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
             try
             {
-                var user = await _context.Users.FindAsync(userId);
+                var user = await context.Users.FindAsync(userId);
                 if (user == null) return false;
 
                 // Soft delete - just deactivate
                 user.IsActive = false;
                 user.LastModified = DateTime.UtcNow;
                 
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
                 _logger.LogInformation("User deactivated (soft delete): {UserId}", userId);
                 
                 return true;
@@ -203,18 +219,20 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<bool> AssignRoleAsync(int userId, string roleName, int assignedByUserId)
         {
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
             try
             {
-                var user = await _context.Users.FindAsync(userId);
-                var role = await _context.Roles.FirstOrDefaultAsync(r => r.RoleName == roleName);
+                var user = await context.Users.FindAsync(userId);
+                var role = await context.Roles.FirstOrDefaultAsync(r => r.RoleName == roleName);
                 
                 if (user == null || role == null) return false;
 
                 // Check if already assigned
-                if (await _context.UserRoles.AnyAsync(ur => ur.UserId == userId && ur.RoleId == role.Id))
+                if (await context.UserRoles.AnyAsync(ur => ur.UserId == userId && ur.RoleId == role.Id))
                     return true;
 
-                _context.UserRoles.Add(new UserRole
+                context.UserRoles.Add(new UserRole
                 {
                     UserId = userId,
                     RoleId = role.Id,
@@ -222,7 +240,7 @@ namespace SteelEstimation.Infrastructure.Services
                     AssignedDate = DateTime.UtcNow
                 });
 
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
                 _logger.LogInformation("Role {Role} assigned to user {UserId}", roleName, userId);
                 
                 return true;
@@ -236,16 +254,18 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<bool> RemoveRoleAsync(int userId, string roleName)
         {
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
             try
             {
-                var userRole = await _context.UserRoles
+                var userRole = await context.UserRoles
                     .Include(ur => ur.Role)
                     .FirstOrDefaultAsync(ur => ur.UserId == userId && ur.Role.RoleName == roleName);
                 
                 if (userRole == null) return false;
 
-                _context.UserRoles.Remove(userRole);
-                await _context.SaveChangesAsync();
+                context.UserRoles.Remove(userRole);
+                await context.SaveChangesAsync();
                 
                 _logger.LogInformation("Role {Role} removed from user {UserId}", roleName, userId);
                 return true;
@@ -259,7 +279,9 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<IEnumerable<Role>> GetUserRolesAsync(int userId)
         {
-            return await _context.UserRoles
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
+            return await context.UserRoles
                 .Where(ur => ur.UserId == userId)
                 .Select(ur => ur.Role)
                 .ToListAsync();
@@ -267,7 +289,9 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<IEnumerable<Role>> GetAllRolesAsync()
         {
-            return await _context.Roles.OrderBy(r => r.RoleName).ToListAsync();
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
+            return await context.Roles.OrderBy(r => r.RoleName).ToListAsync();
         }
 
         public async Task<IEnumerable<User>> SearchUsersAsync(string searchTerm)
@@ -277,7 +301,9 @@ namespace SteelEstimation.Infrastructure.Services
 
             searchTerm = searchTerm.ToLower();
 
-            return await _context.Users
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
+            return await context.Users
                 .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
                 .Where(u => 
@@ -292,12 +318,16 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<int> GetActiveUserCountAsync()
         {
-            return await _context.Users.CountAsync(u => u.IsActive);
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
+            return await context.Users.CountAsync(u => u.IsActive);
         }
 
         public async Task<IEnumerable<User>> GetUsersInRoleAsync(string roleName)
         {
-            return await _context.UserRoles
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
+            return await context.UserRoles
                 .Include(ur => ur.User)
                 .ThenInclude(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
@@ -308,7 +338,9 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<bool> IsEmailUniqueAsync(string email, int? excludeUserId = null)
         {
-            var query = _context.Users.Where(u => u.Email == email);
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
+            var query = context.Users.Where(u => u.Email == email);
             if (excludeUserId.HasValue)
                 query = query.Where(u => u.Id != excludeUserId.Value);
             
@@ -317,7 +349,9 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<bool> IsUsernameUniqueAsync(string username, int? excludeUserId = null)
         {
-            var query = _context.Users.Where(u => u.Username == username);
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
+            var query = context.Users.Where(u => u.Username == username);
             if (excludeUserId.HasValue)
                 query = query.Where(u => u.Id != excludeUserId.Value);
             
@@ -326,16 +360,18 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<bool> UnlockUserAsync(int userId)
         {
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
             try
             {
-                var user = await _context.Users.FindAsync(userId);
+                var user = await context.Users.FindAsync(userId);
                 if (user == null) return false;
 
                 user.LockedOutUntil = null;
                 user.FailedLoginAttempts = 0;
                 user.LastModified = DateTime.UtcNow;
 
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
                 _logger.LogInformation("User unlocked: {UserId}", userId);
                 
                 return true;
@@ -349,15 +385,17 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<bool> ResetFailedLoginAttemptsAsync(int userId)
         {
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
             try
             {
-                var user = await _context.Users.FindAsync(userId);
+                var user = await context.Users.FindAsync(userId);
                 if (user == null) return false;
 
                 user.FailedLoginAttempts = 0;
                 user.LastModified = DateTime.UtcNow;
 
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
                 return true;
             }
             catch (Exception ex)
@@ -369,13 +407,15 @@ namespace SteelEstimation.Infrastructure.Services
 
         public async Task<bool> UpdateLastLoginAsync(int userId)
         {
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
             try
             {
-                var user = await _context.Users.FindAsync(userId);
+                var user = await context.Users.FindAsync(userId);
                 if (user == null) return false;
 
                 user.LastLoginDate = DateTime.UtcNow;
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
                 
                 return true;
             }
@@ -390,15 +430,17 @@ namespace SteelEstimation.Infrastructure.Services
 
         private async Task<bool> SetUserActiveStatus(int userId, bool isActive)
         {
+            using var context = await _contextFactory.CreateDbContextAsync();
+            
             try
             {
-                var user = await _context.Users.FindAsync(userId);
+                var user = await context.Users.FindAsync(userId);
                 if (user == null) return false;
 
                 user.IsActive = isActive;
                 user.LastModified = DateTime.UtcNow;
 
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
                 _logger.LogInformation("User {UserId} active status set to {Status}", userId, isActive);
                 
                 return true;

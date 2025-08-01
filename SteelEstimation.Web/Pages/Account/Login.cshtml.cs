@@ -85,6 +85,9 @@ public class LoginModel : PageModel
                 // Get user roles from the user entity
                 var primaryRole = result.User.RoleNames.FirstOrDefault() ?? "Viewer";
 
+                // Get user products
+                var userProducts = await _authService.GetUserProductsAsync(result.User.Id);
+
                 // Sign in with cookies using the service
                 await _cookieAuthService.SignInAsync(
                     HttpContext,
@@ -93,7 +96,9 @@ public class LoginModel : PageModel
                     result.User.Id.ToString(),
                     result.User.Email ?? "",
                     result.User.CompanyId.ToString(),
-                    result.User.Company?.Name ?? "Unknown Company"
+                    result.User.Company?.Name ?? "Unknown Company",
+                    null, // tenantId
+                    userProducts
                 );
 
                 // Check if user needs to complete setup
@@ -175,6 +180,9 @@ public class LoginModel : PageModel
             // Get user roles from the user entity
             var primaryRole = result.User.RoleNames.FirstOrDefault() ?? "Viewer";
             
+            // Get user products
+            var userProducts = await _authService.GetUserProductsAsync(result.User.Id);
+            
             // Sign in with cookies
             await _cookieAuthService.SignInAsync(
                 HttpContext,
@@ -183,7 +191,9 @@ public class LoginModel : PageModel
                 result.User.Id.ToString(),
                 result.User.Email ?? "",
                 result.User.CompanyId.ToString(),
-                result.User.Company?.Name ?? "Unknown Company"
+                result.User.Company?.Name ?? "Unknown Company",
+                null, // tenantId
+                userProducts
             );
             
             // Check if new user needs to complete profile

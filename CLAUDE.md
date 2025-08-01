@@ -133,3 +133,8 @@ When new features require database changes, run the appropriate migration:
    - Only parent items in pack bundles have handling times applied
    - Separate visual indicators (blue badges) from delivery bundles
    - Full CRUD operations with collapse/expand functionality
+
+### Memories
+
+- If playwrite MCP Test fully pass  delete them after
+- I prefer to run sql scripts (.sql) when updating databases 

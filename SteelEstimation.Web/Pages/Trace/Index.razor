@@ -1,0 +1,137 @@
+@page "/trace"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy = "Trace.Access")]
+
+<PageTitle>Trace - PDF Take-off System</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="page-header mb-4">
+                <h1 class="page-title">
+                    <i class="fas fa-drafting-compass text-primary"></i>
+                    Trace - PDF Take-off System
+                </h1>
+                <p class="lead text-muted">Advanced PDF-based take-off system for rapid quantity extraction</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card coming-soon-card">
+                <div class="card-body text-center py-5">
+                    <div class="coming-soon-icon mb-4">
+                        <i class="fas fa-drafting-compass"></i>
+                    </div>
+                    <h2 class="mb-3">Coming Soon</h2>
+                    <p class="lead mb-4">
+                        The Trace module is currently under development and will be available soon.
+                    </p>
+                    <p class="text-muted mb-5">
+                        Trace will allow you to perform rapid 2D take-offs from engineering drawings,
+                        automatically extract quantities, and generate bills of materials with advanced
+                        measurement tools and intelligent recognition capabilities.
+                    </p>
+
+                    <div class="features-preview">
+                        <h4 class="mb-4">Planned Features</h4>
+                        <div class="row g-4">
+                            <div class="col-md-6">
+                                <div class="feature-card p-3">
+                                    <i class="fas fa-file-pdf feature-icon mb-2"></i>
+                                    <h5>PDF Import & Management</h5>
+                                    <p class="text-muted small">
+                                        Import and organize engineering drawings with version control
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="feature-card p-3">
+                                    <i class="fas fa-ruler-combined feature-icon mb-2"></i>
+                                    <h5>Advanced Measurement Tools</h5>
+                                    <p class="text-muted small">
+                                        Precise measurement tools for lengths, areas, and counts
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="feature-card p-3">
+                                    <i class="fas fa-magic feature-icon mb-2"></i>
+                                    <h5>Intelligent Recognition</h5>
+                                    <p class="text-muted small">
+                                        AI-powered recognition of standard steel sections and symbols
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="feature-card p-3">
+                                    <i class="fas fa-list-alt feature-icon mb-2"></i>
+                                    <h5>Bill of Materials</h5>
+                                    <p class="text-muted small">
+                                        Automatic generation of detailed material lists and reports
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-5">
+                        <a href="/" class="btn btn-primary">
+                            <i class="fas fa-arrow-left me-2"></i>
+                            Return to Estimate Module
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .page-header {
+        padding: 2rem 0;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .page-title {
+        font-size: 2rem;
+        font-weight: 600;
+        color: #212529;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .coming-soon-card {
+        border: none;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08);
+    }
+
+    .coming-soon-icon {
+        font-size: 5rem;
+        color: #e9ecef;
+    }
+
+    .features-preview {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+
+    .feature-card {
+        background: #f8f9fa;
+        border-radius: 0.5rem;
+        height: 100%;
+        transition: transform 0.2s ease;
+    }
+
+    .feature-card:hover {
+        transform: translateY(-2px);
+        background: #e9ecef;
+    }
+
+    .feature-icon {
+        font-size: 2rem;
+        color: #6c757d;
+    }
+</style>

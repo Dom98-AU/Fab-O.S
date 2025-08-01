@@ -1,8 +1,55 @@
-// Enhanced table functionality - resize, reorder, freeze columns, and view saving
+// Enhanced table functionality - resize, reorder, freeze columns, view saving, and multiple view modes
 window.enhancedTable = {
+    // View mode constants
+    VIEW_MODES: {
+        LIST: 'list',
+        COMPACT_LIST: 'compactList', 
+        CARD_VIEW: 'cardView'
+    },
+    
+    // Feature compatibility matrix
+    featureCompatibility: {
+        list: {
+            resize: true,
+            reorder: true,
+            freezeColumns: true,
+            columnVisibility: true,
+            sorting: true,
+            filtering: true,
+            viewSaving: true
+        },
+        compactList: {
+            resize: true,
+            reorder: true,
+            freezeColumns: true,
+            columnVisibility: true,
+            sorting: true,
+            filtering: true,
+            viewSaving: true
+        },
+        cardView: {
+            resize: false,
+            reorder: false,
+            freezeColumns: false,
+            columnVisibility: true, // Which fields to show on cards
+            sorting: true,
+            filtering: true,
+            viewSaving: true,
+            cardLayout: true // Cards per row setting
+        }
+    },
+    
     // Initialize enhanced features for a table
     init: function(tableSelector, options = {}) {
         const defaults = {
+            viewMode: this.VIEW_MODES.LIST, // Default view mode
+            enableViewModes: true, // Enable view mode switching by default
+            availableViews: [this.VIEW_MODES.LIST, this.VIEW_MODES.COMPACT_LIST, this.VIEW_MODES.CARD_VIEW],
+            cardViewOptions: {
+                cardsPerRow: 3,
+                templateId: null,
+                defaultFields: ['title', 'subtitle', 'status', 'actions']
+            },
             enableResize: true,
             enableReorder: true,
             enableViewSaving: true,
@@ -30,11 +77,22 @@ window.enhancedTable = {
                 return;
             }
             
-            // Add enhanced-table class
-            table.classList.add('enhanced-table');
+            // Store original table HTML for view switching
+            if (!table.dataset.originalHtml) {
+                table.dataset.originalHtml = table.outerHTML;
+            }
             
-            // Apply freeze columns if enabled
-            if (settings.enableFreezeColumns && settings.freezeColumns > 0) {
+            // Add enhanced-table class and view mode class
+            table.classList.add('enhanced-table');
+            table.classList.add(`view-mode-${settings.viewMode}`);
+            table.dataset.viewMode = settings.viewMode;
+            
+            // Initialize view based on current mode
+            this.applyViewMode(table, settings);
+            
+            // Apply freeze columns if enabled and compatible with view mode
+            const viewCompatibility = this.featureCompatibility[settings.viewMode];
+            if (viewCompatibility.freezeColumns && settings.enableFreezeColumns && settings.freezeColumns > 0) {
                 window.enhancedTable.applyFreezeColumns(table, settings.freezeColumns);
             }
             
@@ -56,11 +114,45 @@ window.enhancedTable = {
                 });
                 resizeObserver.observe(table);
                 
-                // Store observer for cleanup
+                // Store resize observer for cleanup
                 if (!window.enhancedTableObservers) {
                     window.enhancedTableObservers = new Map();
                 }
                 window.enhancedTableObservers.set(tableSelector, resizeObserver);
+                
+                // Add MutationObserver to watch for table content changes (e.g., from search/filtering)
+                if (settings.viewMode === this.VIEW_MODES.CARD_VIEW) {
+                    const mutationObserver = new MutationObserver((mutations) => {
+                        // Check if tbody was modified
+                        const tbodyModified = mutations.some(mutation => 
+                            mutation.target.tagName === 'TBODY' || 
+                            mutation.target.closest('tbody')
+                        );
+                        
+                        if (tbodyModified) {
+                            // Debounce to avoid multiple updates
+                            clearTimeout(this.updateTimeout);
+                            this.updateTimeout = setTimeout(() => {
+                                console.log('Enhanced table: Table content changed, updating card view');
+                                this.applyCardView(table, settings);
+                            }, 100);
+                        }
+                    });
+                    
+                    // Observe the table for changes
+                    mutationObserver.observe(table, {
+                        childList: true,
+                        subtree: true,
+                        characterData: false,
+                        attributes: false
+                    });
+                    
+                    // Store mutation observer
+                    if (!window.enhancedTableMutationObservers) {
+                        window.enhancedTableMutationObservers = new Map();
+                    }
+                    window.enhancedTableMutationObservers.set(tableSelector, mutationObserver);
+                }
                 
                 // Add scroll listener for freeze columns
                 if (settings.enableFreezeColumns && settings.freezeColumns > 0) {
@@ -70,8 +162,10 @@ window.enhancedTable = {
                 }
             }
             
-            // Initialize features
-            if (settings.enableReorder && settings.dotNetRef) {
+            // Initialize features based on view mode compatibility
+            const modeCompatibility = this.featureCompatibility[settings.viewMode];
+            
+            if (modeCompatibility.reorder && settings.enableReorder && settings.dotNetRef) {
                 console.log('Enhanced table: Initializing column reordering');
                 // Use the existing column reorder if available
                 if (window.columnReorder) {
@@ -81,7 +175,7 @@ window.enhancedTable = {
             
             // Initialize resize after reorder
             setTimeout(() => {
-                if (settings.enableResize) {
+                if (modeCompatibility.resize && settings.enableResize) {
                     console.log('Enhanced table: Initializing column resizing');
                     if (window.simpleResize) {
                         window.simpleResize.init();
@@ -110,6 +204,335 @@ window.enhancedTable = {
             document.addEventListener('DOMContentLoaded', () => {
                 setTimeout(initializeTable, 100);
             });
+        }
+    },
+    
+    // Apply view mode to table
+    applyViewMode: function(table, settings) {
+        const viewMode = settings.viewMode;
+        console.log('Enhanced table: Applying view mode:', viewMode);
+        
+        switch(viewMode) {
+            case this.VIEW_MODES.COMPACT_LIST:
+                this.applyCompactListView(table, settings);
+                break;
+            case this.VIEW_MODES.CARD_VIEW:
+                this.applyCardView(table, settings);
+                break;
+            case this.VIEW_MODES.LIST:
+            default:
+                this.applyListView(table, settings);
+                break;
+        }
+    },
+    
+    // Apply standard list view
+    applyListView: function(table, settings) {
+        // Remove compact and card classes
+        table.classList.remove('compact-list', 'card-view');
+        table.classList.add('list-view');
+        
+        // Ensure table is visible
+        const wrapper = table.closest('.table-wrapper');
+        if (wrapper) {
+            wrapper.style.display = '';
+        }
+    },
+    
+    // Apply compact list view
+    applyCompactListView: function(table, settings) {
+        // Remove other view classes
+        table.classList.remove('list-view', 'card-view');
+        table.classList.add('compact-list');
+        
+        // Ensure table is visible
+        const wrapper = table.closest('.table-wrapper');
+        if (wrapper) {
+            wrapper.style.display = '';
+        }
+    },
+    
+    // Apply card view
+    applyCardView: function(table, settings) {
+        const wrapper = table.closest('.table-wrapper') || table.parentElement;
+        
+        // Hide the original table
+        table.style.display = 'none';
+        
+        // Create card container if it doesn't exist
+        let cardContainer = wrapper.querySelector('.card-view-container');
+        if (!cardContainer) {
+            cardContainer = document.createElement('div');
+            cardContainer.className = 'card-view-container';
+            wrapper.appendChild(cardContainer);
+        }
+        
+        // Render cards
+        this.renderCards(table, cardContainer, settings);
+    },
+    
+    // Render cards from table data
+    renderCards: function(table, container, settings) {
+        // Clear existing cards
+        container.innerHTML = '';
+        
+        // Get table headers for field mapping
+        const headers = Array.from(table.querySelectorAll('thead th')).map(th => ({
+            text: th.textContent.trim(),
+            index: th.cellIndex
+        }));
+        
+        // Get table rows
+        const rows = table.querySelectorAll('tbody tr');
+        const cardsPerRow = settings.cardViewOptions.cardsPerRow || 3;
+        
+        // Create card grid
+        const cardGrid = document.createElement('div');
+        cardGrid.className = 'card-view-grid';
+        cardGrid.dataset.cardsPerRow = cardsPerRow;
+        
+        // Create cards for each row
+        rows.forEach((row, rowIndex) => {
+            const card = this.createCard(row, headers, settings);
+            if (card) {
+                cardGrid.appendChild(card);
+            }
+        });
+        
+        container.appendChild(cardGrid);
+    },
+    
+    // Create a single card from a table row
+    createCard: function(row, headers, settings) {
+        const cells = row.querySelectorAll('td');
+        if (cells.length === 0) return null;
+        
+        const card = document.createElement('div');
+        card.className = 'card enhanced-table-card';
+        card.dataset.rowIndex = row.rowIndex;
+        
+        // Create card content based on template or default layout
+        if (settings.cardViewOptions.templateId) {
+            // Use custom template if provided
+            const template = document.getElementById(settings.cardViewOptions.templateId);
+            if (template) {
+                card.innerHTML = this.processCardTemplate(template.innerHTML, cells, headers);
+            } else {
+                card.innerHTML = this.createDefaultCardContent(cells, headers);
+            }
+        } else {
+            card.innerHTML = this.createDefaultCardContent(cells, headers, settings);
+        }
+        
+        // Maintain row click functionality
+        if (row.onclick) {
+            card.style.cursor = 'pointer';
+            card.onclick = (e) => {
+                // Don't trigger if clicking on buttons/links
+                if (!e.target.closest('button, a')) {
+                    row.onclick.call(row, e);
+                }
+            };
+        }
+        
+        // Copy any data attributes from the row
+        Array.from(row.attributes).forEach(attr => {
+            if (attr.name.startsWith('data-')) {
+                card.setAttribute(attr.name, attr.value);
+            }
+        });
+        
+        return card;
+    },
+    
+    // Create default card content
+    createDefaultCardContent: function(cells, headers, settings) {
+        let html = '';
+        
+        // Extract cell content, handling HTML elements
+        const getCellContent = (cell) => {
+            // If cell contains badges, preserve them
+            const badge = cell.querySelector('.badge');
+            if (badge) {
+                return badge.outerHTML;
+            }
+            // If cell contains code elements, preserve them
+            const code = cell.querySelector('code');
+            if (code) {
+                return code.outerHTML;
+            }
+            // Otherwise return text content
+            return cell.textContent.trim();
+        };
+        
+        if (cells.length > 0 && headers.length > 0) {
+            // Card header with title
+            const titleContent = cells[0].querySelector('strong') ? 
+                cells[0].querySelector('strong').textContent.trim() : 
+                cells[0].textContent.trim();
+            
+            html += '<div class="card-header">';
+            html += `<h5 class="card-title mb-0">${titleContent}</h5>`;
+            html += '</div>';
+            
+            // Card body
+            html += '<div class="card-body">';
+            
+            // Status badges (if any)
+            const statusCell = Array.from(cells).find(cell => cell.querySelector('.badge'));
+            if (statusCell && statusCell !== cells[0]) {
+                html += '<div class="mb-3">';
+                html += statusCell.innerHTML;
+                html += '</div>';
+            }
+            
+            // Details section
+            html += '<div class="card-details">';
+            for (let i = 1; i < Math.min(cells.length - 1, headers.length); i++) {
+                const header = headers[i].text;
+                const value = getCellContent(cells[i]);
+                
+                // Skip empty values or action columns
+                if (value && value !== '-' && !cells[i].querySelector('.btn-group')) {
+                    html += `
+                        <div class="detail-row d-flex justify-content-between mb-2">
+                            <span class="detail-label text-muted">${header}:</span>
+                            <span class="detail-value">${value}</span>
+                        </div>
+                    `;
+                }
+            }
+            html += '</div>';
+            
+            html += '</div>'; // End card-body
+            
+            // Card footer with actions (if last column contains buttons)
+            const lastCell = cells[cells.length - 1];
+            const btnGroup = lastCell.querySelector('.btn-group');
+            if (btnGroup) {
+                html += '<div class="card-footer bg-transparent">';
+                html += '<div class="d-flex justify-content-end">';
+                html += btnGroup.outerHTML;
+                html += '</div>';
+                html += '</div>';
+            }
+        }
+        
+        return html;
+    },
+    
+    // Process custom card template
+    processCardTemplate: function(template, cells, headers) {
+        let processed = template;
+        
+        // Replace placeholders with cell values
+        headers.forEach((header, index) => {
+            const placeholder = new RegExp(`{{${header.text}}}`, 'gi');
+            const value = cells[index] ? cells[index].textContent.trim() : '';
+            processed = processed.replace(placeholder, value);
+        });
+        
+        // Replace index-based placeholders
+        cells.forEach((cell, index) => {
+            const placeholder = new RegExp(`{{column${index}}}`, 'gi');
+            processed = processed.replace(placeholder, cell.textContent.trim());
+        });
+        
+        return processed;
+    },
+    
+    // Switch view mode
+    switchViewMode: function(tableSelector, newMode) {
+        const settings = window.enhancedTableInstances[tableSelector];
+        if (!settings) return;
+        
+        const table = document.querySelector(tableSelector);
+        if (!table) return;
+        
+        // Clean up existing mutation observer
+        if (window.enhancedTableMutationObservers && window.enhancedTableMutationObservers.has(tableSelector)) {
+            const observer = window.enhancedTableMutationObservers.get(tableSelector);
+            observer.disconnect();
+            window.enhancedTableMutationObservers.delete(tableSelector);
+        }
+        
+        // Update settings
+        settings.viewMode = newMode;
+        
+        // Clear existing view
+        const wrapper = table.closest('.table-wrapper');
+        if (wrapper) {
+            const cardContainer = wrapper.querySelector('.card-view-container');
+            if (cardContainer) {
+                cardContainer.remove();
+            }
+        }
+        
+        // Reset table visibility
+        table.style.display = '';
+        
+        // Remove all view mode classes
+        table.classList.remove('view-mode-list', 'view-mode-compactList', 'view-mode-cardView');
+        table.classList.add(`view-mode-${newMode}`);
+        table.dataset.viewMode = newMode;
+        
+        // Apply new view mode
+        this.applyViewMode(table, settings);
+        
+        // Set up mutation observer for card view
+        if (newMode === this.VIEW_MODES.CARD_VIEW) {
+            const mutationObserver = new MutationObserver((mutations) => {
+                const tbodyModified = mutations.some(mutation => 
+                    mutation.target.tagName === 'TBODY' || 
+                    mutation.target.closest('tbody')
+                );
+                
+                if (tbodyModified) {
+                    clearTimeout(this.updateTimeout);
+                    this.updateTimeout = setTimeout(() => {
+                        console.log('Enhanced table: Table content changed, updating card view');
+                        this.applyCardView(table, settings);
+                    }, 100);
+                }
+            });
+            
+            mutationObserver.observe(table, {
+                childList: true,
+                subtree: true,
+                characterData: false,
+                attributes: false
+            });
+            
+            if (!window.enhancedTableMutationObservers) {
+                window.enhancedTableMutationObservers = new Map();
+            }
+            window.enhancedTableMutationObservers.set(tableSelector, mutationObserver);
+        }
+        
+        // Reinitialize features for new mode
+        this.reinitializeFeatures(table, settings);
+    },
+    
+    // Reinitialize features after view mode change
+    reinitializeFeatures: function(table, settings) {
+        const featureCompat = this.featureCompatibility[settings.viewMode];
+        
+        // Clean up existing features
+        if (window.simpleResize) {
+            table.querySelectorAll('.simple-resize-handle').forEach(handle => handle.remove());
+        }
+        
+        // Reinitialize based on compatibility
+        if (featureCompat.resize && settings.enableResize && window.simpleResize) {
+            setTimeout(() => window.simpleResize.init(), 100);
+        }
+        
+        if (featureCompat.reorder && settings.enableReorder && window.columnReorder && settings.dotNetRef) {
+            window.columnReorder.initialize(settings.dotNetRef, table);
+        }
+        
+        if (featureCompat.freezeColumns && settings.enableFreezeColumns && settings.freezeColumns > 0) {
+            this.applyFreezeColumns(table, settings.freezeColumns);
         }
     },
     
@@ -319,35 +742,82 @@ window.enhancedTable = {
         // Create view controls
         const viewControls = document.createElement('div');
         viewControls.className = 'table-view-controls mb-3';
+        
+        // Create view mode selector HTML
+        let viewModeSelectorHtml = '';
+        if (settings.enableViewModes && settings.availableViews && settings.availableViews.length > 1) {
+            viewModeSelectorHtml = `
+                <div class="col-auto">
+                    <div class="btn-group btn-group-sm" role="group" aria-label="View Mode">
+                        ${settings.availableViews.map(mode => `
+                            <input type="radio" class="btn-check" name="viewMode" id="viewMode-${mode}" value="${mode}" ${settings.viewMode === mode ? 'checked' : ''}>
+                            <label class="btn btn-outline-primary" for="viewMode-${mode}">
+                                ${this.getViewModeIcon(mode)} ${this.getViewModeLabel(mode)}
+                            </label>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+        
         viewControls.innerHTML = `
             <div class="row align-items-center">
+                ${viewModeSelectorHtml}
                 <div class="col-auto">
-                    <div class="input-group input-group-sm">
-                        <span class="input-group-text"><i class="fas fa-th"></i></span>
-                        <select class="form-select form-select-sm" id="viewSelector">
-                            <option value="">Default View</option>
-                        </select>
-                        <button class="btn btn-sm btn-outline-primary" type="button" id="loadViewBtn" title="Load View">
-                            <i class="fas fa-folder-open"></i>
-                        </button>
-                        <button class="btn btn-sm btn-outline-success" type="button" id="saveViewBtn" title="Save View">
-                            <i class="fas fa-save"></i>
-                        </button>
-                        <button class="btn btn-sm btn-primary" type="button" id="saveAsViewBtn" title="Save As New View">
-                            <i class="fas fa-file-plus"></i>
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger" type="button" id="deleteViewBtn" title="Delete View">
-                            <i class="fas fa-trash"></i>
-                        </button>
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-bookmark"></i></span>
+                            <select class="form-select" id="viewSelector" style="min-width: 200px;">
+                                <option value="">Default View</option>
+                            </select>
+                        </div>
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-primary" type="button" id="saveAsViewBtn" title="Save As New View">
+                                <i class="fas fa-file-plus me-1"></i>
+                                <span>Save As New</span>
+                            </button>
+                            <button class="btn btn-success" type="button" id="saveViewBtn" title="Save Current View">
+                                <i class="fas fa-save me-1"></i>
+                                <span>Save</span>
+                            </button>
+                            <button class="btn btn-danger" type="button" id="deleteViewBtn" title="Delete View">
+                                <i class="fas fa-trash me-1"></i>
+                                <span>Delete</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
                 <div class="col-auto ms-auto">
-                    <div class="dropdown">
-                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="columnControlBtn" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fas fa-columns"></i> Columns
-                        </button>
-                        <div class="dropdown-menu dropdown-menu-end p-3" style="min-width: 300px; max-height: 500px; overflow-y: auto;" id="columnControlDropdown">
-                            <!-- Column controls will be populated here -->
+                    <div class="btn-group btn-group-sm" role="group">
+                        <div class="dropdown" id="columnControlContainer">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="columnControlBtn" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-columns"></i> Columns
+                            </button>
+                            <div class="dropdown-menu dropdown-menu-end p-3" style="min-width: 300px; max-height: 500px; overflow-y: auto;" id="columnControlDropdown">
+                                <!-- Column controls will be populated here -->
+                            </div>
+                        </div>
+                        <div class="dropdown" id="cardLayoutContainer" style="display: none;">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="cardLayoutBtn" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-th"></i> Layout
+                            </button>
+                            <div class="dropdown-menu dropdown-menu-end p-3" id="cardLayoutDropdown">
+                                <div class="fw-bold mb-2">Cards per Row</div>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <input type="radio" class="btn-check" name="cardsPerRow" id="cards-1" value="1">
+                                    <label class="btn btn-outline-secondary" for="cards-1">1</label>
+                                    <input type="radio" class="btn-check" name="cardsPerRow" id="cards-2" value="2">
+                                    <label class="btn btn-outline-secondary" for="cards-2">2</label>
+                                    <input type="radio" class="btn-check" name="cardsPerRow" id="cards-3" value="3" checked>
+                                    <label class="btn btn-outline-secondary" for="cards-3">3</label>
+                                    <input type="radio" class="btn-check" name="cardsPerRow" id="cards-4" value="4">
+                                    <label class="btn btn-outline-secondary" for="cards-4">4</label>
+                                    <input type="radio" class="btn-check" name="cardsPerRow" id="cards-5" value="5">
+                                    <label class="btn btn-outline-secondary" for="cards-5">5</label>
+                                    <input type="radio" class="btn-check" name="cardsPerRow" id="cards-6" value="6">
+                                    <label class="btn btn-outline-secondary" for="cards-6">6</label>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -364,6 +834,26 @@ window.enhancedTable = {
         this.loadAvailableViews(settings.tableType);
     },
     
+    // Get view mode icon
+    getViewModeIcon: function(mode) {
+        const icons = {
+            list: '<i class="fas fa-list"></i>',
+            compactList: '<i class="fas fa-th-list"></i>',
+            cardView: '<i class="fas fa-th-large"></i>'
+        };
+        return icons[mode] || '<i class="fas fa-list"></i>';
+    },
+    
+    // Get view mode label
+    getViewModeLabel: function(mode) {
+        const labels = {
+            list: 'List',
+            compactList: 'Compact',
+            cardView: 'Cards'
+        };
+        return labels[mode] || 'List';
+    },
+    
     // Set up event handlers for view controls
     setupViewControlHandlers: function(controls, settings) {
         const viewSelector = controls.querySelector('#viewSelector');
@@ -372,6 +862,44 @@ window.enhancedTable = {
         const saveAsBtn = controls.querySelector('#saveAsViewBtn');
         const deleteBtn = controls.querySelector('#deleteViewBtn');
         const columnControlBtn = controls.querySelector('#columnControlBtn');
+        
+        // Handle view mode switching
+        const viewModeRadios = controls.querySelectorAll('input[name="viewMode"]');
+        viewModeRadios.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    const tableSelector = Object.keys(window.enhancedTableInstances).find(selector => 
+                        controls.closest('.container-fluid')?.querySelector(selector)
+                    );
+                    if (tableSelector) {
+                        this.switchViewMode(tableSelector, e.target.value);
+                        
+                        // Update control visibility based on view mode
+                        this.updateControlsForViewMode(controls, e.target.value);
+                    }
+                }
+            });
+        });
+        
+        // Handle cards per row change
+        const cardsPerRowRadios = controls.querySelectorAll('input[name="cardsPerRow"]');
+        cardsPerRowRadios.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                if (e.target.checked && settings.viewMode === this.VIEW_MODES.CARD_VIEW) {
+                    settings.cardViewOptions.cardsPerRow = parseInt(e.target.value);
+                    const tableSelector = Object.keys(window.enhancedTableInstances).find(selector => 
+                        controls.closest('.container-fluid')?.querySelector(selector)
+                    );
+                    if (tableSelector) {
+                        const table = document.querySelector(tableSelector);
+                        this.applyCardView(table, settings);
+                    }
+                }
+            });
+        });
+        
+        // Initialize control visibility
+        this.updateControlsForViewMode(controls, settings.viewMode);
         
         // Load view
         loadBtn.addEventListener('click', () => {
@@ -460,6 +988,22 @@ window.enhancedTable = {
                     this.populateColumnControlDropdown(dropdown, settings);
                 }
             });
+        }
+    },
+    
+    // Update controls visibility based on view mode
+    updateControlsForViewMode: function(controls, viewMode) {
+        const columnControlContainer = controls.querySelector('#columnControlContainer');
+        const cardLayoutContainer = controls.querySelector('#cardLayoutContainer');
+        
+        if (viewMode === this.VIEW_MODES.CARD_VIEW) {
+            // Hide column controls, show card layout controls
+            if (columnControlContainer) columnControlContainer.style.display = 'none';
+            if (cardLayoutContainer) cardLayoutContainer.style.display = '';
+        } else {
+            // Show column controls, hide card layout controls
+            if (columnControlContainer) columnControlContainer.style.display = '';
+            if (cardLayoutContainer) cardLayoutContainer.style.display = 'none';
         }
     },
     
@@ -917,6 +1461,11 @@ window.enhancedTable = {
                 this.applyColumnVisibility(columnVisibility);
             }
             
+            // Apply view mode
+            if (view.viewMode) {
+                this.switchViewMode(view.viewMode);
+            }
+            
             // Show success message
             if (window.showToast) {
                 window.showToast(`Loaded view: ${view.viewName}`, 'success');
@@ -945,7 +1494,8 @@ window.enhancedTable = {
                     isShared: document.querySelector('#shareViewCheck')?.checked || false,
                     columnOrder: JSON.stringify(state.columnOrder),
                     columnWidths: JSON.stringify(state.columnWidths),
-                    columnVisibility: JSON.stringify(state.columnVisibility)
+                    columnVisibility: JSON.stringify(state.columnVisibility),
+                    viewMode: state.viewMode
                 })
             });
             
@@ -980,6 +1530,7 @@ window.enhancedTable = {
                     columnOrder: JSON.stringify(state.columnOrder),
                     columnWidths: JSON.stringify(state.columnWidths),
                     columnVisibility: JSON.stringify(state.columnVisibility),
+                    viewMode: state.viewMode,
                     frozenColumns: state.frozenColumns
                 })
             });
@@ -1057,11 +1608,16 @@ window.enhancedTable = {
         // Get frozen columns count
         const frozenColumns = table.querySelectorAll('thead .frozen-col').length;
         
+        // Get current view mode
+        const viewModeSelector = document.querySelector('input[name="viewMode"]:checked');
+        const viewMode = viewModeSelector ? viewModeSelector.value : this.VIEW_MODES.LIST;
+        
         return {
             columnOrder,
             columnWidths,
             columnVisibility,
-            frozenColumns
+            frozenColumns,
+            viewMode
         };
     },
     
@@ -1178,6 +1734,13 @@ window.enhancedTable = {
                 const observer = window.enhancedTableObservers.get(tableSelector);
                 observer.disconnect();
                 window.enhancedTableObservers.delete(tableSelector);
+            }
+            
+            // Clean up MutationObserver
+            if (window.enhancedTableMutationObservers && window.enhancedTableMutationObservers.has(tableSelector)) {
+                const observer = window.enhancedTableMutationObservers.get(tableSelector);
+                observer.disconnect();
+                window.enhancedTableMutationObservers.delete(tableSelector);
             }
             
             // Clean up column reorder if it exists

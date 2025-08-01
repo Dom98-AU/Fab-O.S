@@ -1,0 +1,379 @@
+@page "/settings/preferences"
+@using Microsoft.AspNetCore.Authorization
+@using SteelEstimation.Core.Interfaces
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Core.DTOs
+@attribute [Authorize]
+@inject IUserProfileService ProfileService
+@inject IFabOSAuthenticationService AuthService
+@inject IJSRuntime JSRuntime
+
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <h2 class="mb-4">User Preferences</h2>
+
+            @if (isLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            }
+            else if (preferences != null)
+            {
+                <EditForm Model="preferences" OnValidSubmit="SavePreferences">
+                    <DataAnnotationsValidator />
+                    
+                    <!-- UI Preferences -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-palette me-2"></i>User Interface</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Theme</label>
+                                        <select @bind="preferences.Theme" class="form-select">
+                                            <option value="light">Light</option>
+                                            <option value="dark">Dark</option>
+                                            <option value="auto">Auto (System)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Language</label>
+                                        <select @bind="preferences.Language" class="form-select">
+                                            <option value="en">English</option>
+                                            <option value="es">Spanish</option>
+                                            <option value="fr">French</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Date Format</label>
+                                        <select @bind="preferences.DateFormat" class="form-select">
+                                            <option value="MM/dd/yyyy">MM/dd/yyyy</option>
+                                            <option value="dd/MM/yyyy">dd/MM/yyyy</option>
+                                            <option value="yyyy-MM-dd">yyyy-MM-dd</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Time Format</label>
+                                        <select @bind="preferences.TimeFormat" class="form-select">
+                                            <option value="12h">12-hour (AM/PM)</option>
+                                            <option value="24h">24-hour</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Module Preferences -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-th-large me-2"></i>Module Settings</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label">Default Module</label>
+                                <select @bind="preferences.DefaultModule" class="form-select">
+                                    <option value="Estimate">Estimate</option>
+                                    <option value="Trace">Trace</option>
+                                    <option value="Fabmate">Fabmate</option>
+                                    <option value="QDocs">QDocs</option>
+                                </select>
+                                <small class="form-text text-muted">This module will open when you log in</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Estimation Preferences -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-calculator me-2"></i>Estimation Settings</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-check mb-3">
+                                <InputCheckbox @bind-Value="preferences.AutoSaveEstimates" class="form-check-input" id="autoSave" />
+                                <label class="form-check-label" for="autoSave">
+                                    Enable auto-save for estimations
+                                </label>
+                            </div>
+                            @if (preferences.AutoSaveEstimates)
+                            {
+                                <div class="mb-3 ms-4">
+                                    <label class="form-label">Auto-save interval (minutes)</label>
+                                    <InputNumber @bind-Value="preferences.AutoSaveIntervalMinutes" class="form-control" style="width: 100px;" min="1" max="30" />
+                                </div>
+                            }
+                            <div class="form-check mb-2">
+                                <InputCheckbox @bind-Value="preferences.ShowWeldingTimeByDefault" class="form-check-input" id="showWelding" />
+                                <label class="form-check-label" for="showWelding">
+                                    Show welding time by default
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <InputCheckbox @bind-Value="preferences.ShowProcessingTimeByDefault" class="form-check-input" id="showProcessing" />
+                                <label class="form-check-label" for="showProcessing">
+                                    Show processing time by default
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Table View Preferences -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-table me-2"></i>Table Display</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Default View</label>
+                                        <select @bind="preferences.DefaultTableView" class="form-select">
+                                            <option value="table">Table View</option>
+                                            <option value="card">Card View</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Items per page</label>
+                                        <select @bind="preferences.DefaultPageSize" class="form-select">
+                                            <option value="10">10</option>
+                                            <option value="25">25</option>
+                                            <option value="50">50</option>
+                                            <option value="100">100</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            @if (preferences.DefaultTableView == "card")
+                            {
+                                <div class="mb-3">
+                                    <label class="form-label">Cards per row</label>
+                                    <InputNumber @bind-Value="preferences.DefaultCardsPerRow" class="form-control" min="1" max="6" />
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Notification Preferences -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-bell me-2"></i>Notifications</h5>
+                        </div>
+                        <div class="card-body">
+                            <h6>Email Notifications</h6>
+                            <div class="form-check mb-2">
+                                <InputCheckbox @bind-Value="preferences.EmailNotifications" class="form-check-input" id="emailNotif" />
+                                <label class="form-check-label" for="emailNotif">
+                                    Enable email notifications
+                                </label>
+                            </div>
+                            @if (preferences.EmailNotifications)
+                            {
+                                <div class="ms-4 mb-3">
+                                    <div class="form-check mb-2">
+                                        <InputCheckbox @bind-Value="preferences.EmailMentions" class="form-check-input" id="emailMentions" />
+                                        <label class="form-check-label" for="emailMentions">
+                                            When someone mentions me
+                                        </label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <InputCheckbox @bind-Value="preferences.EmailComments" class="form-check-input" id="emailComments" />
+                                        <label class="form-check-label" for="emailComments">
+                                            When someone comments on my items
+                                        </label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <InputCheckbox @bind-Value="preferences.EmailInvites" class="form-check-input" id="emailInvites" />
+                                        <label class="form-check-label" for="emailInvites">
+                                            When I receive invitations
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <InputCheckbox @bind-Value="preferences.EmailReports" class="form-check-input" id="emailReports" />
+                                        <label class="form-check-label" for="emailReports">
+                                            Report summaries
+                                        </label>
+                                    </div>
+                                </div>
+                            }
+                            
+                            <hr />
+                            
+                            <h6>In-App Notifications</h6>
+                            <div class="form-check mb-2">
+                                <InputCheckbox @bind-Value="preferences.ShowNotificationBadge" class="form-check-input" id="notifBadge" />
+                                <label class="form-check-label" for="notifBadge">
+                                    Show notification badge
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <InputCheckbox @bind-Value="preferences.PlayNotificationSound" class="form-check-input" id="notifSound" />
+                                <label class="form-check-label" for="notifSound">
+                                    Play notification sound
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <InputCheckbox @bind-Value="preferences.DesktopNotifications" class="form-check-input" id="desktopNotif" />
+                                <label class="form-check-label" for="desktopNotif">
+                                    Enable desktop notifications
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Privacy Preferences -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-lock me-2"></i>Privacy</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-check mb-2">
+                                <InputCheckbox @bind-Value="preferences.ShowOnlineStatus" class="form-check-input" id="onlineStatus" />
+                                <label class="form-check-label" for="onlineStatus">
+                                    Show my online status
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <InputCheckbox @bind-Value="preferences.ShowLastSeen" class="form-check-input" id="lastSeen" />
+                                <label class="form-check-label" for="lastSeen">
+                                    Show when I was last active
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <InputCheckbox @bind-Value="preferences.ShowActivityFeed" class="form-check-input" id="activityFeed" />
+                                <label class="form-check-label" for="activityFeed">
+                                    Show my activity in feeds
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Save Buttons -->
+                    <div class="d-flex justify-content-between">
+                        <button type="button" class="btn btn-secondary" @onclick="ResetPreferences">
+                            <i class="fas fa-undo me-2"></i>Reset to Defaults
+                        </button>
+                        <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                            @if (isSaving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                            }
+                            <i class="fas fa-save me-2"></i>Save Preferences
+                        </button>
+                    </div>
+                </EditForm>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private UserPreference? preferences;
+    private int currentUserId;
+    private bool isLoading = true;
+    private bool isSaving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        currentUserId = await AuthService.GetCurrentUserIdAsync() ?? 0;
+        await LoadPreferences();
+    }
+
+    private async Task LoadPreferences()
+    {
+        isLoading = true;
+        try
+        {
+            preferences = await ProfileService.GetUserPreferencesAsync(currentUserId);
+            
+            // Create default preferences if none exist
+            if (preferences == null)
+            {
+                preferences = await ProfileService.CreateUserPreferencesAsync(currentUserId, new CreateUserPreferencesRequest());
+            }
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SavePreferences()
+    {
+        if (preferences == null) return;
+
+        isSaving = true;
+        try
+        {
+            var request = new UpdateUserPreferencesRequest
+            {
+                Theme = preferences.Theme,
+                Language = preferences.Language,
+                DateFormat = preferences.DateFormat,
+                TimeFormat = preferences.TimeFormat,
+                DefaultModule = preferences.DefaultModule,
+                AutoSaveEstimates = preferences.AutoSaveEstimates,
+                AutoSaveIntervalMinutes = preferences.AutoSaveIntervalMinutes,
+                ShowWeldingTimeByDefault = preferences.ShowWeldingTimeByDefault,
+                ShowProcessingTimeByDefault = preferences.ShowProcessingTimeByDefault,
+                DefaultTableView = preferences.DefaultTableView,
+                DefaultPageSize = preferences.DefaultPageSize,
+                DefaultCardsPerRow = preferences.DefaultCardsPerRow,
+                EmailNotifications = preferences.EmailNotifications,
+                EmailMentions = preferences.EmailMentions,
+                EmailComments = preferences.EmailComments,
+                EmailInvites = preferences.EmailInvites,
+                EmailReports = preferences.EmailReports,
+                ShowNotificationBadge = preferences.ShowNotificationBadge,
+                PlayNotificationSound = preferences.PlayNotificationSound,
+                DesktopNotifications = preferences.DesktopNotifications,
+                ShowDashboardWidgets = preferences.ShowDashboardWidgets,
+                DashboardLayout = preferences.DashboardLayout,
+                ShowOnlineStatus = preferences.ShowOnlineStatus,
+                ShowLastSeen = preferences.ShowLastSeen,
+                ShowActivityFeed = preferences.ShowActivityFeed
+            };
+
+            await ProfileService.UpdateUserPreferencesAsync(currentUserId, request);
+            
+            // Apply theme immediately
+            await ApplyTheme(preferences.Theme);
+            
+            await JSRuntime.InvokeVoidAsync("alert", "Preferences saved successfully!");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task ResetPreferences()
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to reset all preferences to defaults?");
+        if (confirmed)
+        {
+            await ProfileService.ResetUserPreferencesAsync(currentUserId);
+            await LoadPreferences();
+        }
+    }
+
+    private async Task ApplyTheme(string theme)
+    {
+        await JSRuntime.InvokeVoidAsync("applyTheme", theme);
+    }
+}

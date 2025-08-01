@@ -1,0 +1,64 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Steel Estimation Platform</title>
+    <base href="/" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link rel="stylesheet" href="css/site.css?v=12" />
+    <style>
+        :root {
+            --bs-primary: rgb(13, 26, 128);
+            --bs-primary-rgb: 13, 26, 128;
+        }
+        .btn-primary {
+            background-color: rgb(13, 26, 128) !important;
+            border-color: rgb(13, 26, 128) !important;
+        }
+        .btn-primary:hover {
+            background-color: rgb(10, 20, 102) !important;
+            border-color: rgb(10, 20, 102) !important;
+        }
+        .bg-primary {
+            background-color: rgb(13, 26, 128) !important;
+        }
+    </style>
+    <!--Blazor:{"type":"server","prerenderId":"1f43f352049b4d568285f0d931eb9cb2","key":{"locationHash":"77D12F14A8105320B1AAED6AE7E689DA0EC4483270A645E84079EAA0FFDF550D:0","formattedComponentKey":""},"sequence":0,"descriptor":"CfDJ8LQps6ZH07JAviyoe2DrtFboObT3lmyO04Gx1iHtw7lbtTH7HiHbur\u002Bre7BCoKe\u002BvbBrP9LYQziDpkLgP3qUn2K5SDtXJOhGTzjqHPGzBWwpx7VtBv0fZ1JPruNBt\u002BgQocZ2BuKtzHxLQTswwD0v34wTbh4\u002B1N7JBLgaRY7SuyEo6RzS/rjZk4VK2AFie/gQpF6mWyCRTuqvjzDbkm\u002Bh1p2PXgNV1XO7qLXgZhPCrdjPVWshv0zzrXoBmjbyQnbbjsi/v7i3xmeJEtKr2/fA1uAjk46jO2miV2yzYhws0hke/ip1IzdScN3HPCMwfFVEmv2qgzOryHhRLGmRRwJCj2/yDy6VZeWJRdU/oMYcAWlUvaYYE1Qp2a/yn8TqOw0TRFtq/98UTgT2lOikUxOtAh6BYtcXV3N18/XmtFPqq\u002BvKK03P2byekXsk7BSK2p5BaI1ZPZgnNdSgfWylOr0wOSDL5CSSJe/NFosy4LjkLeooEg0KuCq25Ggi3FjwVkx0I0TsP16xWuUJZIPnHZspbSmxc4XLhcnqI9P07ibSA2GLncG2hqy189S9\u002BbM7R1mKhj5pP22iXyHWUta9/o8Q8rc="}--><!--Blazor:{"prerenderId":"1f43f352049b4d568285f0d931eb9cb2"}-->
+</head>
+<body>
+    
+<!--Blazor:{"type":"server","key":{"locationHash":"5FF154784CDC9D24963DCD7E9D21E41C7C622BCF820D4182F099ED76F9457D04:0","formattedComponentKey":""},"sequence":1,"descriptor":"CfDJ8LQps6ZH07JAviyoe2DrtFagIaRRes/i8ORD4HwS\u002B2MG/73xp3njPVyAnx1mI2kihJfmSpqWMUkGpiLpD0QPXqHMCAGwgVaS/fRx4z8ErfUD1jzlKVwOu2sy2oa45QqxrHK50C/E\u002B4jU4QFDqOV89XGHCO2bzOBfinV3ZHjWT67mKGwpITi4ckWF\u002BlFk\u002BpoYgAr0w\u002BDYRuSBRN4rKtjcbe\u002BJLe2eR5aB8dM3/Ta4aCEIvF\u002BhJNVGEZzOBLauNoWaQedTfE18Eo9GdnFrQKZ3H2zOrI1buQRhplQU\u002Bp5WaHJC1T8piv3nIkAGf3rm7sBmkjmN3fzRsy6y7gVlT4pCpw3DXGYCqOIOmn/9l2Ff31jf8GOqkIIF9SotMgyjP5cuxK5BgnUIAiZaHuspVdBq6ptp2BtaVJbzA8EeO1RugfuptgCttODdnr4Wb68GwTn\u002BptIbtErTG3nKOdqIKEjr1Fh613BTwuI2L1XqeFrFAonQR4YVKiDCGCFaB4l349zi91skA/eugKASxZQ9sst9njA="}-->
+
+    <script src="_framework/blazor.server.js"></script>
+    <script>
+        // Early initialization of safeCall to prevent errors before site.js loads
+        window.safeCall = window.safeCall || function(functionName, ...args) {
+            console.warn('safeCall: ' + functionName + ' not yet available, will be called when ready');
+            return undefined;
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="js/site.js?v=4"></script>
+    <script src="js/table-resize.js?v=5"></script>
+    <script src="js/simple-resize.js?v=3"></script>
+    <script src="js/clipboard.js?v=2"></script>
+    <script src="js/clipboard-paste.js?v=1"></script>
+    <script src="js/inactivity-monitor.js?v=2"></script>
+    <script src="js/dashboard-charts.js?v=2"></script>
+    <script src="js/undo-redo.js?v=2"></script>
+    <script src="js/column-reorder.js?v=2"></script>
+    <script src="js/enhanced-table.js?v=9"></script>
+    <script src="js/toast.js?v=1"></script>
+    <script src="js/bundle-drag.js?v=2"></script>
+    <script src="js/timeAnalytics.js?v=1"></script>
+    <script src="js/estimation-summary-charts.js?v=1"></script>
+</body>
+</html>
