@@ -1,0 +1,217 @@
+@page "/test-dicebear-simple"
+@using Microsoft.AspNetCore.Authorization
+@using SteelEstimation.Web.Data
+@attribute [Authorize]
+
+<div class="container-fluid mt-4">
+    <h1>DiceBear Customization Test</h1>
+    
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Avatar Selection & Customization</h5>
+                    
+                    <!-- Step 1: Select Style -->
+                    <div class="mb-4">
+                        <h6>Step 1: Select Avatar Style</h6>
+                        <div class="d-flex gap-3">
+                            <button class="btn btn-outline-primary @(selectedStyle == "adventurer" ? "active" : "")" 
+                                    @onclick="@(() => SelectStyle("adventurer"))">
+                                Adventurer
+                            </button>
+                            <button class="btn btn-outline-primary @(selectedStyle == "avataaars" ? "active" : "")" 
+                                    @onclick="@(() => SelectStyle("avataaars"))">
+                                Avataaars
+                            </button>
+                            <button class="btn btn-outline-primary @(selectedStyle == "bottts" ? "active" : "")" 
+                                    @onclick="@(() => SelectStyle("bottts"))">
+                                Bottts
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 2: Customize (only show if style selected) -->
+                    @if (!string.IsNullOrEmpty(selectedStyle))
+                    {
+                        <div class="mb-4 p-3 bg-light rounded">
+                            <h6>Step 2: Customize Your Avatar</h6>
+                            
+                            @if (selectedStyle == "adventurer")
+                            {
+                                <!-- Skin Color -->
+                                <div class="mb-3">
+                                    <label class="form-label">Skin Color</label>
+                                    <div class="d-flex gap-2">
+                                        <button class="color-btn" style="background-color: #FDBCB4" 
+                                                @onclick="@(() => SetSkinColor("#FDBCB4"))" title="Light"></button>
+                                        <button class="color-btn" style="background-color: #F1C27D" 
+                                                @onclick="@(() => SetSkinColor("#F1C27D"))" title="Medium Light"></button>
+                                        <button class="color-btn" style="background-color: #E0AC69" 
+                                                @onclick="@(() => SetSkinColor("#E0AC69"))" title="Medium"></button>
+                                        <button class="color-btn" style="background-color: #C68642" 
+                                                @onclick="@(() => SetSkinColor("#C68642"))" title="Medium Dark"></button>
+                                        <button class="color-btn" style="background-color: #8D5524" 
+                                                @onclick="@(() => SetSkinColor("#8D5524"))" title="Dark"></button>
+                                    </div>
+                                    <small class="text-muted">Selected: @skinColor</small>
+                                </div>
+                                
+                                <!-- Hair Color -->
+                                <div class="mb-3">
+                                    <label class="form-label">Hair Color</label>
+                                    <div class="d-flex gap-2">
+                                        <button class="color-btn" style="background-color: #090806" 
+                                                @onclick="@(() => SetHairColor("#090806"))" title="Black"></button>
+                                        <button class="color-btn" style="background-color: #2C1B18" 
+                                                @onclick="@(() => SetHairColor("#2C1B18"))" title="Dark Brown"></button>
+                                        <button class="color-btn" style="background-color: #71635A" 
+                                                @onclick="@(() => SetHairColor("#71635A"))" title="Brown"></button>
+                                        <button class="color-btn" style="background-color: #B7A69E" 
+                                                @onclick="@(() => SetHairColor("#B7A69E"))" title="Light Brown"></button>
+                                        <button class="color-btn" style="background-color: #D6BA8D" 
+                                                @onclick="@(() => SetHairColor("#D6BA8D"))" title="Blonde"></button>
+                                    </div>
+                                    <small class="text-muted">Selected: @hairColor</small>
+                                </div>
+                                
+                                <!-- Accessories -->
+                                <div class="mb-3">
+                                    <label class="form-label">Accessories</label>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="glassesCheck" 
+                                               @bind="showGlasses">
+                                        <label class="form-check-label" for="glassesCheck">
+                                            Show Glasses
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="earringsCheck" 
+                                               @bind="showEarrings">
+                                        <label class="form-check-label" for="earringsCheck">
+                                            Show Earrings
+                                        </label>
+                                    </div>
+                                </div>
+                            }
+                            else if (selectedStyle == "avataaars")
+                            {
+                                <p>Avataaars customization options would appear here</p>
+                            }
+                            else if (selectedStyle == "bottts")
+                            {
+                                <p>Bottts customization options would appear here</p>
+                            }
+                        </div>
+                    }
+                    
+                    <!-- Preview -->
+                    <div class="text-center">
+                        <h6>Avatar Preview</h6>
+                        @if (!string.IsNullOrEmpty(selectedStyle))
+                        {
+                            <img src="@GenerateAvatarUrl()" alt="Avatar Preview" class="avatar-preview" />
+                            <p class="mt-2">
+                                <small class="text-muted">@selectedStyle avatar with seed: @seed</small>
+                            </p>
+                        }
+                        else
+                        {
+                            <p class="text-muted">Select a style to see preview</p>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Debug Info</h5>
+                    <ul class="list-unstyled">
+                        <li><strong>Style:</strong> @selectedStyle</li>
+                        <li><strong>Seed:</strong> @seed</li>
+                        <li><strong>Skin Color:</strong> @skinColor</li>
+                        <li><strong>Hair Color:</strong> @hairColor</li>
+                        <li><strong>Glasses:</strong> @showGlasses</li>
+                        <li><strong>Earrings:</strong> @showEarrings</li>
+                    </ul>
+                    <hr />
+                    <p><strong>Generated URL:</strong></p>
+                    <small class="text-break">@GenerateAvatarUrl()</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .color-btn {
+        width: 40px;
+        height: 40px;
+        border: 2px solid #dee2e6;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .color-btn:hover {
+        transform: scale(1.1);
+        border-color: #0d1a80;
+    }
+    
+    .avatar-preview {
+        width: 150px;
+        height: 150px;
+        border-radius: 50%;
+        border: 3px solid #dee2e6;
+    }
+</style>
+
+@code {
+    private string selectedStyle = "";
+    private string seed = "test123";
+    private string skinColor = "#FDBCB4";
+    private string hairColor = "#090806";
+    private bool showGlasses = false;
+    private bool showEarrings = false;
+    
+    private void SelectStyle(string style)
+    {
+        selectedStyle = style;
+        // Generate new seed when style changes
+        seed = Guid.NewGuid().ToString("N")[..8];
+    }
+    
+    private void SetSkinColor(string color)
+    {
+        skinColor = color;
+    }
+    
+    private void SetHairColor(string color)
+    {
+        hairColor = color;
+    }
+    
+    private string GenerateAvatarUrl()
+    {
+        if (string.IsNullOrEmpty(selectedStyle))
+            return "";
+            
+        var options = new Dictionary<string, object>();
+        
+        if (selectedStyle == "adventurer")
+        {
+            options["skinColor"] = new[] { skinColor };
+            options["hairColor"] = new[] { hairColor };
+            
+            if (showGlasses)
+                options["glasses"] = new[] { "variant01", "variant02", "variant03", "variant04", "variant05" };
+                
+            if (showEarrings)
+                options["earrings"] = new[] { "variant01", "variant02", "variant03", "variant04", "variant05", "variant06" };
+        }
+        
+        return DiceBearAvatars.GenerateAvatarUrl(selectedStyle, seed, "svg", options);
+    }
+}

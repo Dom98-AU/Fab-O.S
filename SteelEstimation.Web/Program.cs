@@ -266,6 +266,10 @@ builder.Services.AddScoped<DeploymentService>();
 // Add file upload service
 builder.Services.AddScoped<FileUploadService>();
 
+// Register DiceBear service with HttpClient
+builder.Services.AddHttpClient<IDiceBearService, DiceBearService>();
+builder.Services.AddMemoryCache();
+
 // Add circuit handler for authentication state management
 builder.Services.AddScoped<CircuitHandler, AuthenticationCircuitHandler>();
 

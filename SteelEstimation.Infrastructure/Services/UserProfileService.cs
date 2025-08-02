@@ -80,6 +80,11 @@ namespace SteelEstimation.Infrastructure.Services
             }
 
             profile.Bio = request.Bio;
+            profile.AvatarUrl = request.AvatarUrl;
+            profile.AvatarType = request.AvatarType;
+            profile.DiceBearStyle = request.DiceBearStyle;
+            profile.DiceBearSeed = request.DiceBearSeed;
+            profile.DiceBearOptions = request.DiceBearOptions;
             profile.Location = request.Location;
             profile.Timezone = request.Timezone ?? profile.Timezone;
             profile.PhoneNumber = request.PhoneNumber;

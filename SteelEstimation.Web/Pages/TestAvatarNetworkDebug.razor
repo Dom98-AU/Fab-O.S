@@ -1,0 +1,138 @@
+@page "/test-avatar-network"
+@using Microsoft.AspNetCore.Authorization
+@using SteelEstimation.Web.Data
+@using SteelEstimation.Web.Services
+@inject IDiceBearService DiceBearService
+@inject IJSRuntime JSRuntime
+@attribute [Authorize]
+
+<h3>Avatar Network Debug</h3>
+
+<div class="container">
+    <div class="row">
+        <div class="col-12">
+            <h4>URL Generation Test</h4>
+            
+            <div class="mb-3">
+                <h5>Generated URLs:</h5>
+                <ul>
+                    @foreach (var url in generatedUrls)
+                    {
+                        <li>
+                            <a href="@url.Value" target="_blank">@url.Key</a>
+                            <br/>
+                            <code>@url.Value</code>
+                        </li>
+                    }
+                </ul>
+            </div>
+            
+            <div class="mb-3">
+                <h5>Direct Image Test:</h5>
+                <div class="d-flex gap-3">
+                    @foreach (var test in directImageTests)
+                    {
+                        <div class="text-center">
+                            <img src="@test.Value" alt="@test.Key" style="width: 100px; height: 100px;" 
+                                 @onerror="@(() => LogImageError(test.Key))" 
+                                 @onload="@(() => LogImageSuccess(test.Key))" />
+                            <p>@test.Key</p>
+                        </div>
+                    }
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <h5>Server-Side Fetched Images:</h5>
+                <div class="d-flex gap-3">
+                    @foreach (var dataUrl in serverFetchedImages)
+                    {
+                        <div class="text-center">
+                            <img src="@dataUrl.Value" alt="@dataUrl.Key" style="width: 100px; height: 100px;" />
+                            <p>@dataUrl.Key</p>
+                        </div>
+                    }
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <h5>Console Logs:</h5>
+                <div class="border p-2" style="height: 200px; overflow-y: auto;">
+                    @foreach (var log in consoleLogs)
+                    {
+                        <div>@log</div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private Dictionary<string, string> generatedUrls = new();
+    private Dictionary<string, string> directImageTests = new();
+    private Dictionary<string, string> serverFetchedImages = new();
+    private List<string> consoleLogs = new();
+    
+    protected override async Task OnInitializedAsync()
+    {
+        // Test URL generation
+        var options1 = new Dictionary<string, object>
+        {
+            { "eyes", new[] { "eva" } },
+            { "mouth", new[] { "smile01" } },
+            { "sides", new[] { "antenna01" } },  // Correct parameter name
+            { "primaryColor", new[] { "#0E7490" } },
+            { "texture", new[] { "circuits" } }
+        };
+        
+        var url1 = DiceBearAvatars.GenerateAvatarUrl("bottts", "test1", "svg", options1);
+        generatedUrls["Bottts with sides (correct)"] = url1;
+        
+        // Test with wrong parameter name
+        var options2 = new Dictionary<string, object>
+        {
+            { "eyes", new[] { "eva" } },
+            { "mouth", new[] { "smile01" } },
+            { "antenna", new[] { "antenna01" } },  // Incorrect parameter name
+            { "colors", new[] { "#0E7490" } },     // Also incorrect
+            { "texture", new[] { "circuits" } }
+        };
+        
+        var url2 = DiceBearAvatars.GenerateAvatarUrl("bottts", "test2", "svg", options2);
+        generatedUrls["Bottts with antenna (incorrect)"] = url2;
+        
+        // Test direct image loading
+        directImageTests["Bottts Basic"] = "https://api.dicebear.com/9.x/bottts/svg?seed=basic";
+        directImageTests["Bottts Customized (correct)"] = url1;
+        directImageTests["Bottts Customized (incorrect)"] = url2;
+        
+        // Test server-side fetching
+        try
+        {
+            var dataUrl1 = await DiceBearService.GetAvatarDataUrlAsync("bottts", "servertest1", options1);
+            serverFetchedImages["Server Fetch (correct params)"] = dataUrl1;
+            
+            var dataUrl2 = await DiceBearService.GetAvatarDataUrlAsync("bottts", "servertest2", options2);
+            serverFetchedImages["Server Fetch (incorrect params)"] = dataUrl2;
+        }
+        catch (Exception ex)
+        {
+            consoleLogs.Add($"Server fetch error: {ex.Message}");
+        }
+    }
+    
+    private void LogImageError(string imageName)
+    {
+        var log = $"[ERROR] Failed to load: {imageName}";
+        consoleLogs.Add(log);
+        StateHasChanged();
+    }
+    
+    private void LogImageSuccess(string imageName)
+    {
+        var log = $"[SUCCESS] Loaded: {imageName}";
+        consoleLogs.Add(log);
+        StateHasChanged();
+    }
+}

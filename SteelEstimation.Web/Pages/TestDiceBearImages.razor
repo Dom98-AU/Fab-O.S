@@ -1,0 +1,117 @@
+@page "/test-dicebear-images"
+@using Microsoft.AspNetCore.Authorization
+@using SteelEstimation.Web.Data
+@attribute [Authorize]
+
+<h3>DiceBear Image Rendering Test</h3>
+
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h4>Testing Different Rendering Methods</h4>
+            
+            <!-- Method 1: Direct img tag -->
+            <div class="card mb-3">
+                <div class="card-header">Method 1: Direct img tag</div>
+                <div class="card-body">
+                    <img src="https://api.dicebear.com/9.x/bottts/svg?seed=test&eyes=eva&mouth=smile01" 
+                         alt="Direct img" 
+                         width="100" 
+                         height="100" />
+                    <p class="mt-2">Direct img tag with explicit width/height</p>
+                </div>
+            </div>
+            
+            <!-- Method 2: Using object tag -->
+            <div class="card mb-3">
+                <div class="card-header">Method 2: Object tag</div>
+                <div class="card-body">
+                    <object data="https://api.dicebear.com/9.x/bottts/svg?seed=test&eyes=robocop&mouth=bite" 
+                            type="image/svg+xml" 
+                            width="100" 
+                            height="100">
+                        <img src="https://api.dicebear.com/9.x/bottts/svg?seed=test&eyes=robocop&mouth=bite" 
+                             alt="Fallback" 
+                             width="100" 
+                             height="100" />
+                    </object>
+                    <p class="mt-2">Object tag with img fallback</p>
+                </div>
+            </div>
+            
+            <!-- Method 3: Using embed tag -->
+            <div class="card mb-3">
+                <div class="card-header">Method 3: Embed tag</div>
+                <div class="card-body">
+                    <embed src="https://api.dicebear.com/9.x/bottts/svg?seed=test&eyes=round&mouth=grill01" 
+                           type="image/svg+xml" 
+                           width="100" 
+                           height="100" />
+                    <p class="mt-2">Embed tag for SVG</p>
+                </div>
+            </div>
+            
+            <!-- Method 4: Using iframe -->
+            <div class="card mb-3">
+                <div class="card-header">Method 4: Iframe</div>
+                <div class="card-body">
+                    <iframe src="https://api.dicebear.com/9.x/bottts/svg?seed=test&eyes=sensor&mouth=square01" 
+                            width="100" 
+                            height="100" 
+                            style="border: none;">
+                    </iframe>
+                    <p class="mt-2">Iframe for SVG</p>
+                </div>
+            </div>
+            
+            <!-- Method 5: Dynamic img with explicit dimensions -->
+            <div class="card mb-3">
+                <div class="card-header">Method 5: Dynamic img with style</div>
+                <div class="card-body">
+                    <img src="@GenerateDynamicUrl()" 
+                         alt="Dynamic img" 
+                         style="width: 100px; height: 100px; display: block;" />
+                    <p class="mt-2">Dynamic URL with inline styles</p>
+                </div>
+            </div>
+            
+            <!-- Method 6: Using PNG format instead of SVG -->
+            <div class="card mb-3">
+                <div class="card-header">Method 6: PNG format</div>
+                <div class="card-body">
+                    <img src="https://api.dicebear.com/9.x/bottts/png?seed=test&eyes=shade01&mouth=smile02" 
+                         alt="PNG format" 
+                         width="100" 
+                         height="100" />
+                    <p class="mt-2">Using PNG format instead of SVG</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-12">
+            <h4>Testing Multiple Bottts Options</h4>
+            <div class="d-flex flex-wrap gap-3">
+                @foreach (var eye in new[] { "eva", "robocop", "round", "sensor" })
+                {
+                    <div class="text-center">
+                        <img src="@($"https://api.dicebear.com/9.x/bottts/svg?seed=test&eyes={eye}&size=80")" 
+                             alt="@eye" 
+                             width="80" 
+                             height="80"
+                             style="display: block;" />
+                        <small>@eye</small>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string GenerateDynamicUrl()
+    {
+        return "https://api.dicebear.com/9.x/bottts/svg?seed=dynamic&eyes=roundFrame01&mouth=diagram";
+    }
+}

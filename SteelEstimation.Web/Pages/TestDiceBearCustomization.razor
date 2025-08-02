@@ -1,0 +1,100 @@
+@page "/test-dicebear-customization"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+
+<div class="container-fluid mt-4">
+    <h1>Test DiceBear Customization</h1>
+    
+    <div class="row">
+        <div class="col-md-12">
+            <div class="alert alert-info">
+                <p>Selected Style: @selectedStyle</p>
+                <p>Should show customization: @(!string.IsNullOrEmpty(selectedStyle))</p>
+            </div>
+            
+            <button class="btn btn-primary" @onclick="SetAdventurerStyle">Set Adventurer Style</button>
+            
+            @if (!string.IsNullOrEmpty(selectedStyle))
+            {
+                <div class="alert alert-success mt-3">
+                    <h5>Customization Options Would Appear Here</h5>
+                    <p>Style is set to: @selectedStyle</p>
+                </div>
+                
+                <!-- Test the actual customization section -->
+                <div class="customization-section mb-4">
+                    <h6 class="text-muted mb-3">Customize Your Avatar</h6>
+                    
+                    @if (selectedStyle == "adventurer")
+                    {
+                        <div class="customization-group mb-3">
+                            <label class="form-label">Colors</label>
+                            <div class="color-options">
+                                <div class="color-picker-group">
+                                    <label>Skin Color</label>
+                                    <div class="color-swatches">
+                                        @foreach (var color in skinColors)
+                                        {
+                                            <div class="color-swatch" 
+                                                 style="background-color: @color"
+                                                 @onclick="@(() => SelectColor("skinColor", color))"
+                                                 title="@color"></div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+    .customization-section {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 10px;
+        margin-top: 20px;
+    }
+
+    .color-swatches {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .color-swatch {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        cursor: pointer;
+        border: 2px solid transparent;
+        transition: all 0.2s ease;
+    }
+
+    .color-swatch:hover {
+        transform: scale(1.1);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+</style>
+
+@code {
+    private string selectedStyle = "";
+    
+    private readonly string[] skinColors = new[] { 
+        "#FDBCB4", "#F1C27D", "#E0AC69", "#C68642", "#8D5524", "#5D4E37", "#3B3024" 
+    };
+    
+    private void SetAdventurerStyle()
+    {
+        selectedStyle = "adventurer";
+        StateHasChanged();
+    }
+    
+    private void SelectColor(string type, string color)
+    {
+        Console.WriteLine($"Selected {type}: {color}");
+    }
+}

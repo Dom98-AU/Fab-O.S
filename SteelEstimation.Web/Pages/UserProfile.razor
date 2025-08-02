@@ -37,25 +37,24 @@
                         <div class="row align-items-center">
                             <div class="col-auto">
                                 <div class="avatar-container">
-                                    @if (!string.IsNullOrEmpty(profile.AvatarUrl))
+                                    @if (!string.IsNullOrEmpty(profile.DiceBearStyle))
                                     {
-                                        var avatar = SteelEstimation.Web.Data.AvatarIcons.GetById(profile.AvatarUrl);
-                                        if (avatar != null)
+                                        var options = new Dictionary<string, object>();
+                                        if (!string.IsNullOrEmpty(profile.DiceBearOptions))
                                         {
-                                            <div class="avatar-icon-container avatar-large">
-                                                <i class="@avatar.Icon"></i>
-                                            </div>
+                                            try
+                                            {
+                                                options = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(profile.DiceBearOptions) ?? new Dictionary<string, object>();
+                                            }
+                                            catch { }
                                         }
-                                        else if (profile.AvatarUrl.StartsWith("http"))
-                                        {
-                                            <img src="@profile.AvatarUrl" alt="@user.FullName" class="avatar-large" />
-                                        }
-                                        else
-                                        {
-                                            <div class="avatar-placeholder avatar-large">
-                                                <span>@GetInitials(user.FullName)</span>
-                                            </div>
-                                        }
+                                        var avatarUrl = SteelEstimation.Web.Data.DiceBearAvatars.GenerateAvatarUrl(
+                                            profile.DiceBearStyle, 
+                                            profile.DiceBearSeed ?? "default", 
+                                            "svg",
+                                            options
+                                        );
+                                        <img src="@avatarUrl" alt="@user.FullName" class="avatar-large dicebear-avatar" />
                                     }
                                     else
                                     {
@@ -203,46 +202,14 @@
                                 <DataAnnotationsValidator />
                                 <ValidationSummary />
 
-                                <!-- Avatar Selection -->
+                                <!-- Enhanced Avatar Selection -->
                                 <div class="mb-4">
-                                    <h5 class="mb-3">Choose Your Avatar</h5>
-                                    <div class="avatar-selector">
-                                        <div class="current-avatar mb-4 text-center">
-                                            <div class="avatar-preview">
-                                                @if (!string.IsNullOrEmpty(editModel.AvatarUrl))
-                                                {
-                                                    var avatar = SteelEstimation.Web.Data.AvatarIcons.GetById(editModel.AvatarUrl);
-                                                    if (avatar != null)
-                                                    {
-                                                        <i class="@avatar.Icon avatar-icon-large"></i>
-                                                        <p class="mt-2 mb-0">@avatar.Name</p>
-                                                    }
-                                                }
-                                                else
-                                                {
-                                                    <i class="fas fa-user-circle avatar-icon-large"></i>
-                                                    <p class="mt-2 mb-0">Default</p>
-                                                }
-                                            </div>
-                                        </div>
-                                        
-                                        @foreach (var category in SteelEstimation.Web.Data.AvatarIcons.AvailableAvatars.GroupBy(a => a.Category))
-                                        {
-                                            <div class="avatar-category mb-4">
-                                                <h6 class="text-muted mb-3">@category.Key</h6>
-                                                <div class="avatar-grid">
-                                                    @foreach (var avatar in category)
-                                                    {
-                                                        <div class="avatar-option @(editModel.AvatarUrl == avatar.Id ? "selected" : "")" 
-                                                             @onclick="() => SelectAvatar(avatar.Id)"
-                                                             title="@avatar.Name">
-                                                            <i class="@avatar.Icon"></i>
-                                                        </div>
-                                                    }
-                                                </div>
-                                            </div>
-                                        }
-                                    </div>
+                                    <EnhancedAvatarSelectorV2 
+                                        SelectedAvatarType="dicebear"
+                                        SelectedDiceBearStyle="@editModel.DiceBearStyle"
+                                        SelectedDiceBearSeed="@editModel.DiceBearSeed"
+                                        SelectedDiceBearOptions="@editModel.DiceBearOptions"
+                                        OnAvatarSelected="HandleAvatarSelection" />
                                 </div>
 
                                 <hr class="my-4" />
@@ -358,6 +325,10 @@
         object-fit: cover;
         border: 4px solid white;
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .dicebear-avatar {
+        background: #f8f9fa;
     }
 
     .avatar-placeholder {
@@ -576,6 +547,9 @@
             editModel = new UpdateUserProfileRequest
             {
                 AvatarUrl = profile.AvatarUrl,
+                AvatarType = "dicebear",
+                DiceBearStyle = profile.DiceBearStyle,
+                DiceBearSeed = profile.DiceBearSeed,
                 JobTitle = profile.JobTitle,
                 Department = profile.Department,
                 Bio = profile.Bio,
@@ -631,9 +605,13 @@
         return "U";
     }
 
-    private void SelectAvatar(string avatarId)
+    private void HandleAvatarSelection(SteelEstimation.Web.Components.EnhancedAvatarSelectorV2.AvatarSelectionData data)
     {
-        editModel.AvatarUrl = avatarId;
+        editModel.AvatarType = "dicebear";
+        editModel.DiceBearStyle = data.DiceBearStyle;
+        editModel.DiceBearSeed = data.DiceBearSeed;
+        editModel.DiceBearOptions = data.DiceBearOptions;
+        
         StateHasChanged();
     }
 

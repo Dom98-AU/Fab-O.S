@@ -1,0 +1,79 @@
+@using SteelEstimation.Web.Data
+
+<div class="test-customization">
+    <h3>Test Avatar Customization</h3>
+    
+    <p>Selected Style: @SelectedStyle</p>
+    
+    @if (!string.IsNullOrEmpty(SelectedStyle))
+    {
+        <div class="customization-section mb-4">
+            <h6 class="text-muted mb-3">Customize Your Avatar</h6>
+            
+            <div class="customization-group mb-3">
+                <label class="form-label">Test Colors</label>
+                <div class="color-options">
+                    <div class="color-picker-group">
+                        <label>Skin Color</label>
+                        <div class="color-swatches">
+                            @foreach (var color in skinColors)
+                            {
+                                <div class="color-swatch" 
+                                     style="background-color: @color"
+                                     @onclick="@(() => SelectColor("skinColor", color))"
+                                     title="@color"></div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    
+    <button class="btn btn-primary" @onclick="SetTestStyle">Set Test Style</button>
+</div>
+
+<style>
+    .test-customization {
+        padding: 20px;
+        border: 2px solid #007bff;
+        border-radius: 10px;
+        margin: 20px 0;
+    }
+    
+    .color-swatches {
+        display: flex;
+        gap: 8px;
+    }
+    
+    .color-swatch {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        cursor: pointer;
+        border: 2px solid transparent;
+    }
+    
+    .color-swatch:hover {
+        transform: scale(1.1);
+    }
+</style>
+
+@code {
+    private string? SelectedStyle = "";
+    
+    private readonly string[] skinColors = new[] { 
+        "#FDBCB4", "#F1C27D", "#E0AC69", "#C68642", "#8D5524" 
+    };
+    
+    private void SetTestStyle()
+    {
+        SelectedStyle = "adventurer";
+        StateHasChanged();
+    }
+    
+    private void SelectColor(string type, string color)
+    {
+        Console.WriteLine($"Selected {type}: {color}");
+    }
+}

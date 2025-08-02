@@ -16,6 +16,18 @@ namespace SteelEstimation.Core.Entities
         [MaxLength(255)]
         public string? AvatarUrl { get; set; }
         
+        [MaxLength(50)]
+        public string? AvatarType { get; set; } // "font-awesome", "dicebear", "custom"
+        
+        [MaxLength(100)]
+        public string? DiceBearStyle { get; set; } // DiceBear style ID (e.g., "adventurer", "avataaars")
+        
+        [MaxLength(100)]
+        public string? DiceBearSeed { get; set; } // Seed for consistent DiceBear generation
+        
+        [MaxLength(500)]
+        public string? DiceBearOptions { get; set; } // JSON string of DiceBear options
+        
         [MaxLength(100)]
         public string? Location { get; set; }
         
