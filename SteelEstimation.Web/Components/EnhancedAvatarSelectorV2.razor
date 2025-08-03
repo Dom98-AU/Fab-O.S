@@ -1,14 +1,13 @@
 @using SteelEstimation.Web.Data
 @using SteelEstimation.Web.Services
+@using System.Text.Json
 @inject IDiceBearService DiceBearService
 
 <div class="avatar-selector">
-    <div class="card shadow-sm">
-        <div class="card-body p-3">
-            <div class="d-flex align-items-start gap-3">
-                <!-- Avatar Preview -->
-                <div class="text-center">
-                    <h5 class="card-title mb-3">Avatar Preview</h5>
+    <div class="w-100">
+            <!-- Avatar Preview Section -->
+            <div class="avatar-preview-section text-center p-4 border-bottom">
+                    <h5 class="card-title mb-3">🎭 Avatar Preview (Tabbed)</h5>
                     @if (isLoadingPreview)
                     {
                         <div class="avatar-preview-container">
@@ -25,10 +24,10 @@
                             <small class="text-muted">@DiceBearAvatars.GetById(SelectedDiceBearStyle)?.Description</small>
                         </div>
                         <div class="mt-2">
-                            <button class="btn btn-sm btn-outline-primary" @onclick="RandomizeSeed">
+                            <button type="button" class="btn btn-sm btn-outline-primary" @onclick="@(async () => await RandomizeSeed())">
                                 <i class="bi bi-shuffle"></i> Random
                             </button>
-                            <button class="btn btn-sm btn-outline-secondary" @onclick="FlipAvatar">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="@(async () => await FlipAvatar())">
                                 <i class="bi bi-arrow-left-right"></i> Flip
                             </button>
                         </div>
@@ -46,34 +45,58 @@
                             <p class="text-muted">Select Avatar Style</p>
                         </div>
                     }
-                </div>
+            </div>
 
-                <!-- Avatar Customization Options -->
-                <div class="flex-grow-1">
-                    <!-- Avatar Style Selection -->
-                    <div class="customization-section">
-                        <h6><i class="bi bi-palette"></i> Avatar Style</h6>
-                        @foreach (var category in DiceBearAvatars.AvailableStyles.GroupBy(a => a.Category))
-                        {
-                            <div class="avatar-category">
-                                <h6 class="category-title">@category.Key</h6>
-                                <div class="dicebear-styles-grid">
-                                    @foreach (var avatar in category)
-                                    {
-                                        <div class="dicebear-style-option @(SelectedDiceBearStyle == avatar.Id ? "active" : "")"
-                                             @onclick="@(() => SelectStyle(avatar.Id))"
-                                             title="@avatar.Description">
-                                            <img src="@GetStylePreviewUrl(avatar.Id)" alt="@avatar.Name" />
-                                            <div class="style-name">@avatar.Name</div>
-                                        </div>
-                                    }
+            <!-- Avatar Customization Options with Tabs -->
+            <div class="avatar-tabs-container p-4">
+                <!-- Tab Navigation -->
+                <ul class="nav nav-tabs mb-3" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link @(activeTab == "type" ? "active" : "")" type="button" 
+                                @onclick="@(() => SetActiveTab("type"))">
+                            <i class="bi bi-grid-3x3-gap"></i> Type
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link @(activeTab == "customize" ? "active" : "") @(!string.IsNullOrEmpty(SelectedDiceBearStyle) ? "" : "disabled")" 
+                                type="button" @onclick="@(() => SetActiveTab("customize"))"
+                                disabled="@(string.IsNullOrEmpty(SelectedDiceBearStyle))">
+                            <i class="bi bi-sliders"></i> Customize
+                        </button>
+                    </li>
+                </ul>
+
+                    <!-- Tab Content -->
+                    <div class="tab-content">
+                        <!-- Type Tab -->
+                        <div class="tab-pane @(activeTab == "type" ? "show active" : "")">
+                            @if (activeTab == "type")
+                            {
+                                <!-- Avatar Style Selection -->
+                                <div class="customization-section">
+                                    <h6><i class="bi bi-palette"></i> Choose Avatar Style</h6>
+                                    <div class="dicebear-styles-grid">
+                                        @foreach (var avatar in DiceBearAvatars.AvailableStyles)
+                                        {
+                                            <button type="button" class="dicebear-style-option @(SelectedDiceBearStyle == avatar.Id ? "active" : "")"
+                                                 @onclick="@(() => SelectStyleAndSwitchTab(avatar.Id))" 
+                                                 @onclick:preventDefault="true" 
+                                                 @onclick:stopPropagation="true"
+                                                 title="@avatar.Description">
+                                                <img src="@GetStylePreviewUrl(avatar.Id)" alt="@avatar.Name" />
+                                                <div class="style-name">@avatar.Name</div>
+                                            </button>
+                                        }
+                                    </div>
                                 </div>
-                            </div>
-                        }
-                    </div>
+                            }
+                        </div>
 
-                    @if (!string.IsNullOrEmpty(SelectedDiceBearStyle))
-                    {
+                        <!-- Customize Tab -->
+                        <div class="tab-pane @(activeTab == "customize" ? "show active" : "")">
+                            @if (activeTab == "customize" && !string.IsNullOrEmpty(SelectedDiceBearStyle))
+                            {
+
                         <!-- Avatar Seed -->
                         <div class="customization-section">
                             <h6><i class="bi bi-dice-5"></i> Avatar Seed</h6>
@@ -91,28 +114,76 @@
                             @if (SelectedDiceBearStyle == "bottts")
                             {
                                 <div class="row g-3">
-                                    <!-- Primary Color -->
+                                    <!-- Base Color -->
                                     <div class="col-6">
-                                        <label class="form-label">Primary Color</label>
+                                        <label class="form-label">Robot Base Color</label>
                                         <div class="color-swatches">
-                                            @foreach (var color in primaryColors)
+                                            @foreach (var color in baseColors)
                                             {
-                                                <div class="color-swatch @(selectedPrimaryColor == color ? "active" : "")"
-                                                     style="background-color: @color"
-                                                     @onclick="@(() => SelectPrimaryColor(color))">
-                                                </div>
+                                                <button type="button" class="color-swatch @(selectedBaseColor == color ? "active" : "")"
+                                                     style="background-color: @color; border: none; padding: 0;"
+                                                     @onclick="@(async () => await SelectBaseColor(color))" 
+                                                     @onclick:preventDefault="true" 
+                                                     @onclick:stopPropagation="true">
+                                                </button>
                                             }
                                         </div>
                                     </div>
-
+                                    
                                     <!-- Background Color -->
                                     <div class="col-6">
                                         <label class="form-label">Background Color</label>
-                                        <div class="d-flex align-items-center gap-2">
-                                            <div class="color-swatch @(selectedBackgroundColor == "transparent" ? "active" : "")"
-                                                 style="background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%); background-size: 10px 10px; background-position: 0 0, 5px 5px;"
-                                                 @onclick="@(() => SelectBackgroundColor("transparent"))">
-                                            </div>
+                                        <div class="color-swatches">
+                                            <button type="button" class="color-swatch @(selectedBackgroundColor == "transparent" ? "active" : "")"
+                                                 style="background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%); background-size: 10px 10px; background-position: 0 0, 5px 5px; border: none; padding: 0;"
+                                                 @onclick="@(async () => await SelectBackgroundColor("transparent"))" 
+                                                 @onclick:preventDefault="true" 
+                                                 @onclick:stopPropagation="true">
+                                            </button>
+                                            @foreach (var color in backgroundColors)
+                                            {
+                                                <button type="button" class="color-swatch @(selectedBackgroundColor == color ? "active" : "")"
+                                                     style="background-color: @color; border: none; padding: 0;"
+                                                     @onclick="@(async () => await SelectBackgroundColor(color))" 
+                                                     @onclick:preventDefault="true" 
+                                                     @onclick:stopPropagation="true">
+                                                </button>
+                                            }
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Face Type -->
+                                    <div class="col-12">
+                                        <label class="form-label">Face Shape</label>
+                                        <div class="visual-option-grid">
+                                            @foreach (var faceType in faceTypes)
+                                            {
+                                                <button type="button" class="visual-option-btn @(selectedFaceType == faceType ? "active" : "")"
+                                                     @onclick="@(async () => await SelectFaceType(faceType))" 
+                                                     @onclick:preventDefault="true" 
+                                                     @onclick:stopPropagation="true">
+                                                    @{
+                                                        var faceCacheKey = $"face_{faceType}_{selectedBaseColor}";
+                                                    }
+                                                    @if (previewCache.ContainsKey(faceCacheKey))
+                                                    {
+                                                        <div class="dicebear-preview-wrapper">
+                                                            <img src="@previewCache[faceCacheKey]" 
+                                                                 alt="@faceType" 
+                                                                 class="dicebear-full-preview" />
+                                                        </div>
+                                                    }
+                                                    else
+                                                    {
+                                                        <div class="dicebear-preview-wrapper">
+                                                            <div class="spinner-border spinner-border-sm" role="status">
+                                                                <span class="visually-hidden">Loading...</span>
+                                                            </div>
+                                                        </div>
+                                                    }
+                                                    <div class="option-label">@faceType</div>
+                                                </button>
+                                            }
                                         </div>
                                     </div>
 
@@ -122,12 +193,17 @@
                                         <div class="visual-option-grid">
                                             @foreach (var eyeType in eyeTypes)
                                             {
-                                                <div class="visual-option-btn @(selectedEyeType == eyeType ? "active" : "")"
-                                                     @onclick="@(async () => await SelectEyeType(eyeType))">
-                                                    @if (previewCache.ContainsKey($"eye_{eyeType}"))
+                                                <button type="button" class="visual-option-btn @(selectedEyeType == eyeType ? "active" : "")"
+                                                     @onclick="@(async () => await SelectEyeType(eyeType))" 
+                                                     @onclick:preventDefault="true" 
+                                                     @onclick:stopPropagation="true">
+                                                    @{
+                                                        var eyeCacheKey = $"eye_{eyeType}_{selectedBaseColor}";
+                                                    }
+                                                    @if (previewCache.ContainsKey(eyeCacheKey))
                                                     {
                                                         <div class="dicebear-preview-wrapper">
-                                                            <img src="@previewCache[$"eye_{eyeType}"]" 
+                                                            <img src="@previewCache[eyeCacheKey]" 
                                                                  alt="@eyeType" 
                                                                  class="dicebear-full-preview" />
                                                         </div>
@@ -141,7 +217,7 @@
                                                         </div>
                                                     }
                                                     <div class="option-label">@eyeType</div>
-                                                </div>
+                                                </button>
                                             }
                                         </div>
                                     </div>
@@ -152,12 +228,17 @@
                                         <div class="visual-option-grid">
                                             @foreach (var mouthType in mouthTypes)
                                             {
-                                                <div class="visual-option-btn @(selectedMouthType == mouthType ? "active" : "")"
-                                                     @onclick="@(async () => await SelectMouthType(mouthType))">
-                                                    @if (previewCache.ContainsKey($"mouth_{mouthType}"))
+                                                <button type="button" class="visual-option-btn @(selectedMouthType == mouthType ? "active" : "")"
+                                                     @onclick="@(async () => await SelectMouthType(mouthType))" 
+                                                     @onclick:preventDefault="true" 
+                                                     @onclick:stopPropagation="true">
+                                                    @{
+                                                        var mouthCacheKey = $"mouth_{mouthType}_{selectedBaseColor}";
+                                                    }
+                                                    @if (previewCache.ContainsKey(mouthCacheKey))
                                                     {
                                                         <div class="dicebear-preview-wrapper">
-                                                            <img src="@previewCache[$"mouth_{mouthType}"]" 
+                                                            <img src="@previewCache[mouthCacheKey]" 
                                                                  alt="@mouthType" 
                                                                  class="dicebear-full-preview" />
                                                         </div>
@@ -171,23 +252,28 @@
                                                         </div>
                                                     }
                                                     <div class="option-label">@mouthType</div>
-                                                </div>
+                                                </button>
                                             }
                                         </div>
                                     </div>
-
+                                    
                                     <!-- Sides -->
                                     <div class="col-12">
-                                        <label class="form-label">Sides</label>
+                                        <label class="form-label">Side Attachments</label>
                                         <div class="visual-option-grid">
                                             @foreach (var sidesType in sidesTypes)
                                             {
-                                                <div class="visual-option-btn @(selectedSidesType == sidesType ? "active" : "")"
-                                                     @onclick="@(async () => await SelectSidesType(sidesType))">
-                                                    @if (previewCache.ContainsKey($"sides_{sidesType}"))
+                                                <button type="button" class="visual-option-btn @(selectedSidesType == sidesType ? "active" : "")"
+                                                     @onclick="@(async () => await SelectSidesType(sidesType))" 
+                                                     @onclick:preventDefault="true" 
+                                                     @onclick:stopPropagation="true">
+                                                    @{
+                                                        var sidesCacheKey = $"sides_{sidesType}_{selectedBaseColor}";
+                                                    }
+                                                    @if (previewCache.ContainsKey(sidesCacheKey))
                                                     {
                                                         <div class="dicebear-preview-wrapper">
-                                                            <img src="@previewCache[$"sides_{sidesType}"]" 
+                                                            <img src="@previewCache[sidesCacheKey]" 
                                                                  alt="@sidesType" 
                                                                  class="dicebear-full-preview" />
                                                         </div>
@@ -201,19 +287,56 @@
                                                         </div>
                                                     }
                                                     <div class="option-label">@sidesType</div>
-                                                </div>
+                                                </button>
                                             }
                                         </div>
                                     </div>
-
+                                    
+                                    <!-- Top -->
+                                    <div class="col-12">
+                                        <label class="form-label">Top Accessories</label>
+                                        <div class="visual-option-grid">
+                                            @foreach (var topType in topTypes)
+                                            {
+                                                <button type="button" class="visual-option-btn @(selectedTopType == topType ? "active" : "")"
+                                                     @onclick="@(async () => await SelectTopType(topType))" 
+                                                     @onclick:preventDefault="true" 
+                                                     @onclick:stopPropagation="true">
+                                                    @{
+                                                        var topCacheKey = $"top_{topType}_{selectedBaseColor}";
+                                                    }
+                                                    @if (previewCache.ContainsKey(topCacheKey))
+                                                    {
+                                                        <div class="dicebear-preview-wrapper">
+                                                            <img src="@previewCache[topCacheKey]" 
+                                                                 alt="@topType" 
+                                                                 class="dicebear-full-preview" />
+                                                        </div>
+                                                    }
+                                                    else
+                                                    {
+                                                        <div class="dicebear-preview-wrapper">
+                                                            <div class="spinner-border spinner-border-sm" role="status">
+                                                                <span class="visually-hidden">Loading...</span>
+                                                            </div>
+                                                        </div>
+                                                    }
+                                                    <div class="option-label">@topType</div>
+                                                </button>
+                                            }
+                                        </div>
+                                    </div>
+                                    
                                     <!-- Texture -->
                                     <div class="col-12">
                                         <label class="form-label">Texture</label>
-                                        <div class="option-buttons">
-                                            @foreach (var texture in new[] { "circuits", "dots", "metal", "solid" })
+                                        <div class="texture-options-grid">
+                                            @foreach (var texture in textureTypes)
                                             {
-                                                <button class="btn btn-sm visual-option-btn texture-option-btn @(selectedTextureType == texture ? "active" : "")"
-                                                        @onclick="@(() => SelectTexture(texture))">
+                                                <button type="button" class="visual-option-btn texture-option-btn @(selectedTextureType == texture ? "active" : "")"
+                                                        @onclick="@(async () => await SelectTexture(texture))" 
+                                                        @onclick:preventDefault="true" 
+                                                        @onclick:stopPropagation="true">
                                                     <div class="texture-preview texture-@texture"></div>
                                                     <div class="option-label">@texture</div>
                                                 </button>
@@ -222,18 +345,123 @@
                                     </div>
                                 </div>
                             }
+                            else if (SelectedDiceBearStyle == "initials")
+                            {
+                                <div class="row g-3">
+                                    <!-- Text Input -->
+                                    <div class="col-12">
+                                        <label class="form-label">Text for Initials</label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" placeholder="Enter initials (e.g., JD)"
+                                                   @bind="initialsText" @bind:event="oninput" 
+                                                   @onchange="UpdateAvatar" maxlength="3" />
+                                            <span class="input-group-text">@initialsText.Length/3</span>
+                                        </div>
+                                        <small class="text-muted">Enter 1-3 characters for your initials</small>
+                                    </div>
+
+                                    <!-- Background Color -->
+                                    <div class="col-12">
+                                        <label class="form-label">Background Color</label>
+                                        <div class="color-swatches">
+                                            @foreach (var color in initialsBackgroundColors)
+                                            {
+                                                <button type="button" class="color-swatch @(selectedInitialsBackgroundColor == color ? "active" : "")"
+                                                     style="background-color: @color; border: none; padding: 0;"
+                                                     @onclick="@(async () => await SelectInitialsBackgroundColor(color))" 
+                                                     @onclick:preventDefault="true" 
+                                                     @onclick:stopPropagation="true">
+                                                </button>
+                                            }
+                                        </div>
+                                    </div>
+
+                                    <!-- Font Size -->
+                                    <div class="col-6">
+                                        <label class="form-label">Font Size</label>
+                                        <div class="btn-group btn-group-sm w-100" role="group">
+                                            @foreach (var size in new[] { 24, 32, 40, 48, 56 })
+                                            {
+                                                <button type="button" 
+                                                        class="btn @(selectedFontSize == size ? "btn-primary" : "btn-outline-primary")"
+                                                        @onclick="@(async () => await SelectFontSize(size))"
+                                                        @onclick:preventDefault="true" 
+                                                        @onclick:stopPropagation="true">
+                                                    @size
+                                                </button>
+                                            }
+                                        </div>
+                                    </div>
+
+                                    <!-- Font Weight -->
+                                    <div class="col-6">
+                                        <label class="form-label">Font Weight</label>
+                                        <div class="btn-group btn-group-sm w-100" role="group">
+                                            @foreach (var weight in new[] { 300, 400, 600, 700 })
+                                            {
+                                                <button type="button" 
+                                                        class="btn @(selectedFontWeight == weight ? "btn-primary" : "btn-outline-primary")"
+                                                        @onclick="@(async () => await SelectFontWeight(weight))"
+                                                        @onclick:preventDefault="true" 
+                                                        @onclick:stopPropagation="true">
+                                                    @if (weight == 300) { <text>Light</text> }
+                                                    else if (weight == 400) { <text>Normal</text> }
+                                                    else if (weight == 600) { <text>Bold</text> }
+                                                    else { <text>Heavy</text> }
+                                                </button>
+                                            }
+                                        </div>
+                                    </div>
+
+                                    <!-- Font Family -->
+                                    <div class="col-12">
+                                        <label class="form-label">Font Style</label>
+                                        <div class="font-family-grid">
+                                            @foreach (var font in new[] { "Arial", "Arial Rounded MT Bold", "Courier New", "Georgia", "Helvetica", "Times New Roman", "Verdana" })
+                                            {
+                                                <button type="button" 
+                                                        class="font-option-btn @(selectedFontFamily == font ? "active" : "")"
+                                                        @onclick="@(async () => await SelectFontFamily(font))"
+                                                        @onclick:preventDefault="true" 
+                                                        @onclick:stopPropagation="true">
+                                                    <span style="font-family: '@font';">Aa</span>
+                                                    <div class="font-name">@font</div>
+                                                </button>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            }
                         </div>
-                    }
+                            }
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
     </div>
-</div>
 
 <style>
     /* Similar styles as before, keeping the same visual design */
     .avatar-selector {
-        max-width: 1200px;
+        width: 100%;
+    }
+
+    .avatar-selector .card {
+        border: none;
+        box-shadow: none !important;
+    }
+
+    .avatar-selector .card-body {
+        padding: 0 !important;
+    }
+
+    .avatar-tabs-container {
+        width: 100%;
+    }
+
+    .avatar-preview-section {
+        background: #f8f9fa;
+        width: 100%;
     }
 
     .avatar-preview-container {
@@ -242,8 +470,8 @@
     }
 
     .avatar-preview {
-        width: 180px;
-        height: 180px;
+        width: 200px;
+        height: 200px;
         border-radius: 50%;
         border: 4px solid #0d1a80;
         background-color: #f8f9fa;
@@ -251,14 +479,16 @@
     }
 
     .dicebear-preview-wrapper {
-        width: 60px;
-        height: 60px;
+        width: 80px;
+        height: 80px;
         display: flex;
         align-items: center;
         justify-content: center;
-        background: #f8f9fa;
+        background: white;
+        border: 1px solid #e9ecef;
         border-radius: 8px;
         overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
 
     .dicebear-full-preview {
@@ -269,20 +499,22 @@
 
     .visual-option-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-        gap: 8px;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 20px;
+        width: 100%;
     }
 
     .visual-option-btn {
         display: flex;
         flex-direction: column;
         align-items: center;
-        padding: 8px;
+        padding: 12px 8px 8px 8px;
         border: 2px solid #dee2e6;
-        border-radius: 8px;
+        border-radius: 12px;
         cursor: pointer;
         transition: all 0.2s;
         background: white;
+        position: relative;
     }
 
     .visual-option-btn:hover {
@@ -306,12 +538,21 @@
     .texture-option-btn {
         position: relative;
         overflow: hidden;
+        width: 100%;
+        min-width: 120px;
+    }
+    
+    .texture-options-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+        width: 100%;
     }
 
     .texture-preview {
         width: 100%;
-        height: 30px;
-        margin-bottom: 4px;
+        height: 40px;
+        margin-bottom: 8px;
         border-radius: 4px;
     }
 
@@ -335,6 +576,38 @@
 
     .texture-solid {
         background: #374151;
+    }
+    
+    .texture-camo01 {
+        background: linear-gradient(45deg, #8fbc8f 25%, #556b2f 25%, #556b2f 50%, #8fbc8f 50%, #8fbc8f 75%, #556b2f 75%);
+        background-size: 12px 12px;
+    }
+    
+    .texture-camo02 {
+        background: linear-gradient(135deg, #654321 25%, #8b4513 25%, #8b4513 50%, #654321 50%, #654321 75%, #8b4513 75%);
+        background-size: 10px 10px;
+    }
+    
+    .texture-dirty01 {
+        background: linear-gradient(90deg, #696969 0%, #2f4f4f 50%, #696969 100%);
+        box-shadow: inset 0 0 10px rgba(0,0,0,0.3);
+    }
+    
+    .texture-dirty02 {
+        background: linear-gradient(45deg, #708090 25%, #2f4f4f 25%, #2f4f4f 50%, #708090 50%);
+        background-size: 8px 8px;
+    }
+    
+    .texture-grunge01 {
+        background: linear-gradient(180deg, #3c3c3c 0%, #1a1a1a 100%);
+        box-shadow: inset 0 0 20px rgba(255,255,255,0.1);
+    }
+    
+    .texture-grunge02 {
+        background: radial-gradient(circle at 20% 80%, #2c2c2c 20%, transparent 20%),
+                   radial-gradient(circle at 80% 20%, #444444 20%, transparent 20%),
+                   radial-gradient(circle at 40% 40%, #1a1a1a 20%, transparent 20%);
+        background-size: 15px 15px;
     }
 
     .color-swatches {
@@ -364,20 +637,32 @@
 
     .dicebear-styles-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-        gap: 10px;
-        margin-bottom: 1rem;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 20px;
+        max-width: 400px;
+        margin: 0 auto;
+        width: 100%;
     }
 
     .dicebear-style-option {
         display: flex;
         flex-direction: column;
         align-items: center;
-        padding: 8px;
+        padding: 20px;
         border: 2px solid #dee2e6;
-        border-radius: 8px;
+        border-radius: 12px;
         cursor: pointer;
         transition: all 0.2s;
+        background: white;
+        height: 100%;
+        width: 100%;
+        text-align: center;
+    }
+    
+    button.dicebear-style-option {
+        font-family: inherit;
+        font-size: inherit;
+        line-height: inherit;
     }
 
     .dicebear-style-option:hover {
@@ -392,9 +677,9 @@
     }
 
     .dicebear-style-option img {
-        width: 50px;
-        height: 50px;
-        margin-bottom: 4px;
+        width: 100px;
+        height: 100px;
+        margin-bottom: 12px;
     }
 
     .style-name {
@@ -405,28 +690,17 @@
 
     .customization-section {
         margin-bottom: 1.5rem;
-        padding: 1rem;
+        padding: 1.5rem;
         background: #f8f9fa;
         border-radius: 8px;
         border-left: 3px solid #0d1a80;
+        width: 100%;
     }
 
-    .avatar-category {
-        margin-bottom: 2rem;
-    }
-
-    .category-title {
-        font-size: 0.875rem;
-        font-weight: 600;
-        color: #6c757d;
-        margin-bottom: 0.5rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
 
     .placeholder-avatar {
-        width: 180px;
-        height: 180px;
+        width: 200px;
+        height: 200px;
         border-radius: 50%;
         background: #f8f9fa;
         display: flex;
@@ -445,6 +719,129 @@
         font-weight: 600;
         margin-top: 0.5rem;
     }
+
+    /* Tab styling */
+    .nav-tabs {
+        border-bottom: 2px solid #e9ecef;
+        display: flex;
+        align-items: flex-end;
+    }
+
+    .nav-tabs .nav-item {
+        margin-bottom: 0;
+        display: inline-block;
+        vertical-align: bottom;
+    }
+
+    .nav-tabs .nav-link {
+        border: none;
+        border-radius: 8px 8px 0 0;
+        color: #6c757d;
+        font-weight: 500;
+        padding: 12px 24px;
+        margin-right: 8px;
+        transition: all 0.2s ease;
+        background: #f8f9fa;
+        display: inline-flex;
+        align-items: center;
+        line-height: 1;
+    }
+
+    .nav-tabs .nav-link:hover:not(.disabled) {
+        border: none;
+        background: #e9ecef;
+        color: #0d1a80;
+        transform: translateY(-2px);
+    }
+
+    .nav-tabs .nav-link.active {
+        border: none;
+        background: #0d1a80;
+        color: white;
+        border-bottom: 2px solid #0d1a80;
+    }
+
+    .nav-tabs .nav-link.disabled {
+        background: #f8f9fa;
+        color: #adb5bd;
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+
+    .nav-tabs .nav-link i {
+        margin-right: 8px;
+        font-size: 1.1rem;
+    }
+
+    .tab-content {
+        min-height: 400px;
+        padding: 0;
+        width: 100%;
+    }
+
+    .tab-pane {
+        display: none;
+        padding: 0;
+    }
+
+    .tab-pane.show.active {
+        display: block;
+    }
+
+    /* Tab-specific customization sections */
+    .tab-pane .customization-section {
+        border: 1px solid #e9ecef;
+        background: white;
+        border-left: 3px solid #0d1a80;
+        margin: 0;
+    }
+    
+    /* Font family selection grid */
+    .font-family-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 12px;
+        width: 100%;
+    }
+    
+    .font-option-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 12px 8px;
+        border: 2px solid #dee2e6;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        background: white;
+        font-family: inherit;
+        font-size: inherit;
+        line-height: inherit;
+        width: 100%;
+    }
+    
+    .font-option-btn:hover {
+        border-color: #0d1a80;
+        background: #f0f2ff;
+    }
+    
+    .font-option-btn.active {
+        border-color: #0d1a80;
+        background: #0d1a80;
+        color: white;
+    }
+    
+    .font-option-btn span {
+        font-size: 1.5rem;
+        margin-bottom: 4px;
+    }
+    
+    .font-option-btn .font-name {
+        font-size: 0.7rem;
+        font-weight: 500;
+        line-height: 1.2;
+        text-align: center;
+    }
 </style>
 
 @code {
@@ -462,21 +859,25 @@
     // Customization options
     private bool flipAvatar = false;
     
+    // Tab management
+    private string activeTab = "type";
+    
     // Selected colors
     private string selectedBackgroundColor = "transparent";
-    private string selectedPrimaryColor = "#0E7490";
     
     // Bottts specific options
     private string selectedEyeType = "eva";
     private string selectedMouthType = "smile01";
+    private string selectedFaceType = "square01";
     private string selectedSidesType = "antenna01";
     private string selectedTextureType = "circuits";
+    private string selectedTopType = "antenna";
+    private string selectedBaseColor = "#1e88e5";
     
     // Color palettes
-    private readonly string[] primaryColors = new[] { 
-        "#0E7490", "#0891B2", "#06B6D4", "#14B8A6", "#10B981", "#22C55E", 
-        "#84CC16", "#EAB308", "#F59E0B", "#F97316", "#EF4444", "#EC4899", 
-        "#8B5CF6", "#6366F1", "#3B82F6", "#0EA5E9" 
+    private readonly string[] backgroundColors = new[] {
+        "#f3f4f6", "#e5e7eb", "#d1d5db", "#9ca3af", "#6b7280", "#4b5563",
+        "#374151", "#1f2937", "#111827"
     };
     
     // Eye types for various styles
@@ -486,12 +887,49 @@
     
     // Mouth types for robots
     private readonly string[] mouthTypes = new[] {
-        "bite", "diagram", "grill01", "grill02", "smile01", "smile02", "square01", "square02"
+        "bite", "diagram", "grill01", "grill02", "grill03", "smile01", "smile02", "square01", "square02"
+    };
+    
+    // Face types for robots
+    private readonly string[] faceTypes = new[] {
+        "round01", "round02", "square01", "square02", "square03", "square04"
     };
     
     // Sides types for robots
     private readonly string[] sidesTypes = new[] {
-        "antenna01", "antenna02", "cables01", "cables02", "round", "square", "squareAsymmetric"
+        "antenna01", "antenna02", "cables01", "cables02", "round", "square", "squareAssymetric"
+    };
+    
+    // Texture types for robots
+    private readonly string[] textureTypes = new[] {
+        "camo01", "camo02", "circuits", "dirty01", "dirty02", "dots", "grunge01", "grunge02"
+    };
+    
+    // Top types for robots
+    private readonly string[] topTypes = new[] {
+        "antenna", "antennaCrooked", "bulb01", "glowingBulb01", "glowingBulb02", "horns", "lights", "pyramid", "radar"
+    };
+    
+    // Base colors for robots
+    private readonly string[] baseColors = new[] {
+        "#ffb300", "#1e88e5", "#546e7a", "#6d4c41", "#ff6d00", "#26a69a", "#66bb6a", "#9ccc65",
+        "#d4e157", "#ffee58", "#ffca28", "#ffa726", "#ff7043", "#8d6e63", "#bdbdbd", "#78909c"
+    };
+    
+    
+    // Initials specific options
+    private string initialsText = "";
+    private string selectedInitialsBackgroundColor = "#0d1a80";
+    private int selectedFontSize = 40;
+    private int selectedFontWeight = 600;
+    private string selectedFontFamily = "Arial";
+    
+    // Initials color palette
+    private readonly string[] initialsBackgroundColors = new[] {
+        "#0d1a80", "#1e40af", "#7c3aed", "#a21caf", "#be123c", "#dc2626",
+        "#ea580c", "#d97706", "#65a30d", "#16a34a", "#059669", "#0891b2",
+        "#0284c7", "#4f46e5", "#6366f1", "#8b5cf6", "#a855f7", "#c026d3",
+        "#e11d48", "#f43f5e", "#f59e0b", "#f97316", "#fb923c", "#fbbf24"
     };
 
     protected override async Task OnInitializedAsync()
@@ -500,11 +938,137 @@
         {
             SelectedDiceBearSeed = Guid.NewGuid().ToString("N")[..8];
         }
+        
+        // Load existing options if provided
+        if (!string.IsNullOrEmpty(SelectedDiceBearOptions))
+        {
+            try
+            {
+                var existingOptions = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(SelectedDiceBearOptions);
+                if (existingOptions != null)
+                {
+                    LoadExistingOptions(existingOptions);
+                }
+            }
+            catch
+            {
+                // If deserialization fails, use defaults
+            }
+        }
+        
+        // Set default initials text based on seed
+        if (string.IsNullOrEmpty(initialsText) && !string.IsNullOrEmpty(SelectedDiceBearSeed))
+        {
+            // Use first 2 characters of seed as default initials
+            initialsText = SelectedDiceBearSeed.Length >= 2 ? SelectedDiceBearSeed.Substring(0, 2).ToUpper() : "AB";
+        }
 
         if (!string.IsNullOrEmpty(SelectedDiceBearStyle))
         {
             await UpdateAvatar();
-            await LoadCustomizationPreviews();
+            if (SelectedDiceBearStyle == "bottts")
+            {
+                await LoadCustomizationPreviews();
+            }
+        }
+    }
+    
+    protected override async Task OnParametersSetAsync()
+    {
+        // Only reload if parameters actually changed
+        if (!string.IsNullOrEmpty(SelectedDiceBearOptions) && !isLoadingPreview)
+        {
+            try
+            {
+                var existingOptions = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(SelectedDiceBearOptions);
+                if (existingOptions != null)
+                {
+                    LoadExistingOptions(existingOptions);
+                    
+                    // Update the avatar preview with loaded options
+                    if (!string.IsNullOrEmpty(SelectedDiceBearStyle))
+                    {
+                        await UpdateAvatar();
+                        // Don't load customization previews here - let the user trigger it
+                    }
+                }
+            }
+            catch
+            {
+                // If there's an error parsing options, just continue
+            }
+        }
+    }
+    
+    private void LoadExistingOptions(Dictionary<string, object> options)
+    {
+        if (options.TryGetValue("baseColor", out var baseColor) && baseColor is JsonElement baseColorElement && baseColorElement.ValueKind == JsonValueKind.String)
+        {
+            var colorValue = baseColorElement.GetString();
+            if (!string.IsNullOrEmpty(colorValue))
+            {
+                selectedBaseColor = colorValue.StartsWith("#") ? colorValue : $"#{colorValue}";
+            }
+        }
+        
+        if (options.TryGetValue("backgroundColor", out var bgColor) && bgColor is JsonElement bgColorElement && bgColorElement.ValueKind == JsonValueKind.String)
+        {
+            var bgColorValue = bgColorElement.GetString();
+            if (!string.IsNullOrEmpty(bgColorValue))
+            {
+                selectedBackgroundColor = bgColorValue.StartsWith("#") ? bgColorValue : $"#{bgColorValue}";
+            }
+        }
+        
+        if (options.TryGetValue("eyes", out var eyes) && eyes is JsonElement eyesElement && eyesElement.ValueKind == JsonValueKind.String)
+        {
+            selectedEyeType = eyesElement.GetString() ?? "eva";
+        }
+        
+        if (options.TryGetValue("face", out var face) && face is JsonElement faceElement && faceElement.ValueKind == JsonValueKind.String)
+        {
+            selectedFaceType = faceElement.GetString() ?? "square01";
+        }
+        
+        if (options.TryGetValue("mouth", out var mouth) && mouth is JsonElement mouthElement && mouthElement.ValueKind == JsonValueKind.String)
+        {
+            selectedMouthType = mouthElement.GetString() ?? "smile01";
+        }
+        
+        if (options.TryGetValue("sides", out var sides) && sides is JsonElement sidesElement && sidesElement.ValueKind == JsonValueKind.String)
+        {
+            selectedSidesType = sidesElement.GetString() ?? "antenna01";
+        }
+        
+        if (options.TryGetValue("top", out var top) && top is JsonElement topElement && topElement.ValueKind == JsonValueKind.String)
+        {
+            selectedTopType = topElement.GetString() ?? "antenna";
+        }
+        
+        if (options.TryGetValue("texture", out var texture) && texture is JsonElement textureElement && textureElement.ValueKind == JsonValueKind.String)
+        {
+            selectedTextureType = textureElement.GetString() ?? "circuits";
+        }
+        
+        if (options.TryGetValue("flip", out var flip) && flip is JsonElement flipElement && flipElement.ValueKind == JsonValueKind.True)
+        {
+            flipAvatar = true;
+        }
+        
+        // For initials style
+        if (options.TryGetValue("fontSize", out var fontSize) && fontSize is JsonElement fontSizeElement && fontSizeElement.ValueKind == JsonValueKind.Number)
+        {
+            selectedFontSize = fontSizeElement.GetInt32();
+        }
+        
+        if (options.TryGetValue("fontWeight", out var fontWeight) && fontWeight is JsonElement fontWeightElement && fontWeightElement.ValueKind == JsonValueKind.Number)
+        {
+            selectedFontWeight = fontWeightElement.GetInt32();
+        }
+        
+        if (options.TryGetValue("fontFamily", out var fontFamily) && fontFamily is JsonElement fontFamilyElement && fontFamilyElement.ValueKind == JsonValueKind.String)
+        {
+            selectedFontFamily = fontFamilyElement.GetString() ?? "Arial";
         }
     }
 
@@ -516,6 +1080,19 @@
         
         await UpdateAvatar();
         await LoadCustomizationPreviews();
+    }
+    
+    private async Task SelectStyleAndSwitchTab(string style)
+    {
+        await SelectStyle(style);
+        activeTab = "customize"; // Auto-switch to customize tab after selecting a style
+        StateHasChanged();
+    }
+    
+    private void SetActiveTab(string tab)
+    {
+        activeTab = tab;
+        StateHasChanged();
     }
 
     private string GetStylePreviewUrl(string style)
@@ -534,7 +1111,24 @@
         try
         {
             var options = GetCurrentOptions();
-            currentAvatarDataUrl = await DiceBearService.GetAvatarDataUrlAsync(SelectedDiceBearStyle, SelectedDiceBearSeed, options);
+            
+            // Add timeout to prevent hanging
+            using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var avatarTask = DiceBearService.GetAvatarDataUrlAsync(SelectedDiceBearStyle, SelectedDiceBearSeed, options);
+            
+            if (avatarTask is Task<string> task)
+            {
+                await Task.WhenAny(task, Task.Delay(5000));
+                if (task.IsCompleted)
+                {
+                    currentAvatarDataUrl = await task;
+                }
+                else
+                {
+                    // Timeout - use a fallback
+                    currentAvatarDataUrl = DiceBearAvatars.GenerateAvatarUrl(SelectedDiceBearStyle, SelectedDiceBearSeed, "svg", options);
+                }
+            }
             
             // Notify parent of the selection
             var avatarData = new AvatarSelectionData
@@ -546,6 +1140,12 @@
             };
             
             await OnAvatarSelected.InvokeAsync(avatarData);
+        }
+        catch (Exception ex)
+        {
+            // Log error and use fallback
+            Console.WriteLine($"Error updating avatar: {ex.Message}");
+            currentAvatarDataUrl = DiceBearAvatars.GenerateAvatarUrl(SelectedDiceBearStyle, SelectedDiceBearSeed, "svg", GetCurrentOptions());
         }
         finally
         {
@@ -564,7 +1164,8 @@
         // Load eye type previews
         foreach (var eyeType in eyeTypes)
         {
-            if (!previewCache.ContainsKey($"eye_{eyeType}"))
+            var cacheKey = $"eye_{eyeType}_{selectedBaseColor}";
+            if (!previewCache.ContainsKey(cacheKey))
             {
                 tasks.Add(LoadPreview("eye", eyeType));
             }
@@ -573,18 +1174,40 @@
         // Load mouth type previews
         foreach (var mouthType in mouthTypes)
         {
-            if (!previewCache.ContainsKey($"mouth_{mouthType}"))
+            var cacheKey = $"mouth_{mouthType}_{selectedBaseColor}";
+            if (!previewCache.ContainsKey(cacheKey))
             {
                 tasks.Add(LoadPreview("mouth", mouthType));
             }
         }
-
+        
+        // Load face type previews
+        foreach (var faceType in faceTypes)
+        {
+            var cacheKey = $"face_{faceType}_{selectedBaseColor}";
+            if (!previewCache.ContainsKey(cacheKey))
+            {
+                tasks.Add(LoadPreview("face", faceType));
+            }
+        }
+        
         // Load sides type previews
         foreach (var sidesType in sidesTypes)
         {
-            if (!previewCache.ContainsKey($"sides_{sidesType}"))
+            var cacheKey = $"sides_{sidesType}_{selectedBaseColor}";
+            if (!previewCache.ContainsKey(cacheKey))
             {
                 tasks.Add(LoadPreview("sides", sidesType));
+            }
+        }
+        
+        // Load top type previews
+        foreach (var topType in topTypes)
+        {
+            var cacheKey = $"top_{topType}_{selectedBaseColor}";
+            if (!previewCache.ContainsKey(cacheKey))
+            {
+                tasks.Add(LoadPreview("top", topType));
             }
         }
 
@@ -596,32 +1219,43 @@
     {
         var options = new Dictionary<string, object>
         {
-            { "primaryColor", new[] { selectedPrimaryColor } },
-            { "backgroundColor", new[] { "#f8f9fa" } },
-            { "texture", new[] { selectedTextureType } }
+            { "backgroundColor", "#f8f9fa" },
+            { "baseColor", selectedBaseColor }
         };
 
+        // Set default values for all options
+        options["eyes"] = selectedEyeType;
+        options["face"] = selectedFaceType;
+        options["mouth"] = selectedMouthType;
+        options["sides"] = selectedSidesType;
+        options["top"] = selectedTopType;
+        options["texture"] = selectedTextureType;
+        
+        // Override the specific option being previewed
         switch (optionType)
         {
             case "eye":
-                options["eyes"] = new[] { optionValue };
-                options["mouth"] = new[] { selectedMouthType };
-                options["sides"] = new[] { selectedSidesType };
+                options["eyes"] = optionValue;
                 break;
             case "mouth":
-                options["eyes"] = new[] { selectedEyeType };
-                options["mouth"] = new[] { optionValue };
-                options["sides"] = new[] { selectedSidesType };
+                options["mouth"] = optionValue;
+                break;
+            case "face":
+                options["face"] = optionValue;
                 break;
             case "sides":
-                options["eyes"] = new[] { selectedEyeType };
-                options["mouth"] = new[] { selectedMouthType };
-                options["sides"] = new[] { optionValue };
+                options["sides"] = optionValue;
+                break;
+            case "top":
+                options["top"] = optionValue;
                 break;
         }
 
-        var dataUrl = await DiceBearService.GetAvatarDataUrlAsync("bottts", "preview", options);
-        previewCache[$"{optionType}_{optionValue}"] = dataUrl;
+        // Use a unique seed for each preview to show actual differences
+        var previewSeed = $"preview_{optionType}_{optionValue}";
+        var dataUrl = await DiceBearService.GetAvatarDataUrlAsync("bottts", previewSeed, options);
+        var cacheKey = $"{optionType}_{optionValue}_{selectedBaseColor}";
+        previewCache[cacheKey] = dataUrl;
     }
 
     private Dictionary<string, object> GetCurrentOptions()
@@ -635,16 +1269,31 @@
 
         if (SelectedDiceBearStyle == "bottts")
         {
-            options["eyes"] = new[] { selectedEyeType };
-            options["mouth"] = new[] { selectedMouthType };
-            options["sides"] = new[] { selectedSidesType };
-            options["texture"] = new[] { selectedTextureType };
-            options["primaryColor"] = new[] { selectedPrimaryColor };
+            options["baseColor"] = selectedBaseColor;
+            options["eyes"] = selectedEyeType;
+            options["face"] = selectedFaceType;
+            options["mouth"] = selectedMouthType;
+            options["sides"] = selectedSidesType;
+            options["top"] = selectedTopType;
+            options["texture"] = selectedTextureType;
             
             if (selectedBackgroundColor != "transparent")
             {
-                options["backgroundColor"] = new[] { selectedBackgroundColor };
+                options["backgroundColor"] = selectedBackgroundColor;
             }
+        }
+        else if (SelectedDiceBearStyle == "initials")
+        {
+            // Use the initials text as seed if provided, otherwise use regular seed
+            if (!string.IsNullOrEmpty(initialsText))
+            {
+                SelectedDiceBearSeed = initialsText;
+            }
+            
+            options["backgroundColor"] = selectedInitialsBackgroundColor;
+            options["fontSize"] = selectedFontSize;
+            options["fontWeight"] = selectedFontWeight;
+            options["fontFamily"] = selectedFontFamily;
         }
 
         return options;
@@ -661,43 +1310,81 @@
         selectedMouthType = mouthType;
         await UpdateAvatar();
     }
-
+    
+    private async Task SelectFaceType(string faceType)
+    {
+        selectedFaceType = faceType;
+        await UpdateAvatar();
+    }
+    
     private async Task SelectSidesType(string sidesType)
     {
         selectedSidesType = sidesType;
         await UpdateAvatar();
     }
-
-    private void SelectTexture(string texture)
+    
+    private async Task SelectTopType(string topType)
+    {
+        selectedTopType = topType;
+        await UpdateAvatar();
+    }
+    
+    private async Task SelectTexture(string texture)
     {
         selectedTextureType = texture;
-        UpdateAvatar();
+        await UpdateAvatar();
     }
-
-    private void SelectPrimaryColor(string color)
+    
+    private async Task SelectBaseColor(string color)
     {
-        selectedPrimaryColor = color;
+        selectedBaseColor = color;
         previewCache.Clear(); // Clear cache to reload with new color
-        UpdateAvatar();
-        LoadCustomizationPreviews();
+        await UpdateAvatar();
+        await LoadCustomizationPreviews();
     }
 
-    private void SelectBackgroundColor(string color)
+
+    private async Task SelectBackgroundColor(string color)
     {
         selectedBackgroundColor = color;
-        UpdateAvatar();
+        await UpdateAvatar();
     }
 
-    private void RandomizeSeed()
+    private async Task RandomizeSeed()
     {
         SelectedDiceBearSeed = Guid.NewGuid().ToString("N")[..8];
-        UpdateAvatar();
+        await UpdateAvatar();
     }
 
-    private void FlipAvatar()
+    private async Task FlipAvatar()
     {
         flipAvatar = !flipAvatar;
-        UpdateAvatar();
+        await UpdateAvatar();
+    }
+    
+    // Initials specific methods
+    private async Task SelectInitialsBackgroundColor(string color)
+    {
+        selectedInitialsBackgroundColor = color;
+        await UpdateAvatar();
+    }
+    
+    private async Task SelectFontSize(int size)
+    {
+        selectedFontSize = size;
+        await UpdateAvatar();
+    }
+    
+    private async Task SelectFontWeight(int weight)
+    {
+        selectedFontWeight = weight;
+        await UpdateAvatar();
+    }
+    
+    private async Task SelectFontFamily(string family)
+    {
+        selectedFontFamily = family;
+        await UpdateAvatar();
     }
 
     public class AvatarSelectionData

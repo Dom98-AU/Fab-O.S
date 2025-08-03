@@ -285,11 +285,16 @@ namespace SteelEstimation.Infrastructure.Services
         {
             var httpContext = _httpContextAccessor.HttpContext;
             if (httpContext?.User?.Identity?.IsAuthenticated != true)
+            {
+                _logger.LogWarning("GetCurrentUserAsync: User is not authenticated");
                 return null;
+            }
                 
             // Try multiple claim types to find the user ID
             var userIdClaim = httpContext.User.FindFirst("UserId")?.Value 
                            ?? httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                           
+            _logger.LogInformation("GetCurrentUserAsync: Found UserId claim: {UserIdClaim}", userIdClaim);
                            
             if (string.IsNullOrEmpty(userIdClaim))
             {
@@ -304,11 +309,14 @@ namespace SteelEstimation.Infrastructure.Services
             }
             
             using var context = await _contextFactory.CreateDbContextAsync();
-            return await context.Users
+            var user = await context.Users
                 .Include(u => u.Company)
                 .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
                 .FirstOrDefaultAsync(u => u.Id == userId);
+                
+            _logger.LogInformation("GetCurrentUserAsync: Found user: {Username} (ID: {UserId})", user?.Username, user?.Id);
+            return user;
         }
         
         public async Task<int?> GetCurrentUserIdAsync()

@@ -25,7 +25,7 @@ namespace SteelEstimation.Core.Entities
         [MaxLength(100)]
         public string? DiceBearSeed { get; set; } // Seed for consistent DiceBear generation
         
-        [MaxLength(500)]
+        [MaxLength(2000)]
         public string? DiceBearOptions { get; set; } // JSON string of DiceBear options
         
         [MaxLength(100)]

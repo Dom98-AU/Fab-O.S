@@ -1,0 +1,78 @@
+@* Example usage of UserAvatar component *@
+
+@* Basic usage with UserProfile *@
+<UserAvatar UserProfile="@userProfile" Size="md" />
+
+@* With custom parameters *@
+<UserAvatar 
+    AvatarType="dicebear"
+    DiceBearStyle="bottts"
+    DiceBearSeed="john-doe"
+    Name="John Doe"
+    Size="lg" />
+
+@* With initials fallback *@
+<UserAvatar 
+    Initials="JD"
+    Name="John Doe"
+    Size="sm" />
+
+@* With status indicator *@
+<UserAvatar 
+    UserProfile="@userProfile"
+    ShowStatusIndicator="true"
+    Status="online"
+    Size="md" />
+
+@* With edit functionality *@
+<UserAvatar 
+    UserProfile="@userProfile"
+    AllowEdit="true"
+    OnEditClick="@HandleEditAvatar"
+    Size="xl" />
+
+@* Square variant for lists/tables *@
+<UserAvatar 
+    UserProfile="@userProfile"
+    IsSquare="true"
+    Size="sm" />
+
+@* Clickable avatar *@
+<UserAvatar 
+    UserProfile="@userProfile"
+    OnClick="@(() => NavigateToProfile(userProfile.UserId))"
+    Size="md" />
+
+@* Multiple sizes showcase *@
+<div class="d-flex gap-3 align-items-center">
+    <UserAvatar UserProfile="@userProfile" Size="xs" />
+    <UserAvatar UserProfile="@userProfile" Size="sm" />
+    <UserAvatar UserProfile="@userProfile" Size="md" />
+    <UserAvatar UserProfile="@userProfile" Size="lg" />
+    <UserAvatar UserProfile="@userProfile" Size="xl" />
+    <UserAvatar UserProfile="@userProfile" Size="xxl" />
+</div>
+
+@code {
+    private UserProfile userProfile = new UserProfile
+    {
+        AvatarType = "dicebear",
+        DiceBearStyle = "avataaars",
+        DiceBearSeed = "example-user",
+        User = new User 
+        { 
+            FirstName = "John", 
+            LastName = "Doe" 
+        }
+    };
+
+    private async Task HandleEditAvatar()
+    {
+        // Handle avatar edit
+    }
+
+    private void NavigateToProfile(int userId)
+    {
+        // Navigate to user profile
+    }
+}

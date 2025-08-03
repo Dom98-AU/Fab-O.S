@@ -1,0 +1,21 @@
+/* Make the avatar modal extra wide */
+.modal-xl {
+    max-width: 90%;
+    width: 90%;
+}
+
+@media (min-width: 1200px) {
+    .modal-xl {
+        max-width: 1400px;
+    }
+}
+
+/* Ensure modal body has no unnecessary padding for avatar selector */
+.modal-body {
+    padding: 0;
+}
+
+/* Modal content should fill available space */
+.modal-content {
+    width: 100%;
+}

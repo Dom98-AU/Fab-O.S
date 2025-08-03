@@ -15,11 +15,20 @@ namespace SteelEstimation.Infrastructure.Services
     {
         private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
         private readonly ILogger<UserProfileService> _logger;
+        private readonly IAvatarHistoryService? _avatarHistoryService;
 
         public UserProfileService(IDbContextFactory<ApplicationDbContext> contextFactory, ILogger<UserProfileService> logger)
         {
             _contextFactory = contextFactory;
             _logger = logger;
+        }
+
+        // Constructor with avatar history service (optional dependency)
+        public UserProfileService(IDbContextFactory<ApplicationDbContext> contextFactory, ILogger<UserProfileService> logger, IAvatarHistoryService avatarHistoryService)
+        {
+            _contextFactory = contextFactory;
+            _logger = logger;
+            _avatarHistoryService = avatarHistoryService;
         }
 
         public async Task<UserProfile?> GetUserProfileAsync(int userId)
@@ -73,10 +82,39 @@ namespace SteelEstimation.Infrastructure.Services
         {
             using var context = await _contextFactory.CreateDbContextAsync();
             
-            var profile = await GetUserProfileAsync(userId);
+            // Get the profile using the same context to ensure proper tracking
+            var profile = await context.UserProfiles.FirstOrDefaultAsync(p => p.UserId == userId);
             if (profile == null)
             {
                 return null;
+            }
+
+            // Check if avatar-related fields are changing
+            bool avatarChanged = profile.AvatarUrl != request.AvatarUrl ||
+                               profile.AvatarType != request.AvatarType ||
+                               profile.DiceBearStyle != request.DiceBearStyle ||
+                               profile.DiceBearSeed != request.DiceBearSeed ||
+                               profile.DiceBearOptions != request.DiceBearOptions;
+
+            // Save to avatar history if avatar changed and history service is available
+            if (avatarChanged && _avatarHistoryService != null)
+            {
+                try
+                {
+                    await _avatarHistoryService.SaveAvatarToHistoryAsync(
+                        userId, 
+                        request.AvatarUrl, 
+                        request.AvatarType,
+                        request.DiceBearStyle, 
+                        request.DiceBearSeed, 
+                        request.DiceBearOptions,
+                        "user_change");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to save avatar to history for user {UserId}", userId);
+                    // Continue with profile update even if history fails
+                }
             }
 
             profile.Bio = request.Bio;
@@ -187,36 +225,120 @@ namespace SteelEstimation.Infrastructure.Services
         {
             using var context = await _contextFactory.CreateDbContextAsync();
             
-            var profile = await GetUserProfileAsync(userId);
+            var profile = await context.UserProfiles
+                .FirstOrDefaultAsync(p => p.UserId == userId);
+            
             if (profile == null)
             {
                 return null;
             }
 
-            // TODO: Implement actual file storage (Azure Blob Storage, etc.)
-            // For now, just return a placeholder URL
-            var avatarUrl = $"/api/users/{userId}/avatar?v={DateTime.UtcNow.Ticks}";
-            
-            profile.AvatarUrl = avatarUrl;
-            profile.UpdatedAt = DateTime.UtcNow;
-            
-            await context.SaveChangesAsync();
-            
-            _logger.LogInformation("Updated avatar for user {UserId}", userId);
-            return avatarUrl;
+            try
+            {
+                // Delete old avatar if it exists and is a custom upload
+                if (!string.IsNullOrEmpty(profile.AvatarUrl) && 
+                    profile.AvatarType == "custom" &&
+                    profile.AvatarUrl.StartsWith("/uploads/avatars/"))
+                {
+                    await DeleteAvatarFileAsync(profile.AvatarUrl);
+                }
+
+                // Generate unique filename
+                var extension = GetExtensionFromContentType(contentType);
+                if (string.IsNullOrEmpty(extension))
+                {
+                    _logger.LogWarning("Invalid content type {ContentType} for user {UserId}", contentType, userId);
+                    return null;
+                }
+
+                var fileName = $"user_{userId}_{Guid.NewGuid()}{extension}";
+                var relativePath = $"/uploads/avatars/{fileName}";
+                
+                // Save the file
+                var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "avatars");
+                Directory.CreateDirectory(uploadsFolder);
+                
+                var filePath = Path.Combine(uploadsFolder, fileName);
+                await File.WriteAllBytesAsync(filePath, imageData);
+                
+                // Update profile
+                profile.AvatarUrl = relativePath;
+                profile.AvatarType = "custom";
+                profile.DiceBearStyle = null;
+                profile.DiceBearSeed = null;
+                profile.DiceBearOptions = null;
+                profile.UpdatedAt = DateTime.UtcNow;
+                
+                await context.SaveChangesAsync();
+                
+                _logger.LogInformation("Updated custom avatar for user {UserId} at {Path}", userId, relativePath);
+                return relativePath;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating avatar for user {UserId}", userId);
+                return null;
+            }
+        }
+
+        private string? GetExtensionFromContentType(string contentType)
+        {
+            return contentType?.ToLowerInvariant() switch
+            {
+                "image/jpeg" => ".jpg",
+                "image/jpg" => ".jpg",
+                "image/png" => ".png",
+                "image/gif" => ".gif",
+                "image/webp" => ".webp",
+                _ => null
+            };
+        }
+
+        private async Task DeleteAvatarFileAsync(string avatarUrl)
+        {
+            try
+            {
+                var fileName = Path.GetFileName(avatarUrl);
+                var filePath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "avatars", fileName);
+                
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                    _logger.LogInformation("Deleted old avatar file {FilePath}", filePath);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deleting avatar file {AvatarUrl}", avatarUrl);
+            }
         }
 
         public async Task<bool> DeleteAvatarAsync(int userId)
         {
             using var context = await _contextFactory.CreateDbContextAsync();
             
-            var profile = await GetUserProfileAsync(userId);
+            var profile = await context.UserProfiles
+                .FirstOrDefaultAsync(p => p.UserId == userId);
+            
             if (profile == null)
             {
                 return false;
             }
 
+            // Delete physical file if it's a custom upload
+            if (!string.IsNullOrEmpty(profile.AvatarUrl) && 
+                profile.AvatarType == "custom" &&
+                profile.AvatarUrl.StartsWith("/uploads/avatars/"))
+            {
+                await DeleteAvatarFileAsync(profile.AvatarUrl);
+            }
+
+            // Clear all avatar-related fields
             profile.AvatarUrl = null;
+            profile.AvatarType = null;
+            profile.DiceBearStyle = null;
+            profile.DiceBearSeed = null;
+            profile.DiceBearOptions = null;
             profile.UpdatedAt = DateTime.UtcNow;
             
             await context.SaveChangesAsync();

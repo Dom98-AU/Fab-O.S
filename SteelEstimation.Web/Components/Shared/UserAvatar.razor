@@ -1,0 +1,343 @@
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Web.Data
+@using SteelEstimation.Web.Services
+@inject IDiceBearService DiceBearService
+
+@if (isLoading)
+{
+    <div class="@GetContainerClasses()">
+        <div class="spinner-border text-secondary" role="status" style="@GetSpinnerStyle()">
+            <span class="visually-hidden">Loading avatar...</span>
+        </div>
+    </div>
+}
+else
+{
+    <div class="@GetContainerClasses()" title="@GetTooltip()">
+        @if (showStatusIndicator && !string.IsNullOrEmpty(Status))
+        {
+            <div class="avatar-status-indicator @GetStatusClass()"></div>
+        }
+        @if (!string.IsNullOrEmpty(avatarUrl))
+        {
+            <img src="@avatarUrl" alt="@GetAltText()" class="avatar-image" />
+        }
+        else
+        {
+            <div class="avatar-placeholder">
+                @if (!string.IsNullOrEmpty(Initials))
+                {
+                    <span class="avatar-initials">@Initials</span>
+                }
+                else
+                {
+                    <i class="bi bi-person-fill"></i>
+                }
+            </div>
+        }
+        @if (allowEdit && onEditClick.HasDelegate)
+        {
+            <button class="avatar-edit-button" @onclick="onEditClick" title="Change avatar">
+                <i class="bi bi-camera-fill"></i>
+            </button>
+        }
+    </div>
+}
+
+<style>
+    .avatar-container {
+        position: relative;
+        display: inline-block;
+        border-radius: 50%;
+        overflow: hidden;
+        background-color: #f8f9fa;
+        border: 2px solid #dee2e6;
+        flex-shrink: 0;
+    }
+
+    .avatar-container.clickable {
+        cursor: pointer;
+    }
+
+    .avatar-container.clickable:hover {
+        border-color: #0d1a80;
+        box-shadow: 0 0 0 2px rgba(13, 26, 128, 0.1);
+    }
+
+    .avatar-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+    .avatar-placeholder {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .avatar-placeholder i {
+        font-size: 50%;
+    }
+
+    .avatar-initials {
+        font-weight: 600;
+        font-size: 40%;
+        text-transform: uppercase;
+        user-select: none;
+    }
+
+    /* Size variants */
+    .avatar-xs {
+        width: 24px;
+        height: 24px;
+    }
+
+    .avatar-sm {
+        width: 32px;
+        height: 32px;
+    }
+
+    .avatar-md {
+        width: 48px;
+        height: 48px;
+    }
+
+    .avatar-lg {
+        width: 64px;
+        height: 64px;
+    }
+
+    .avatar-xl {
+        width: 96px;
+        height: 96px;
+    }
+
+    .avatar-xxl {
+        width: 128px;
+        height: 128px;
+    }
+
+    /* Status indicator */
+    .avatar-status-indicator {
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        width: 25%;
+        height: 25%;
+        border-radius: 50%;
+        border: 2px solid white;
+        z-index: 1;
+    }
+
+    .status-online {
+        background-color: #10b981;
+    }
+
+    .status-busy {
+        background-color: #ef4444;
+    }
+
+    .status-away {
+        background-color: #f59e0b;
+    }
+
+    .status-offline {
+        background-color: #6b7280;
+    }
+
+    /* Edit button */
+    .avatar-edit-button {
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background-color: #0d1a80;
+        color: white;
+        border: 2px solid white;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .avatar-container:hover .avatar-edit-button {
+        display: flex;
+    }
+
+    .avatar-edit-button:hover {
+        background-color: #1e3a8a;
+        transform: scale(1.1);
+    }
+
+    .avatar-edit-button i {
+        font-size: 14px;
+    }
+
+    /* Square variant */
+    .avatar-square {
+        border-radius: 8px;
+    }
+
+    .avatar-square .avatar-status-indicator {
+        border-radius: 4px;
+    }
+</style>
+
+@code {
+    [Parameter] public UserProfile? UserProfile { get; set; }
+    [Parameter] public string? AvatarUrl { get; set; }
+    [Parameter] public string? AvatarType { get; set; }
+    [Parameter] public string? DiceBearStyle { get; set; }
+    [Parameter] public string? DiceBearSeed { get; set; }
+    [Parameter] public string? DiceBearOptions { get; set; }
+    [Parameter] public string? Name { get; set; }
+    [Parameter] public string? Initials { get; set; }
+    [Parameter] public string Size { get; set; } = "md"; // xs, sm, md, lg, xl, xxl
+    [Parameter] public bool IsSquare { get; set; } = false;
+    [Parameter] public string? Status { get; set; } // online, busy, away, offline
+    [Parameter] public bool ShowStatusIndicator { get; set; } = false;
+    [Parameter] public bool AllowEdit { get; set; } = false;
+    [Parameter] public EventCallback OnEditClick { get; set; }
+    [Parameter] public EventCallback OnClick { get; set; }
+    [Parameter] public string? CssClass { get; set; }
+
+    private bool isLoading = false;
+    private string? avatarUrl;
+    private bool showStatusIndicator => ShowStatusIndicator && !string.IsNullOrEmpty(Status);
+    private bool allowEdit => AllowEdit && OnEditClick.HasDelegate;
+    private EventCallback onEditClick => OnEditClick;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadAvatar();
+    }
+
+    private async Task LoadAvatar()
+    {
+        // Priority: Direct parameters > UserProfile
+        var effectiveAvatarUrl = AvatarUrl ?? UserProfile?.AvatarUrl;
+        var effectiveAvatarType = AvatarType ?? UserProfile?.AvatarType;
+        var effectiveDiceBearStyle = DiceBearStyle ?? UserProfile?.DiceBearStyle;
+        var effectiveDiceBearSeed = DiceBearSeed ?? UserProfile?.DiceBearSeed;
+        var effectiveDiceBearOptions = DiceBearOptions ?? UserProfile?.DiceBearOptions;
+
+        if (!string.IsNullOrEmpty(effectiveAvatarUrl) && effectiveAvatarType != "dicebear")
+        {
+            // Custom or FontAwesome avatar
+            avatarUrl = effectiveAvatarUrl;
+        }
+        else if (effectiveAvatarType == "dicebear" && 
+                 !string.IsNullOrEmpty(effectiveDiceBearStyle) && 
+                 !string.IsNullOrEmpty(effectiveDiceBearSeed))
+        {
+            // DiceBear avatar
+            isLoading = true;
+            StateHasChanged();
+
+            try
+            {
+                var options = string.IsNullOrEmpty(effectiveDiceBearOptions) 
+                    ? null 
+                    : System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(effectiveDiceBearOptions);
+                
+                avatarUrl = await DiceBearService.GetAvatarDataUrlAsync(
+                    effectiveDiceBearStyle, 
+                    effectiveDiceBearSeed, 
+                    options);
+            }
+            catch
+            {
+                // Fallback to placeholder on error
+                avatarUrl = null;
+            }
+            finally
+            {
+                isLoading = false;
+                StateHasChanged();
+            }
+        }
+        else
+        {
+            // No avatar configured
+            avatarUrl = null;
+        }
+    }
+
+    private string GetContainerClasses()
+    {
+        var classes = new List<string> { "avatar-container", $"avatar-{Size}" };
+        
+        if (IsSquare)
+            classes.Add("avatar-square");
+        
+        if (OnClick.HasDelegate)
+            classes.Add("clickable");
+        
+        if (!string.IsNullOrEmpty(CssClass))
+            classes.Add(CssClass);
+        
+        return string.Join(" ", classes);
+    }
+
+    private string GetStatusClass()
+    {
+        return Status?.ToLower() switch
+        {
+            "online" => "status-online",
+            "busy" => "status-busy",
+            "away" => "status-away",
+            "offline" => "status-offline",
+            _ => "status-offline"
+        };
+    }
+
+    private string GetAltText()
+    {
+        if (!string.IsNullOrEmpty(Name))
+            return $"{Name}'s avatar";
+        
+        if (UserProfile?.User != null)
+            return $"{UserProfile.User.FirstName} {UserProfile.User.LastName}'s avatar";
+        
+        return "User avatar";
+    }
+
+    private string GetTooltip()
+    {
+        var tooltip = Name ?? (UserProfile?.User != null 
+            ? $"{UserProfile.User.FirstName} {UserProfile.User.LastName}" 
+            : "");
+        
+        if (showStatusIndicator && !string.IsNullOrEmpty(Status))
+        {
+            tooltip += $" ({Status})";
+        }
+        
+        return tooltip;
+    }
+
+    private string GetSpinnerStyle()
+    {
+        var size = Size switch
+        {
+            "xs" => "width: 16px; height: 16px;",
+            "sm" => "width: 20px; height: 20px;",
+            "md" => "width: 24px; height: 24px;",
+            "lg" => "width: 32px; height: 32px;",
+            "xl" => "width: 40px; height: 40px;",
+            "xxl" => "width: 48px; height: 48px;",
+            _ => "width: 24px; height: 24px;"
+        };
+        
+        return size + " font-size: 0.7em;";
+    }
+}

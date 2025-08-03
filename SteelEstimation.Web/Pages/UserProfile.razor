@@ -1,15 +1,18 @@
 @page "/profile/{Username?}"
+@page "/profile"
 @using Microsoft.AspNetCore.Authorization
 @using SteelEstimation.Core.Interfaces
 @using SteelEstimation.Core.Entities
 @using SteelEstimation.Core.DTOs
 @using System.Security.Claims
+@using System.Text.Json
 @attribute [Authorize]
 @inject IUserProfileService ProfileService
 @inject IUserService UserService
 @inject IFabOSAuthenticationService AuthService
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <div class="container-fluid mt-4">
     @if (isLoading)
@@ -20,11 +23,19 @@
             </div>
         </div>
     }
-    else if (profile == null)
+    else if (profile == null || user == null)
     {
         <div class="alert alert-warning">
             <h4>Profile Not Found</h4>
             <p>The requested user profile could not be found.</p>
+            @if (currentUserId == 0)
+            {
+                <p class="text-muted">Authentication state is being loaded. Please wait...</p>
+                <button class="btn btn-primary" @onclick="async () => await LoadProfile()">Retry</button>
+            }
+            <p class="small text-muted mt-2">
+                Debug Info: CurrentUserId=@currentUserId, Username=@(Username ?? "(null)"), User=@(user?.Username ?? "(null)")
+            </p>
         </div>
     }
     else
@@ -44,7 +55,8 @@
                                         {
                                             try
                                             {
-                                                options = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(profile.DiceBearOptions) ?? new Dictionary<string, object>();
+                                                var rawOptions = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(profile.DiceBearOptions) ?? new Dictionary<string, object>();
+                                                options = ConvertJsonElementsToValues(rawOptions);
                                             }
                                             catch { }
                                         }
@@ -64,7 +76,7 @@
                                     }
                                     @if (isOwnProfile)
                                     {
-                                        <button class="btn btn-sm btn-primary avatar-change-btn" @onclick="EditProfile">
+                                        <button type="button" class="btn btn-sm btn-primary avatar-change-btn" @onclick="EditProfile" @onclick:preventDefault="true" @onclick:stopPropagation="true">
                                             <i class="fas fa-edit"></i>
                                         </button>
                                     }
@@ -191,101 +203,25 @@
         @if (showEditModal)
         {
             <div class="modal fade show" style="display: block;" tabindex="-1">
-                <div class="modal-dialog modal-lg">
+                <div class="modal-dialog modal-xl avatar-modal-dialog">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">Edit Profile</h5>
+                            <h5 class="modal-title">Choose Your Avatar</h5>
                             <button type="button" class="btn-close" @onclick="CloseEditModal"></button>
                         </div>
-                        <div class="modal-body">
-                            <EditForm Model="editModel" OnValidSubmit="SaveProfile">
+                        <div class="modal-body p-0">
+                            <EditForm Model="editModel" OnValidSubmit="SaveProfile" class="w-100">
                                 <DataAnnotationsValidator />
                                 <ValidationSummary />
 
                                 <!-- Enhanced Avatar Selection -->
-                                <div class="mb-4">
+                                <div class="w-100">
                                     <EnhancedAvatarSelectorV2 
                                         SelectedAvatarType="dicebear"
                                         SelectedDiceBearStyle="@editModel.DiceBearStyle"
                                         SelectedDiceBearSeed="@editModel.DiceBearSeed"
                                         SelectedDiceBearOptions="@editModel.DiceBearOptions"
                                         OnAvatarSelected="HandleAvatarSelection" />
-                                </div>
-
-                                <hr class="my-4" />
-
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label class="form-label">Job Title</label>
-                                            <InputText @bind-Value="editModel.JobTitle" class="form-control" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label class="form-label">Department</label>
-                                            <InputText @bind-Value="editModel.Department" class="form-control" />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="mb-3">
-                                    <label class="form-label">Bio</label>
-                                    <InputTextArea @bind-Value="editModel.Bio" class="form-control" rows="3" />
-                                </div>
-
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label class="form-label">Location</label>
-                                            <InputText @bind-Value="editModel.Location" class="form-control" />
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label class="form-label">Phone Number</label>
-                                            <InputText @bind-Value="editModel.PhoneNumber" class="form-control" />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="mb-3">
-                                    <label class="form-label">Skills (comma-separated)</label>
-                                    <InputText @bind-Value="editModel.Skills" class="form-control" 
-                                             placeholder="e.g., Welding, Steel Fabrication, Project Management" />
-                                </div>
-
-                                <div class="mb-3">
-                                    <label class="form-label">About Me</label>
-                                    <InputTextArea @bind-Value="editModel.AboutMe" class="form-control" rows="4" />
-                                </div>
-
-                                <hr />
-
-                                <h6>Privacy Settings</h6>
-                                <div class="form-check mb-2">
-                                    <InputCheckbox @bind-Value="editModel.IsProfilePublic" class="form-check-input" id="publicProfile" />
-                                    <label class="form-check-label" for="publicProfile">
-                                        Make my profile public
-                                    </label>
-                                </div>
-                                <div class="form-check mb-2">
-                                    <InputCheckbox @bind-Value="editModel.ShowEmail" class="form-check-input" id="showEmail" />
-                                    <label class="form-check-label" for="showEmail">
-                                        Show my email address
-                                    </label>
-                                </div>
-                                <div class="form-check mb-2">
-                                    <InputCheckbox @bind-Value="editModel.ShowPhoneNumber" class="form-check-input" id="showPhone" />
-                                    <label class="form-check-label" for="showPhone">
-                                        Show my phone number
-                                    </label>
-                                </div>
-                                <div class="form-check mb-2">
-                                    <InputCheckbox @bind-Value="editModel.AllowMentions" class="form-check-input" id="allowMentions" />
-                                    <label class="form-check-label" for="allowMentions">
-                                        Allow others to mention me
-                                    </label>
                                 </div>
 
                                 <div class="modal-footer">
@@ -316,6 +252,8 @@
     .avatar-container {
         position: relative;
         display: inline-block;
+        width: 120px;
+        height: 120px;
     }
 
     .avatar-large {
@@ -329,6 +267,7 @@
 
     .dicebear-avatar {
         background: #f8f9fa;
+        object-fit: contain !important;
     }
 
     .avatar-placeholder {
@@ -401,11 +340,13 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        z-index: 10;
+        cursor: pointer;
     }
 
     /* Avatar Selector Styles */
     .avatar-selector {
-        max-width: 600px;
+        width: 100%;
     }
 
     .avatar-preview {
@@ -429,6 +370,40 @@
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
         gap: 10px;
+    }
+
+    /* Make the avatar modal extra wide */
+    .avatar-modal-dialog {
+        max-width: 95% !important;
+        width: 95% !important;
+    }
+
+    @@media (min-width: 1200px) {
+        .avatar-modal-dialog {
+            max-width: 1800px !important;
+        }
+    }
+    
+    @@media (min-width: 1600px) {
+        .avatar-modal-dialog {
+            max-width: 2000px !important;
+        }
+    }
+
+    /* Force full width for avatar modal content */
+    .avatar-modal-dialog .modal-content,
+    .avatar-modal-dialog .modal-body,
+    .avatar-modal-dialog form,
+    .avatar-modal-dialog .avatar-selector {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    .avatar-modal-dialog .form-control,
+    .avatar-modal-dialog .form-group,
+    .avatar-modal-dialog .mb-4,
+    .avatar-modal-dialog .w-100 {
+        max-width: 100% !important;
     }
 
     .avatar-option {
@@ -486,6 +461,7 @@
 </style>
 
 @code {
+    @implements IDisposable
     [Parameter] public string? Username { get; set; }
 
     private User? user;
@@ -495,12 +471,61 @@
     private bool isLoading = true;
     private bool showEditModal;
     private bool isSaving;
+    private System.Threading.Timer? autoRetryTimer;
 
     private UpdateUserProfileRequest editModel = new();
 
     protected override async Task OnInitializedAsync()
     {
-        currentUserId = await AuthService.GetCurrentUserIdAsync() ?? 0;
+        // Get authentication state first
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        Console.WriteLine($"[UserProfile] Auth state - IsAuthenticated: {authState.User.Identity?.IsAuthenticated}");
+        
+        if (authState.User.Identity?.IsAuthenticated == true)
+        {
+            var userIdClaim = authState.User.FindFirst("UserId")?.Value 
+                            ?? authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            
+            Console.WriteLine($"[UserProfile] Found UserId claim: {userIdClaim}");
+            
+            if (!string.IsNullOrEmpty(userIdClaim) && int.TryParse(userIdClaim, out var userId))
+            {
+                currentUserId = userId;
+            }
+        }
+        
+        // If we still don't have a user ID, wait a bit and try again
+        if (currentUserId == 0)
+        {
+            await Task.Delay(1000); // Wait 1 second for auth to fully load
+            
+            // Try again with auth state
+            authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            if (authState.User.Identity?.IsAuthenticated == true)
+            {
+                var userIdClaim = authState.User.FindFirst("UserId")?.Value 
+                                ?? authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                
+                if (!string.IsNullOrEmpty(userIdClaim) && int.TryParse(userIdClaim, out var userId))
+                {
+                    currentUserId = userId;
+                }
+            }
+            
+            // Final fallback to service
+            if (currentUserId == 0)
+            {
+                currentUserId = await AuthService.GetCurrentUserIdAsync() ?? 0;
+            }
+        }
+        
+        Console.WriteLine($"[UserProfile] Current User ID: {currentUserId}");
+        await LoadProfile();
+    }
+    
+    protected override async Task OnParametersSetAsync()
+    {
+        // Reload profile if username parameter changes
         await LoadProfile();
     }
 
@@ -514,30 +539,96 @@
             {
                 // Load current user's profile
                 user = await AuthService.GetCurrentUserAsync();
+                
+                // If user is null, try again with retries
+                if (user == null)
+                {
+                    // Try up to 3 times with delays
+                    for (int retry = 0; retry < 3 && user == null; retry++)
+                    {
+                        await Task.Delay(500 * (retry + 1)); // Progressive delay: 500ms, 1000ms, 1500ms
+                        
+                        // Refresh authentication state
+                        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+                        if (authState.User.Identity?.IsAuthenticated == true)
+                        {
+                            user = await AuthService.GetCurrentUserAsync();
+                        }
+                    }
+                }
+                
                 isOwnProfile = true;
+                Console.WriteLine($"[UserProfile] No username param - loading current user: {user?.Username} (ID: {user?.Id})");
+                Console.WriteLine($"[UserProfile] isOwnProfile set to: {isOwnProfile}");
             }
             else
             {
                 // Load specified user's profile
                 user = await UserService.GetUserByUsernameAsync(Username);
                 isOwnProfile = user?.Id == currentUserId;
+                Console.WriteLine($"[UserProfile] Username param '{Username}' - loaded user: {user?.Username} (ID: {user?.Id})");
+                Console.WriteLine($"[UserProfile] isOwnProfile = (user.Id:{user?.Id} == currentUserId:{currentUserId}) = {isOwnProfile}");
             }
 
             if (user != null)
             {
                 profile = await ProfileService.GetUserProfileAsync(user.Id);
+                Console.WriteLine($"[UserProfile] Profile loaded: {profile != null}");
                 
                 // Create profile if it doesn't exist for current user
                 if (profile == null && isOwnProfile)
                 {
+                    Console.WriteLine("[UserProfile] Creating new profile for current user");
                     profile = await ProfileService.CreateUserProfileAsync(user.Id, new CreateUserProfileRequest());
                 }
+            }
+            else
+            {
+                Console.WriteLine("[UserProfile] WARNING: User is null!");
             }
         }
         finally
         {
             isLoading = false;
+            
+            // If we still don't have a user and currentUserId is 0, start auto-retry timer
+            if (user == null && currentUserId == 0 && string.IsNullOrEmpty(Username))
+            {
+                // Set up auto-retry every 2 seconds, up to 5 times
+                var retryCount = 0;
+                autoRetryTimer?.Dispose();
+                autoRetryTimer = new System.Threading.Timer(async _ =>
+                {
+                    if (retryCount >= 5)
+                    {
+                        autoRetryTimer?.Dispose();
+                        return;
+                    }
+                    
+                    retryCount++;
+                    await InvokeAsync(async () =>
+                    {
+                        // Try to get auth state again
+                        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+                        if (authState.User.Identity?.IsAuthenticated == true)
+                        {
+                            await OnInitializedAsync();
+                            autoRetryTimer?.Dispose();
+                        }
+                    });
+                }, null, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2));
+            }
         }
+    }
+    
+    private async Task RetryLoadProfile()
+    {
+        // Cancel auto-retry timer
+        autoRetryTimer?.Dispose();
+        
+        // Force refresh authentication state
+        currentUserId = 0;
+        await OnInitializedAsync();
     }
 
     private void EditProfile()
@@ -550,6 +641,7 @@
                 AvatarType = "dicebear",
                 DiceBearStyle = profile.DiceBearStyle,
                 DiceBearSeed = profile.DiceBearSeed,
+                DiceBearOptions = profile.DiceBearOptions,
                 JobTitle = profile.JobTitle,
                 Department = profile.Department,
                 Bio = profile.Bio,
@@ -571,6 +663,7 @@
     private void CloseEditModal()
     {
         showEditModal = false;
+        StateHasChanged();
     }
 
     private async Task SaveProfile()
@@ -629,5 +722,37 @@
             return $"{(int)timeSpan.TotalDays}d ago";
         
         return dateTime.ToString("MMM d, yyyy");
+    }
+    
+    private Dictionary<string, object> ConvertJsonElementsToValues(Dictionary<string, object> rawOptions)
+    {
+        var converted = new Dictionary<string, object>();
+        
+        foreach (var kvp in rawOptions)
+        {
+            if (kvp.Value is JsonElement element)
+            {
+                converted[kvp.Key] = element.ValueKind switch
+                {
+                    JsonValueKind.String => element.GetString() ?? "",
+                    JsonValueKind.Number => element.GetInt32(),
+                    JsonValueKind.True => true,
+                    JsonValueKind.False => false,
+                    _ => kvp.Value
+                };
+            }
+            else
+            {
+                converted[kvp.Key] = kvp.Value;
+            }
+        }
+        
+        return converted;
+    }
+    
+    public void Dispose()
+    {
+        // Clean up timer
+        autoRetryTimer?.Dispose();
     }
 }
