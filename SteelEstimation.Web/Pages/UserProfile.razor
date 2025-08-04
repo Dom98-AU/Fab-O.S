@@ -47,7 +47,7 @@
                     <div class="card-body">
                         <div class="row align-items-center">
                             <div class="col-auto">
-                                <div class="avatar-container">
+                                <div class="avatar-container @(isOwnProfile ? "clickable-avatar" : "")" @onclick="@(async () => { if (isOwnProfile) await EditProfile(); })">
                                     @if (!string.IsNullOrEmpty(profile.DiceBearStyle))
                                     {
                                         var options = new Dictionary<string, object>();
@@ -76,9 +76,9 @@
                                     }
                                     @if (isOwnProfile)
                                     {
-                                        <button type="button" class="btn btn-sm btn-primary avatar-change-btn" @onclick="EditProfile" @onclick:preventDefault="true" @onclick:stopPropagation="true">
+                                        <div class="avatar-change-btn">
                                             <i class="fas fa-edit"></i>
-                                        </button>
+                                        </div>
                                     }
                                 </div>
                             </div>
@@ -115,7 +115,7 @@
                             <div class="col-auto">
                                 @if (isOwnProfile)
                                 {
-                                    <button class="btn btn-primary" @onclick="EditProfile">
+                                    <button class="btn btn-primary" @onclick="@(async () => await EditProfile())">
                                         <i class="fas fa-edit me-2"></i>Edit Profile
                                     </button>
                                 }
@@ -202,12 +202,12 @@
         <!-- Edit Profile Modal -->
         @if (showEditModal)
         {
-            <div class="modal fade show" style="display: block;" tabindex="-1">
+            <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
                 <div class="modal-dialog modal-xl avatar-modal-dialog">
                     <div class="modal-content">
                         <div class="modal-header">
                             <h5 class="modal-title">Choose Your Avatar</h5>
-                            <button type="button" class="btn-close" @onclick="CloseEditModal"></button>
+                            <button type="button" class="btn-close" @onclick="@(async () => await CloseEditModal())"></button>
                         </div>
                         <div class="modal-body p-0">
                             <EditForm Model="editModel" OnValidSubmit="SaveProfile" class="w-100">
@@ -225,7 +225,7 @@
                                 </div>
 
                                 <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" @onclick="CloseEditModal">Cancel</button>
+                                    <button type="button" class="btn btn-secondary" @onclick="@(async () => await CloseEditModal())">Cancel</button>
                                     <button type="submit" class="btn btn-primary" disabled="@isSaving">
                                         @if (isSaving)
                                         {
@@ -243,6 +243,63 @@
         }
     }
 </div>
+
+<script>
+    // Modal management helpers
+    window.profileModalHelpers = {
+        closeModal: function() {
+            // Remove modal backdrop if it exists
+            var backdrop = document.querySelector('.modal-backdrop');
+            if (backdrop) {
+                backdrop.remove();
+            }
+            // Remove show class from modal
+            var modal = document.querySelector('.modal.show');
+            if (modal) {
+                modal.classList.remove('show');
+                modal.style.display = 'none';
+            }
+            // Reset body
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+        },
+        
+        openModal: function() {
+            // Ensure any previous modal is fully closed
+            this.closeModal();
+            
+            setTimeout(function() {
+                var modal = document.querySelector('.modal');
+                if (modal) {
+                    modal.classList.add('show');
+                    modal.style.display = 'block';
+                    document.body.classList.add('modal-open');
+                    
+                    // Add backdrop if not exists
+                    if (!document.querySelector('.modal-backdrop')) {
+                        var backdrop = document.createElement('div');
+                        backdrop.className = 'modal-backdrop fade show';
+                        document.body.appendChild(backdrop);
+                    }
+                }
+            }, 100);
+        }
+    };
+    
+    // Initialize profile page
+    window.initializeProfilePage = function() {
+        // Clean up any stale modal state on page load
+        window.profileModalHelpers.closeModal();
+    };
+    
+    // Initialize on page load
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', window.initializeProfilePage);
+    } else {
+        window.initializeProfilePage();
+    }
+</script>
 
 <style>
     .profile-header {
@@ -340,8 +397,34 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        z-index: 10;
+        z-index: 100;
         cursor: pointer;
+        background-color: #007bff;
+        border: 2px solid white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    
+    .avatar-change-btn {
+        pointer-events: none; /* Make button non-interactive, only visual */
+        opacity: 0.8;
+    }
+    
+    .clickable-avatar {
+        transition: transform 0.2s ease;
+        cursor: pointer;
+    }
+    
+    .clickable-avatar:hover {
+        transform: scale(1.05);
+    }
+    
+    .clickable-avatar:hover .avatar-large {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    
+    .clickable-avatar:hover .avatar-change-btn {
+        opacity: 1;
+        background-color: #0056b3;
     }
 
     /* Avatar Selector Styles */
@@ -475,6 +558,21 @@
 
     private UpdateUserProfileRequest editModel = new();
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("initializeProfilePage");
+            }
+            catch
+            {
+                // Ignore if JS function doesn't exist yet
+            }
+        }
+    }
+    
     protected override async Task OnInitializedAsync()
     {
         // Get authentication state first
@@ -631,8 +729,16 @@
         await OnInitializedAsync();
     }
 
-    private void EditProfile()
+    private async Task EditProfile()
     {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("console.log", "[EditProfile] Called", $"showEditModal: {showEditModal}");
+        }
+        catch { }
+        
+        Console.WriteLine($"[EditProfile] Called. Profile exists: {profile != null}, isOwnProfile: {isOwnProfile}, showEditModal: {showEditModal}");
+        
         if (profile != null)
         {
             editModel = new UpdateUserProfileRequest
@@ -657,13 +763,41 @@
                 StatusMessage = profile.StatusMessage
             };
         }
+        
         showEditModal = true;
+        await InvokeAsync(StateHasChanged);
+        
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("console.log", "[EditProfile] Set showEditModal to true");
+        }
+        catch { }
     }
 
-    private void CloseEditModal()
+    private async Task CloseEditModal()
     {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("console.log", "[CloseEditModal] Called", $"showEditModal was: {showEditModal}");
+        }
+        catch { }
+        
+        Console.WriteLine($"[CloseEditModal] Called. showEditModal was: {showEditModal}");
         showEditModal = false;
-        StateHasChanged();
+        await InvokeAsync(StateHasChanged);
+        
+        // Force cleanup any orphaned modal elements
+        await Task.Delay(100);
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("eval", @"
+                console.log('[CloseEditModal] Cleaning up modal elements');
+                document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                document.body.classList.remove('modal-open');
+                document.body.style = '';
+            ");
+        }
+        catch { }
     }
 
     private async Task SaveProfile()
@@ -671,14 +805,31 @@
         if (user == null) return;
 
         isSaving = true;
+        await InvokeAsync(StateHasChanged);
+        
         try
         {
             profile = await ProfileService.UpdateUserProfileAsync(user.Id, editModel);
             showEditModal = false;
+            await InvokeAsync(StateHasChanged);
+            
+            // Force cleanup any orphaned modal elements
+            await Task.Delay(100);
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("eval", @"
+                    console.log('[SaveProfile] Cleaning up modal elements after save');
+                    document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                    document.body.classList.remove('modal-open');
+                    document.body.style = '';
+                ");
+            }
+            catch { }
         }
         finally
         {
             isSaving = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 

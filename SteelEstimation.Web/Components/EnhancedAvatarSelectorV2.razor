@@ -327,7 +327,7 @@
                                         </div>
                                     </div>
                                     
-                                    <!-- Texture -->
+                                    <!-- Texture (Single select with robot preview) -->
                                     <div class="col-12">
                                         <label class="form-label">Texture</label>
                                         <div class="texture-options-grid">
@@ -337,7 +337,16 @@
                                                         @onclick="@(async () => await SelectTexture(texture))" 
                                                         @onclick:preventDefault="true" 
                                                         @onclick:stopPropagation="true">
-                                                    <div class="texture-preview texture-@texture"></div>
+                                                    @if (texturePreviewCache.ContainsKey($"texture-{texture}-{selectedBaseColor}"))
+                                                    {
+                                                        <img src="@texturePreviewCache[$"texture-{texture}-{selectedBaseColor}"]" alt="@texture" class="option-preview" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <div class="loading-preview">
+                                                            <div class="spinner-border spinner-border-sm"></div>
+                                                        </div>
+                                                    }
                                                     <div class="option-label">@texture</div>
                                                 </button>
                                             }
@@ -549,65 +558,45 @@
         width: 100%;
     }
 
-    .texture-preview {
-        width: 100%;
-        height: 40px;
-        margin-bottom: 8px;
-        border-radius: 4px;
-    }
-
-    .texture-circuits {
-        background: linear-gradient(45deg, #4ade80 25%, transparent 25%), 
-                    linear-gradient(-45deg, #4ade80 25%, transparent 25%),
-                    linear-gradient(45deg, transparent 75%, #4ade80 75%), 
-                    linear-gradient(-45deg, transparent 75%, #4ade80 75%);
-        background-size: 8px 8px;
-        background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
-    }
-
-    .texture-dots {
-        background: radial-gradient(circle, #8b5cf6 2px, transparent 2px);
-        background-size: 8px 8px;
-    }
-
-    .texture-metal {
-        background: linear-gradient(90deg, #6b7280 0%, #9ca3af 50%, #6b7280 100%);
-    }
-
-    .texture-solid {
-        background: #374151;
+    .texture-option-btn {
+        position: relative;
     }
     
-    .texture-camo01 {
-        background: linear-gradient(45deg, #8fbc8f 25%, #556b2f 25%, #556b2f 50%, #8fbc8f 50%, #8fbc8f 75%, #556b2f 75%);
-        background-size: 12px 12px;
+    .texture-options-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+        margin-top: 10px;
     }
     
-    .texture-camo02 {
-        background: linear-gradient(135deg, #654321 25%, #8b4513 25%, #8b4513 50%, #654321 50%, #654321 75%, #8b4513 75%);
-        background-size: 10px 10px;
+    .texture-option-btn .option-preview {
+        width: 60px;
+        height: 60px;
+        object-fit: contain;
+        margin-bottom: 4px;
     }
     
-    .texture-dirty01 {
-        background: linear-gradient(90deg, #696969 0%, #2f4f4f 50%, #696969 100%);
-        box-shadow: inset 0 0 10px rgba(0,0,0,0.3);
+    .texture-option-btn .loading-preview {
+        width: 60px;
+        height: 60px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f8f9fa;
+        border-radius: 8px;
+        margin-bottom: 4px;
     }
     
-    .texture-dirty02 {
-        background: linear-gradient(45deg, #708090 25%, #2f4f4f 25%, #2f4f4f 50%, #708090 50%);
-        background-size: 8px 8px;
+    @@media (max-width: 768px) {
+        .texture-options-grid {
+            grid-template-columns: repeat(3, 1fr);
+        }
     }
     
-    .texture-grunge01 {
-        background: linear-gradient(180deg, #3c3c3c 0%, #1a1a1a 100%);
-        box-shadow: inset 0 0 20px rgba(255,255,255,0.1);
-    }
-    
-    .texture-grunge02 {
-        background: radial-gradient(circle at 20% 80%, #2c2c2c 20%, transparent 20%),
-                   radial-gradient(circle at 80% 20%, #444444 20%, transparent 20%),
-                   radial-gradient(circle at 40% 40%, #1a1a1a 20%, transparent 20%);
-        background-size: 15px 15px;
+    @@media (max-width: 480px) {
+        .texture-options-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
     }
 
     .color-swatches {
@@ -855,6 +844,7 @@
     private bool isLoadingPreview = false;
     private string? currentAvatarDataUrl;
     private Dictionary<string, string> previewCache = new();
+    private Dictionary<string, string> texturePreviewCache = new();
 
     // Customization options
     private bool flipAvatar = false;
@@ -900,9 +890,9 @@
         "antenna01", "antenna02", "cables01", "cables02", "round", "square", "squareAssymetric"
     };
     
-    // Texture types for robots
+    // Texture types for robots (from DiceBear Bottts docs)
     private readonly string[] textureTypes = new[] {
-        "camo01", "camo02", "circuits", "dirty01", "dirty02", "dots", "grunge01", "grunge02"
+        "circuits", "circuits2", "dots", "grunge01", "grunge02", "grunge03", "grunge04", "grunge05"
     };
     
     // Top types for robots
@@ -973,20 +963,29 @@
         }
     }
     
+    private string? lastProcessedOptions = null;
+    
     protected override async Task OnParametersSetAsync()
     {
         // Only reload if parameters actually changed
         if (!string.IsNullOrEmpty(SelectedDiceBearOptions) && !isLoadingPreview)
         {
+            // Check if we already processed these options to prevent infinite loop
+            if (lastProcessedOptions == SelectedDiceBearOptions)
+            {
+                return;
+            }
+            
             try
             {
                 var existingOptions = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(SelectedDiceBearOptions);
                 if (existingOptions != null)
                 {
+                    lastProcessedOptions = SelectedDiceBearOptions;
                     LoadExistingOptions(existingOptions);
                     
-                    // Update the avatar preview with loaded options
-                    if (!string.IsNullOrEmpty(SelectedDiceBearStyle))
+                    // Update the avatar preview with loaded options - but don't trigger in a loop
+                    if (!string.IsNullOrEmpty(SelectedDiceBearStyle) && !isLoadingPreview)
                     {
                         await UpdateAvatar();
                         // Don't load customization previews here - let the user trigger it
@@ -1105,8 +1104,12 @@
         if (string.IsNullOrEmpty(SelectedDiceBearStyle) || string.IsNullOrEmpty(SelectedDiceBearSeed))
             return;
 
+        // Prevent re-entrant calls
+        if (isLoadingPreview)
+            return;
+
         isLoadingPreview = true;
-        StateHasChanged();
+        await InvokeAsync(StateHasChanged);
 
         try
         {
@@ -1150,7 +1153,7 @@
         finally
         {
             isLoadingPreview = false;
-            StateHasChanged();
+            await InvokeAsync(StateHasChanged);
         }
     }
 
@@ -1211,8 +1214,21 @@
             }
         }
 
-        await Task.WhenAll(tasks);
-        StateHasChanged();
+        // Load texture previews with actual robot
+        foreach (var texture in textureTypes)
+        {
+            var cacheKey = $"texture-{texture}-{selectedBaseColor}";
+            if (!texturePreviewCache.ContainsKey(cacheKey))
+            {
+                tasks.Add(LoadTexturePreview(texture));
+            }
+        }
+        
+        if (tasks.Count > 0)
+        {
+            await Task.WhenAll(tasks);
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task LoadPreview(string optionType, string optionValue)
@@ -1335,10 +1351,43 @@
         await UpdateAvatar();
     }
     
+    private async Task LoadTexturePreview(string texture)
+    {
+        var cacheKey = $"texture-{texture}-{selectedBaseColor}";
+        
+        // Skip if already cached for this color
+        if (texturePreviewCache.ContainsKey(cacheKey))
+            return;
+        
+        await Task.Run(() =>
+        {
+            // Double-check in case another thread added it
+            if (texturePreviewCache.ContainsKey(cacheKey))
+                return;
+                
+            // Just use the URL directly for better performance
+            var options = new Dictionary<string, object>
+            {
+                { "backgroundColor", "#f8f9fa" },
+                { "baseColor", selectedBaseColor },
+                { "eyes", selectedEyeType },
+                { "face", selectedFaceType },
+                { "mouth", selectedMouthType },
+                { "sides", selectedSidesType },
+                { "top", selectedTopType },
+                { "texture", texture }  // Show this specific texture
+            };
+            
+            var url = DiceBearAvatars.GenerateAvatarUrl("bottts", SelectedDiceBearSeed ?? "default", "svg", options);
+            texturePreviewCache[cacheKey] = url;
+        });
+    }
+    
     private async Task SelectBaseColor(string color)
     {
         selectedBaseColor = color;
         previewCache.Clear(); // Clear cache to reload with new color
+        texturePreviewCache.Clear(); // Clear texture previews to reload with new color
         await UpdateAvatar();
         await LoadCustomizationPreviews();
     }
