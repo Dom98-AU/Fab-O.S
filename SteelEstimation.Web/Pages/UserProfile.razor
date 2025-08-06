@@ -209,7 +209,7 @@
                             <h5 class="modal-title">Choose Your Avatar</h5>
                             <button type="button" class="btn-close" @onclick="@(async () => await CloseEditModal())"></button>
                         </div>
-                        <div class="modal-body p-0">
+                        <div class="modal-body">
                             <EditForm Model="editModel" OnValidSubmit="SaveProfile" class="w-100">
                                 <DataAnnotationsValidator />
                                 <ValidationSummary />
@@ -851,6 +851,11 @@
 
     private void HandleAvatarSelection(SteelEstimation.Web.Components.EnhancedAvatarSelectorV2.AvatarSelectionData data)
     {
+        Console.WriteLine($"[UserProfile] HandleAvatarSelection called");
+        Console.WriteLine($"[UserProfile] DiceBearStyle: {data.DiceBearStyle}");
+        Console.WriteLine($"[UserProfile] DiceBearSeed: {data.DiceBearSeed}");
+        Console.WriteLine($"[UserProfile] DiceBearOptions: {data.DiceBearOptions}");
+        
         editModel.AvatarType = "dicebear";
         editModel.DiceBearStyle = data.DiceBearStyle;
         editModel.DiceBearSeed = data.DiceBearSeed;

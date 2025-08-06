@@ -97,6 +97,566 @@
     opacity: 1;
 }
 
+/* View Mode Switcher Styles */
+.table-view-controls .btn-group[role="group"] input[type="radio"].btn-check:checked + label {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%);
+    color: white;
+    border-color: var(--primary-color);
+    box-shadow: 0 4px 12px rgba(13, 26, 128, 0.3);
+    transform: translateY(-2px);
+}
+
+.table-view-controls .btn-group[role="group"] label.btn {
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    border-radius: 8px;
+    margin: 0 0.25rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 2px solid #e0e6ed;
+    background: white;
+    position: relative;
+    overflow: hidden;
+}
+
+.table-view-controls .btn-group[role="group"] label.btn:hover {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-color: var(--primary-color);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+}
+
+.table-view-controls .btn-group[role="group"] label.btn i {
+    font-size: 1.1rem;
+    margin-right: 0.5rem;
+    transition: transform 0.3s ease;
+}
+
+.table-view-controls .btn-group[role="group"] label.btn:hover i {
+    transform: scale(1.15) rotate(5deg);
+}
+
+/* Add a subtle animation when switching modes */
+.table-view-controls .btn-group[role="group"] label.btn::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(13, 26, 128, 0.1);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s ease, height 0.6s ease;
+}
+
+.table-view-controls .btn-group[role="group"] input[type="radio"].btn-check:checked + label::before {
+    width: 100%;
+    height: 100%;
+}
+
+/* View mode specific icon colors */
+.table-view-controls #viewMode-list:checked + label i {
+    color: white;
+}
+
+.table-view-controls #viewMode-compactList:checked + label i {
+    color: white;
+}
+
+.table-view-controls #viewMode-cardView:checked + label i {
+    color: white;
+}
+
+/* Enhance the entire view controls container */
+.table-view-controls {
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    padding: 1rem;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    margin-bottom: 1.5rem;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* Make the view selector dropdown more modern */
+.table-view-controls .input-group {
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.table-view-controls .input-group .form-select {
+    border: none;
+    background: white;
+    font-weight: 500;
+}
+
+.table-view-controls .input-group .input-group-text {
+    background: var(--primary-light);
+    border: none;
+    color: var(--primary-color);
+}
+
+/* Save/Delete buttons enhancement */
+.table-view-controls .btn-group .btn-primary,
+.table-view-controls .btn-group .btn-success,
+.table-view-controls .btn-group .btn-danger {
+    border-radius: 8px;
+    padding: 0.5rem 1.2rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    border: none;
+    position: relative;
+    overflow: hidden;
+}
+
+.table-view-controls .btn-group .btn-primary:hover,
+.table-view-controls .btn-group .btn-success:hover,
+.table-view-controls .btn-group .btn-danger:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* Card layout controls enhancement */
+#cardLayoutDropdown .btn-group label.btn {
+    padding: 0.4rem 0.8rem;
+    min-width: 40px;
+    font-weight: 600;
+    border-radius: 6px;
+    margin: 0 0.15rem;
+}
+
+#cardLayoutDropdown .btn-group input[type="radio"].btn-check:checked + label {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+    box-shadow: 0 2px 8px rgba(13, 26, 128, 0.3);
+}
+
+/* Table Grouping Styles */
+.table-grouped .group-header {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-left: 4px solid var(--primary-color);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.table-grouped .group-header:hover {
+    background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
+    transform: translateX(2px);
+}
+
+.group-header-cell {
+    padding: 0 !important;
+}
+
+.group-header-content {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    gap: 0.75rem;
+}
+
+.group-toggle-btn {
+    padding: 0.25rem 0.5rem;
+    color: var(--primary-color);
+    transition: transform 0.3s ease;
+}
+
+.group-toggle-btn:hover {
+    transform: scale(1.1);
+    color: var(--primary-hover);
+}
+
+.group-icon {
+    transition: transform 0.3s ease;
+}
+
+.group-category-icon {
+    color: #6c757d;
+    font-size: 1.1rem;
+}
+
+.group-title {
+    font-weight: 600;
+    font-size: 1rem;
+    color: #2c3e50;
+}
+
+.grouped-row {
+    border-left: 2px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.grouped-row:hover {
+    border-left-color: var(--primary-color);
+    background-color: rgba(13, 26, 128, 0.02);
+}
+
+.grouped-row td:first-child {
+    padding-left: 2.5rem;
+}
+
+.group-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.collapse-all-btn {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.group-header:hover .collapse-all-btn {
+    opacity: 1;
+}
+
+/* Grouping dropdown styles */
+#groupingDropdown .list-group-item {
+    border: none;
+    border-radius: 8px;
+    margin-bottom: 0.25rem;
+    transition: all 0.2s ease;
+}
+
+#groupingDropdown .list-group-item:hover {
+    background: var(--primary-light);
+    transform: translateX(4px);
+}
+
+#groupingDropdown .list-group-item.active {
+    background: var(--primary-color);
+    color: white;
+}
+
+#groupingDropdown .list-group-item.active i {
+    color: white;
+}
+
+/* Group By button enhancement */
+#groupingControlBtn {
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    border: 2px solid #e0e6ed;
+    background: white;
+}
+
+#groupingControlBtn:hover {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-color: var(--primary-color);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+#groupingControlBtn i {
+    transition: transform 0.3s ease;
+}
+
+#groupingControlBtn:hover i {
+    transform: rotate(15deg);
+}
+
+/* Animation for group expand/collapse */
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.grouped-row {
+    animation: slideDown 0.3s ease;
+}
+
+/* Grouped table enhancements */
+.table-grouped {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.table-grouped tbody tr:first-child td {
+    border-top: none;
+}
+
+/* Group summary badge styling */
+.group-header .badge {
+    background: var(--primary-color);
+    padding: 0.35rem 0.65rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+/* Standard Toolbar Styles */
+.standard-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    margin-bottom: 1.5rem;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.toolbar-section {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.toolbar-primary {
+    flex: 0 0 auto;
+}
+
+.toolbar-secondary {
+    flex: 1 1 auto;
+}
+
+.toolbar-utilities {
+    flex: 0 0 auto;
+    margin-left: auto;
+}
+
+/* Standard button styles */
+.btn-toolbar {
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-weight: 500;
+    border: 2px solid transparent;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-toolbar:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.btn-toolbar i {
+    font-size: 0.9rem;
+    transition: transform 0.3s ease;
+}
+
+.btn-toolbar:hover i {
+    transform: scale(1.1);
+}
+
+/* Button type variants */
+.btn-new {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.btn-new:hover {
+    background: linear-gradient(135deg, var(--primary-hover) 0%, var(--primary-color) 100%);
+    box-shadow: 0 6px 20px rgba(13, 26, 128, 0.3);
+}
+
+.btn-import, .btn-export {
+    background: white;
+    color: #495057;
+    border-color: #dee2e6;
+}
+
+.btn-import:hover, .btn-export:hover {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.btn-delete {
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+    color: white;
+    border-color: #dc3545;
+}
+
+.btn-delete:hover {
+    background: linear-gradient(135deg, #c82333 0%, #dc3545 100%);
+    box-shadow: 0 6px 20px rgba(220, 53, 69, 0.3);
+}
+
+.btn-report {
+    background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+    color: white;
+    border-color: #17a2b8;
+}
+
+.btn-report:hover {
+    background: linear-gradient(135deg, #138496 0%, #17a2b8 100%);
+    box-shadow: 0 6px 20px rgba(23, 162, 184, 0.3);
+}
+
+.btn-actions {
+    background: white;
+    color: #6c757d;
+    border-color: #dee2e6;
+}
+
+.btn-actions:hover {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-color: #6c757d;
+}
+
+.btn-related {
+    background: linear-gradient(135deg, #6f42c1 0%, #5a32a3 100%);
+    color: white;
+    border-color: #6f42c1;
+}
+
+.btn-related:hover {
+    background: linear-gradient(135deg, #5a32a3 0%, #6f42c1 100%);
+    box-shadow: 0 6px 20px rgba(111, 66, 193, 0.3);
+}
+
+.btn-refresh, .btn-filter {
+    background: white;
+    color: #6c757d;
+    border-color: #dee2e6;
+    padding: 0.5rem 0.75rem;
+}
+
+.btn-refresh:hover, .btn-filter:hover {
+    background: var(--primary-light);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.btn-filter.active {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+/* Toolbar search */
+.toolbar-search {
+    min-width: 250px;
+}
+
+.toolbar-search .input-group {
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.toolbar-search .form-control {
+    border: none;
+    padding: 0.5rem 1rem;
+}
+
+.toolbar-search .input-group-text {
+    background: white;
+    border: none;
+    color: #6c757d;
+}
+
+/* View mode buttons group */
+.standard-toolbar .btn-group .btn-toolbar {
+    border-radius: 0;
+    margin: 0;
+}
+
+.standard-toolbar .btn-group .btn-toolbar:first-child {
+    border-top-left-radius: 8px;
+    border-bottom-left-radius: 8px;
+}
+
+.standard-toolbar .btn-group .btn-toolbar:last-child {
+    border-top-right-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+
+.standard-toolbar .btn-group .btn-toolbar.active {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+/* Dropdown enhancements */
+.standard-toolbar .dropdown-menu {
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    padding: 0.5rem;
+    min-width: 200px;
+}
+
+.standard-toolbar .dropdown-item {
+    border-radius: 6px;
+    padding: 0.5rem 1rem;
+    transition: all 0.2s ease;
+}
+
+.standard-toolbar .dropdown-item:hover {
+    background: var(--primary-light);
+    transform: translateX(4px);
+}
+
+.standard-toolbar .dropdown-item.text-danger:hover {
+    background: rgba(220, 53, 69, 0.1);
+}
+
+/* Badge in toolbar */
+.standard-toolbar .badge {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .standard-toolbar {
+        padding: 0.75rem;
+    }
+    
+    .toolbar-section {
+        flex-wrap: wrap;
+    }
+    
+    .toolbar-utilities {
+        width: 100%;
+        margin-top: 0.5rem;
+    }
+    
+    .toolbar-search {
+        width: 100%;
+    }
+    
+    .btn-toolbar span:not(.badge) {
+        display: none;
+    }
+    
+    .btn-toolbar {
+        padding: 0.5rem;
+    }
+}
+
+/* Pulse animation for refresh */
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(13, 26, 128, 0.4);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(13, 26, 128, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(13, 26, 128, 0);
+    }
+}
+
+.btn-refresh.fa-spin {
+    animation: pulse 1.5s infinite;
+}
+
 /* Alternative modern breadcrumb style */
 .breadcrumb.breadcrumb-modern {
     background: transparent;

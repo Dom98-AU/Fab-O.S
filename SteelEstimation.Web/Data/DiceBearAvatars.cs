@@ -23,7 +23,7 @@ namespace SteelEstimation.Web.Data
                 Name = "Robot Avatar", 
                 Description = "Customizable robot-style avatars with various mechanical features",
                 Category = "Avatars",
-                CustomizationOptions = new() { "seed", "flip", "backgroundColor", "baseColor", "eyes", "face", "mouth", "sides", "texture", "top" },
+                CustomizationOptions = new() { "seed", "flip", "backgroundColor", "baseColor", "eyes", "face", "mouth", "sides", "top" },
                 License = "CC BY 4.0",
                 Creator = "Pablo Stanley"
             },
@@ -57,8 +57,30 @@ namespace SteelEstimation.Web.Data
 
         public static string GenerateAvatarUrl(string styleId, string seed, string format = "svg", Dictionary<string, object>? options = null)
         {
+            Console.WriteLine($"[DiceBearAvatars] ======== GENERATE AVATAR URL ========");
+            Console.WriteLine($"[DiceBearAvatars] Style: {styleId}, Seed: {seed}");
+            if (options != null && options.ContainsKey("texture"))
+            {
+                var textureValue = options["texture"];
+                if (textureValue is string[] textureArray)
+                {
+                    Console.WriteLine($"[DiceBearAvatars] Texture in options (array): [{string.Join(", ", textureArray)}]");
+                }
+                else
+                {
+                    Console.WriteLine($"[DiceBearAvatars] Texture in options: {textureValue}");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"[DiceBearAvatars] No texture in options");
+            }
+            
             var baseUrl = $"https://api.dicebear.com/9.x/{styleId}/{format}";
             var queryParams = new List<string> { $"seed={Uri.EscapeDataString(seed)}" };
+            
+            // Add cache-busting timestamp to force fresh avatar generation
+            queryParams.Add($"t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}");
 
             if (options != null)
             {
@@ -70,18 +92,34 @@ namespace SteelEstimation.Web.Data
                     }
                     else if (option.Value is string[] stringArray)
                     {
-                        // For single-value arrays, just use the first value
-                        if (stringArray.Length == 1)
+                        // For array parameters, always use array syntax with []
+                        // Special handling for empty arrays to explicitly exclude options
+                        if (stringArray.Length == 0)
                         {
-                            queryParams.Add($"{option.Key}={Uri.EscapeDataString(stringArray[0])}");
+                            // For empty arrays, explicitly set to empty to disable the option
+                            queryParams.Add($"{option.Key}[]=");
                         }
                         else
                         {
-                            queryParams.Add($"{option.Key}={Uri.EscapeDataString(string.Join(",", stringArray))}");
+                            foreach (var value in stringArray)
+                            {
+                                // Log texture specifically for debugging
+                                if (option.Key == "texture")
+                                {
+                                    Console.WriteLine($"[DiceBearAvatars] Adding texture parameter: {option.Key}[]={value}");
+                                }
+                                queryParams.Add($"{option.Key}[]={Uri.EscapeDataString(value)}");
+                            }
                         }
                     }
                     else if (option.Value is string stringValue)
                     {
+                        // Log texture specifically for debugging
+                        if (option.Key == "texture")
+                        {
+                            Console.WriteLine($"[DiceBearAvatars] Adding texture parameter as string: {option.Key}={stringValue}");
+                        }
+                        
                         // For color values, remove the hash symbol
                         if ((option.Key == "primaryColor" || option.Key == "backgroundColor" || option.Key == "baseColor") && stringValue.StartsWith("#"))
                         {
@@ -95,7 +133,12 @@ namespace SteelEstimation.Web.Data
                 }
             }
 
-            return $"{baseUrl}?{string.Join("&", queryParams)}";
+            var finalUrl = $"{baseUrl}?{string.Join("&", queryParams)}";
+            
+            Console.WriteLine($"[DiceBearAvatars] Final generated URL: {finalUrl}");
+            Console.WriteLine($"[DiceBearAvatars] ======== END GENERATE URL ========");
+            
+            return finalUrl;
         }
 
         public static string GenerateRandomSeed()

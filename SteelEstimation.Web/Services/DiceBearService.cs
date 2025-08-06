@@ -36,6 +36,8 @@ namespace SteelEstimation.Web.Services
 
         public async Task<(bool Success, string? DataUrl, string? ErrorMessage)> TryGetAvatarDataUrlAsync(string style, string seed, Dictionary<string, object>? options = null)
         {
+            _logger.LogInformation("[DiceBearService] TryGetAvatarDataUrlAsync called with style={Style}, seed={Seed}", style, seed);
+            
             if (string.IsNullOrWhiteSpace(style))
             {
                 return (false, null, "Avatar style is required");
@@ -59,6 +61,12 @@ namespace SteelEstimation.Web.Services
                 // Generate URL for the avatar
                 url = DiceBearAvatars.GenerateAvatarUrl(style, seed, "svg", options);
                 _logger.LogInformation("Generated DiceBear URL: {Url}", url);
+                
+                // Log texture specifically
+                if (options != null && options.ContainsKey("texture"))
+                {
+                    _logger.LogInformation("Texture parameter included: {Texture}", options["texture"]);
+                }
                 
                 // Create cache key from URL content hash to prevent collisions
                 var cacheKey = $"dicebear_{style}_{seed}_{GetOptionsHash(options)}";

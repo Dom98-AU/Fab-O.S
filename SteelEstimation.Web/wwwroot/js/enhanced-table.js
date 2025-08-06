@@ -7,6 +7,101 @@ window.enhancedTable = {
         CARD_VIEW: 'cardView'
     },
     
+    // Grouping configurations
+    groupingConfigs: {
+        customers: {
+            'state': {
+                label: 'State/Territory',
+                extractor: (row) => {
+                    const cells = row.querySelectorAll('td');
+                    if (cells.length > 3) {
+                        const locationCell = cells[3];
+                        const text = locationCell.textContent.trim();
+                        const match = text.match(/,\s*([A-Z]{2,3})/);
+                        return match ? match[1] : 'Other';
+                    }
+                    return 'Other';
+                },
+                icon: 'fa-map-marker-alt'
+            },
+            'status': {
+                label: 'Status',
+                extractor: (row) => {
+                    const statusBadge = row.querySelector('.badge');
+                    return statusBadge ? statusBadge.textContent.trim() : 'Unknown';
+                },
+                icon: 'fa-toggle-on'
+            },
+            'projects': {
+                label: 'Project Count',
+                extractor: (row) => {
+                    const cells = row.querySelectorAll('td');
+                    if (cells.length > 4) {
+                        const projectCell = cells[4];
+                        const badge = projectCell.querySelector('.badge');
+                        if (badge) {
+                            const count = parseInt(badge.textContent.trim());
+                            if (count === 0) return 'No Projects';
+                            if (count === 1) return '1 Project';
+                            if (count <= 5) return '2-5 Projects';
+                            if (count <= 10) return '6-10 Projects';
+                            return '10+ Projects';
+                        }
+                    }
+                    return 'Unknown';
+                },
+                icon: 'fa-folder'
+            },
+            'contacts': {
+                label: 'Contact Count',
+                extractor: (row) => {
+                    const cells = row.querySelectorAll('td');
+                    if (cells.length > 3) {
+                        const contactCell = cells[3];
+                        const badge = contactCell.querySelector('.badge');
+                        if (badge) {
+                            const count = parseInt(badge.textContent.trim());
+                            if (count === 0) return 'No Contacts';
+                            if (count === 1) return '1 Contact';
+                            if (count <= 3) return '2-3 Contacts';
+                            return '4+ Contacts';
+                        }
+                    }
+                    return 'Unknown';
+                },
+                icon: 'fa-users'
+            },
+            'alphabetical': {
+                label: 'Alphabetical',
+                extractor: (row) => {
+                    const cells = row.querySelectorAll('td');
+                    if (cells.length > 0) {
+                        const companyName = cells[0].textContent.trim();
+                        const firstChar = companyName.charAt(0).toUpperCase();
+                        if (firstChar.match(/[A-Z]/)) return firstChar;
+                        return '#'; // For numbers and special characters
+                    }
+                    return '#';
+                },
+                icon: 'fa-sort-alpha-down'
+            }
+        },
+        default: {
+            'column1': {
+                label: 'First Column',
+                extractor: (row) => {
+                    const cells = row.querySelectorAll('td');
+                    return cells.length > 0 ? cells[0].textContent.trim() : 'Unknown';
+                },
+                icon: 'fa-folder'
+            }
+        }
+    },
+    
+    // Track grouping state
+    groupingState: {},
+    currentGrouping: null,
+    
     // Feature compatibility matrix
     featureCompatibility: {
         list: {
@@ -513,6 +608,323 @@ window.enhancedTable = {
         this.reinitializeFeatures(table, settings);
     },
     
+    // Apply grouping to table
+    applyGrouping: function(groupBy, tableSelector) {
+        const table = document.querySelector(tableSelector || '.enhanced-table');
+        if (!table) return;
+        
+        const settings = window.enhancedTableInstances[tableSelector || '.enhanced-table'];
+        if (!settings) return;
+        
+        // Get appropriate grouping config
+        const tableType = settings.tableType ? settings.tableType.toLowerCase() : 'default';
+        const groupingConfig = this.groupingConfigs[tableType] || this.groupingConfigs.default;
+        
+        if (!groupBy || groupBy === 'none') {
+            this.removeGrouping(table);
+            return;
+        }
+        
+        const config = groupingConfig[groupBy];
+        if (!config) {
+            console.error('Grouping configuration not found for:', groupBy);
+            return;
+        }
+        
+        // Store current grouping
+        this.currentGrouping = groupBy;
+        
+        // Get all data rows (not header rows)
+        const tbody = table.querySelector('tbody');
+        if (!tbody) return;
+        
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        if (rows.length === 0) return;
+        
+        // Group rows by the selected criteria
+        const groups = {};
+        rows.forEach(row => {
+            const groupKey = config.extractor(row);
+            if (!groups[groupKey]) {
+                groups[groupKey] = [];
+            }
+            groups[groupKey].push(row);
+        });
+        
+        // Clear tbody
+        tbody.innerHTML = '';
+        
+        // Sort group keys
+        const sortedKeys = Object.keys(groups).sort((a, b) => {
+            // Special handling for alphabetical sorting
+            if (groupBy === 'alphabetical') {
+                if (a === '#') return 1;
+                if (b === '#') return -1;
+            }
+            return a.localeCompare(b);
+        });
+        
+        // Create grouped structure
+        sortedKeys.forEach(groupKey => {
+            const groupRows = groups[groupKey];
+            const groupId = `group-${groupBy}-${groupKey.replace(/\s+/g, '-').toLowerCase()}`;
+            
+            // Create group header row
+            const groupHeader = document.createElement('tr');
+            groupHeader.className = 'group-header';
+            groupHeader.dataset.groupId = groupId;
+            groupHeader.dataset.groupKey = groupKey;
+            
+            // Get column count from first data row
+            const colCount = table.querySelectorAll('thead th').length;
+            
+            groupHeader.innerHTML = `
+                <td colspan="${colCount}" class="group-header-cell">
+                    <div class="group-header-content">
+                        <button class="btn btn-sm btn-link group-toggle-btn" data-group-id="${groupId}">
+                            <i class="fas fa-chevron-down group-icon"></i>
+                        </button>
+                        <i class="fas ${config.icon} group-category-icon"></i>
+                        <span class="group-title">${groupKey}</span>
+                        <span class="badge bg-secondary ms-2">${groupRows.length}</span>
+                        <div class="group-actions ms-auto">
+                            <button class="btn btn-sm btn-link text-muted collapse-all-btn" title="Collapse all in this group">
+                                <i class="fas fa-compress-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                </td>
+            `;
+            
+            tbody.appendChild(groupHeader);
+            
+            // Add grouped rows
+            groupRows.forEach(row => {
+                row.classList.add('grouped-row');
+                row.dataset.groupId = groupId;
+                tbody.appendChild(row);
+            });
+        });
+        
+        // Initialize group collapse/expand handlers
+        this.initializeGroupingHandlers(table);
+        
+        // Add grouped class to table
+        table.classList.add('table-grouped');
+        table.dataset.groupedBy = groupBy;
+        
+        // Save grouping state
+        if (settings.enableViewSaving) {
+            const tableKey = `table_${window.location.pathname}`;
+            localStorage.setItem(`${tableKey}_grouping`, groupBy);
+        }
+    },
+    
+    // Remove grouping from table
+    removeGrouping: function(table) {
+        if (!table) return;
+        
+        const tbody = table.querySelector('tbody');
+        if (!tbody) return;
+        
+        // Get all rows (both headers and data)
+        const allRows = Array.from(tbody.querySelectorAll('tr'));
+        
+        // Filter out group headers and keep only data rows
+        const dataRows = allRows.filter(row => !row.classList.contains('group-header'));
+        
+        // Clear tbody
+        tbody.innerHTML = '';
+        
+        // Re-add data rows without grouping
+        dataRows.forEach(row => {
+            row.classList.remove('grouped-row');
+            delete row.dataset.groupId;
+            tbody.appendChild(row);
+        });
+        
+        // Remove grouped class from table
+        table.classList.remove('table-grouped');
+        delete table.dataset.groupedBy;
+        
+        // Clear current grouping
+        this.currentGrouping = null;
+        
+        // Clear saved grouping state
+        const tableKey = `table_${window.location.pathname}`;
+        localStorage.removeItem(`${tableKey}_grouping`);
+    },
+    
+    // Initialize grouping event handlers
+    initializeGroupingHandlers: function(table) {
+        // Handle group toggle buttons
+        table.querySelectorAll('.group-toggle-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const groupId = btn.dataset.groupId;
+                this.toggleGroup(groupId, btn);
+            });
+        });
+        
+        // Handle group header clicks
+        table.querySelectorAll('.group-header').forEach(header => {
+            header.addEventListener('click', (e) => {
+                if (!e.target.closest('button')) {
+                    const btn = header.querySelector('.group-toggle-btn');
+                    if (btn) {
+                        btn.click();
+                    }
+                }
+            });
+        });
+        
+        // Handle collapse all buttons
+        table.querySelectorAll('.collapse-all-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const groupHeader = btn.closest('.group-header');
+                const groupId = groupHeader.dataset.groupId;
+                this.collapseGroup(groupId, groupHeader.querySelector('.group-toggle-btn'));
+            });
+        });
+    },
+    
+    // Toggle group expand/collapse
+    toggleGroup: function(groupId, button) {
+        const table = button.closest('table');
+        const rows = table.querySelectorAll(`tr.grouped-row[data-group-id="${groupId}"]`);
+        const icon = button.querySelector('.group-icon');
+        
+        const isCollapsed = icon.classList.contains('fa-chevron-right');
+        
+        if (isCollapsed) {
+            this.expandGroup(groupId, button);
+        } else {
+            this.collapseGroup(groupId, button);
+        }
+    },
+    
+    // Expand a group
+    expandGroup: function(groupId, button) {
+        const table = button.closest('table');
+        const rows = table.querySelectorAll(`tr.grouped-row[data-group-id="${groupId}"]`);
+        const icon = button.querySelector('.group-icon');
+        
+        rows.forEach(row => {
+            row.style.display = '';
+        });
+        
+        icon.classList.remove('fa-chevron-right');
+        icon.classList.add('fa-chevron-down');
+        
+        // Save state
+        this.groupingState[groupId] = 'expanded';
+    },
+    
+    // Collapse a group
+    collapseGroup: function(groupId, button) {
+        const table = button.closest('table');
+        const rows = table.querySelectorAll(`tr.grouped-row[data-group-id="${groupId}"]`);
+        const icon = button.querySelector('.group-icon');
+        
+        rows.forEach(row => {
+            row.style.display = 'none';
+        });
+        
+        icon.classList.remove('fa-chevron-down');
+        icon.classList.add('fa-chevron-right');
+        
+        // Save state
+        this.groupingState[groupId] = 'collapsed';
+    },
+    
+    // Populate grouping dropdown
+    populateGroupingDropdown: function(dropdown, settings) {
+        if (!dropdown) return;
+        
+        // Get appropriate grouping config
+        const tableType = settings.tableType ? settings.tableType.toLowerCase() : 'default';
+        const groupingConfig = this.groupingConfigs[tableType] || this.groupingConfigs.default;
+        
+        // Clear existing content
+        dropdown.innerHTML = `
+            <div class="fw-bold mb-2">Group Table By</div>
+            <div class="list-group list-group-flush">
+                <a href="#" class="list-group-item list-group-item-action ${!this.currentGrouping ? 'active' : ''}" data-group-by="none">
+                    <i class="fas fa-times me-2"></i>
+                    No Grouping
+                </a>
+        `;
+        
+        // Add grouping options
+        Object.keys(groupingConfig).forEach(key => {
+            const config = groupingConfig[key];
+            const item = document.createElement('a');
+            item.href = '#';
+            item.className = `list-group-item list-group-item-action ${this.currentGrouping === key ? 'active' : ''}`;
+            item.dataset.groupBy = key;
+            item.innerHTML = `
+                <i class="fas ${config.icon} me-2"></i>
+                ${config.label}
+            `;
+            dropdown.querySelector('.list-group').appendChild(item);
+        });
+        
+        dropdown.innerHTML += `
+            </div>
+            <div class="mt-2 pt-2 border-top">
+                <button class="btn btn-sm btn-outline-secondary w-100" id="expandAllGroupsBtn">
+                    <i class="fas fa-expand-alt me-1"></i>Expand All Groups
+                </button>
+                <button class="btn btn-sm btn-outline-secondary w-100 mt-1" id="collapseAllGroupsBtn">
+                    <i class="fas fa-compress-alt me-1"></i>Collapse All Groups
+                </button>
+            </div>
+        `;
+        
+        // Add click handlers
+        dropdown.querySelectorAll('[data-group-by]').forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                const groupBy = item.dataset.groupBy;
+                const tableSelector = Object.keys(window.enhancedTableInstances).find(selector => 
+                    dropdown.closest('.container-fluid')?.querySelector(selector)
+                );
+                if (tableSelector) {
+                    this.applyGrouping(groupBy, tableSelector);
+                    // Update active state
+                    dropdown.querySelectorAll('.list-group-item').forEach(i => i.classList.remove('active'));
+                    item.classList.add('active');
+                }
+            });
+        });
+        
+        // Expand/Collapse all handlers
+        const expandAllBtn = dropdown.querySelector('#expandAllGroupsBtn');
+        if (expandAllBtn) {
+            expandAllBtn.addEventListener('click', () => {
+                document.querySelectorAll('.group-toggle-btn').forEach(btn => {
+                    const icon = btn.querySelector('.group-icon');
+                    if (icon.classList.contains('fa-chevron-right')) {
+                        btn.click();
+                    }
+                });
+            });
+        }
+        
+        const collapseAllBtn = dropdown.querySelector('#collapseAllGroupsBtn');
+        if (collapseAllBtn) {
+            collapseAllBtn.addEventListener('click', () => {
+                document.querySelectorAll('.group-toggle-btn').forEach(btn => {
+                    const icon = btn.querySelector('.group-icon');
+                    if (icon.classList.contains('fa-chevron-down')) {
+                        btn.click();
+                    }
+                });
+            });
+        }
+    },
+    
     // Reinitialize features after view mode change
     reinitializeFeatures: function(table, settings) {
         const featureCompat = this.featureCompatibility[settings.viewMode];
@@ -797,6 +1209,14 @@ window.enhancedTable = {
                                 <!-- Column controls will be populated here -->
                             </div>
                         </div>
+                        <div class="dropdown me-2" id="groupingControlContainer">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="groupingControlBtn" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-layer-group"></i> Group By
+                            </button>
+                            <div class="dropdown-menu dropdown-menu-end p-3" style="min-width: 250px;" id="groupingDropdown">
+                                <!-- Grouping options will be populated here -->
+                            </div>
+                        </div>
                         <div class="dropdown" id="cardLayoutContainer" style="display: none;">
                             <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="cardLayoutBtn" data-bs-toggle="dropdown" aria-expanded="false">
                                 <i class="fas fa-th"></i> Layout
@@ -837,11 +1257,11 @@ window.enhancedTable = {
     // Get view mode icon
     getViewModeIcon: function(mode) {
         const icons = {
-            list: '<i class="fas fa-list"></i>',
-            compactList: '<i class="fas fa-th-list"></i>',
-            cardView: '<i class="fas fa-th-large"></i>'
+            list: '<i class="fas fa-list-ul"></i>',
+            compactList: '<i class="fas fa-bars"></i>',
+            cardView: '<i class="fas fa-th"></i>'
         };
-        return icons[mode] || '<i class="fas fa-list"></i>';
+        return icons[mode] || '<i class="fas fa-list-ul"></i>';
     },
     
     // Get view mode label
@@ -862,6 +1282,32 @@ window.enhancedTable = {
         const saveAsBtn = controls.querySelector('#saveAsViewBtn');
         const deleteBtn = controls.querySelector('#deleteViewBtn');
         const columnControlBtn = controls.querySelector('#columnControlBtn');
+        const groupingControlBtn = controls.querySelector('#groupingControlBtn');
+        
+        // Initialize grouping dropdown
+        if (groupingControlBtn) {
+            const groupingDropdown = document.getElementById('groupingDropdown');
+            
+            groupingControlBtn.addEventListener('shown.bs.dropdown', () => {
+                this.populateGroupingDropdown(groupingDropdown, settings);
+            });
+            
+            // Load saved grouping if exists
+            if (settings.enableViewSaving) {
+                const tableKey = `table_${window.location.pathname}`;
+                const savedGrouping = localStorage.getItem(`${tableKey}_grouping`);
+                if (savedGrouping) {
+                    setTimeout(() => {
+                        const tableSelector = Object.keys(window.enhancedTableInstances).find(selector => 
+                            controls.closest('.container-fluid')?.querySelector(selector)
+                        );
+                        if (tableSelector) {
+                            this.applyGrouping(savedGrouping, tableSelector);
+                        }
+                    }, 500);
+                }
+            }
+        }
         
         // Handle view mode switching
         const viewModeRadios = controls.querySelectorAll('input[name="viewMode"]');

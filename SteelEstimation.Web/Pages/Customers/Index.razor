@@ -2,6 +2,7 @@
 @using Microsoft.EntityFrameworkCore
 @using SteelEstimation.Core.Entities
 @using SteelEstimation.Infrastructure.Data
+@using SteelEstimation.Web.Shared.Components
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject NavigationManager Navigation
 @inject IFabOSAuthenticationService AuthService
@@ -18,31 +19,49 @@
                 <i class="fas fa-building me-2"></i>Customers
             </h1>
         </div>
-        <div class="col-auto">
-            <button class="btn btn-primary" @onclick="CreateNewCustomer">
-                <i class="fas fa-plus me-2"></i>New Customer
-            </button>
-        </div>
     </div>
+
+    <div class="mb-2">
+        <h6 class="text-muted mb-2">Toolbar</h6>
+    </div>
+    <StandardToolbar 
+        ShowNew="true"
+        NewLabel="New"
+        OnNewClick="CreateNewCustomer"
+        ShowImport="false"
+        ShowExport="false"
+        ShowBulkDelete="true"
+        HasSelection="hasSelection"
+        SelectionCount="selectedCount"
+        OnBulkDeleteClick="DeleteSelectedCustomers"
+        ShowReport="true"
+        ReportItems="reportItems"
+        OnReportClick="GenerateReport"
+        ShowActions="true"
+        ActionItems="actionItems"
+        OnActionClick="HandleAction"
+        ShowRelated="true"
+        RelatedItems="relatedItems"
+        ShowSearch="true"
+        SearchPlaceholder="Search customers..."
+        @bind-SearchTerm="searchTerm"
+        ShowRefresh="true"
+        IsRefreshing="_isRefreshing"
+        OnRefreshClick="RefreshData"
+        ShowFilter="false"
+        ShowViewOptions="false">
+        
+        <SecondaryActions>
+            <select class="form-select form-select-sm" style="width: auto;" @bind="filterActive">
+                <option value="">All Customers</option>
+                <option value="true">Active Only</option>
+                <option value="false">Inactive Only</option>
+            </select>
+        </SecondaryActions>
+    </StandardToolbar>
 
     <div class="card">
         <div class="card-body">
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="fas fa-search"></i></span>
-                        <input type="text" class="form-control" placeholder="Search customers..."
-                               @bind="searchTerm" @bind:event="oninput" />
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <select class="form-select" @bind="filterActive">
-                        <option value="">All Customers</option>
-                        <option value="true">Active Only</option>
-                        <option value="false">Inactive Only</option>
-                    </select>
-                </div>
-            </div>
 
             @if (customers == null)
             {
@@ -65,6 +84,9 @@
                     <table class="table table-hover customers-table">
                         <thead>
                             <tr>
+                                <th style="width: 40px;">
+                                    <input type="checkbox" class="form-check-input" @onclick="@(() => SelectAllCustomers())" @onclick:stopPropagation="true" checked="@allSelected" />
+                                </th>
                                 <th @onclick="@(() => SortBy("CompanyName"))" style="cursor: pointer;">
                                     Company Name
                                     @if (sortField == "CompanyName")
@@ -83,7 +105,11 @@
                         <tbody>
                             @foreach (var customer in pagedCustomers)
                             {
-                                <tr @onclick="@(() => ViewCustomer(customer.Id))" style="cursor: pointer;">
+                                <tr @onclick="@(() => ViewCustomer(customer.Id))" style="cursor: pointer;" class="@(selectedCustomerIds.Contains(customer.Id) ? "table-active" : "")">
+                                    <td @onclick:stopPropagation="true">
+                                        <input type="checkbox" class="form-check-input" checked="@selectedCustomerIds.Contains(customer.Id)" 
+                                               @onchange="@(() => ToggleCustomerSelection(customer.Id))" />
+                                    </td>
                                     <td>
                                         <strong>@customer.CompanyName</strong>
                                     </td>
@@ -170,6 +196,36 @@
     private int pageSize = 20;
     private int? companyId;
     private DotNetObjectReference<Index>? dotNetRef;
+    private bool _isRefreshing = false;
+    private bool hasSelection = false;
+    private int selectedCount = 0;
+    private HashSet<int> selectedCustomerIds = new();
+
+    // Toolbar configuration
+    private List<StandardToolbar.ToolbarReportItem> reportItems = new()
+    {
+        new() { Key = "summary", Label = "Customer Summary", Icon = "fas fa-chart-pie" },
+        new() { Key = "active", Label = "Active Customers", Icon = "fas fa-check-circle" },
+        new() { Key = "projects", Label = "Projects by Customer", Icon = "fas fa-project-diagram" },
+        new() { Key = "export-csv", Label = "Export to CSV", Icon = "fas fa-file-csv" },
+        new() { Key = "export-pdf", Label = "Export to PDF", Icon = "fas fa-file-pdf" }
+    };
+
+    private List<StandardToolbar.ToolbarActionItem> actionItems = new()
+    {
+        new() { Key = "merge", Label = "Merge Customers", Icon = "fas fa-code-branch" },
+        new() { Key = "archive", Label = "Archive Inactive", Icon = "fas fa-archive" },
+        new() { IsDivider = true },
+        new() { Key = "settings", Label = "List Settings", Icon = "fas fa-cog" },
+        new() { Key = "clear-filters", Label = "Clear All Filters", Icon = "fas fa-filter-circle-xmark" }
+    };
+
+    private List<StandardToolbar.ToolbarRelatedItem> relatedItems = new()
+    {
+        new() { Label = "Projects", Url = "/projects", Icon = "fas fa-project-diagram", Count = 0 },
+        new() { Label = "Contacts", Url = "/contacts", Icon = "fas fa-address-book", Count = 0 },
+        new() { Label = "Estimations", Url = "/estimation", Icon = "fas fa-calculator", Count = 0 }
+    };
 
     private IEnumerable<Customer> filteredCustomers => customers?.Where(c =>
         (string.IsNullOrWhiteSpace(searchTerm) ||
@@ -194,12 +250,15 @@
         .Take(pageSize);
 
     private int totalPages => (int)Math.Ceiling((double)filteredCustomers.Count() / pageSize);
+    
+    private bool allSelected => pagedCustomers.Any() && pagedCustomers.All(c => selectedCustomerIds.Contains(c.Id));
 
     protected override async Task OnInitializedAsync()
     {
         companyId = await AuthService.GetUserCompanyIdAsync();
         dotNetRef = DotNetObjectReference.Create(this);
         await LoadCustomers();
+        UpdateRelatedCounts();
     }
     
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -283,6 +342,143 @@
         // Column reordering would be handled here
         // For now, just refresh the display
         StateHasChanged();
+    }
+    
+    // New methods for StandardToolbar
+    private void ToggleCustomerSelection(int customerId)
+    {
+        if (selectedCustomerIds.Contains(customerId))
+        {
+            selectedCustomerIds.Remove(customerId);
+        }
+        else
+        {
+            selectedCustomerIds.Add(customerId);
+        }
+        UpdateSelectionState();
+    }
+    
+    private void SelectAllCustomers()
+    {
+        if (allSelected)
+        {
+            // Deselect all on current page
+            foreach (var customer in pagedCustomers)
+            {
+                selectedCustomerIds.Remove(customer.Id);
+            }
+        }
+        else
+        {
+            // Select all on current page
+            foreach (var customer in pagedCustomers)
+            {
+                selectedCustomerIds.Add(customer.Id);
+            }
+        }
+        UpdateSelectionState();
+    }
+    
+    private void UpdateSelectionState()
+    {
+        hasSelection = selectedCustomerIds.Any();
+        selectedCount = selectedCustomerIds.Count;
+        StateHasChanged();
+    }
+    
+    private async Task DeleteSelectedCustomers()
+    {
+        if (!selectedCustomerIds.Any())
+            return;
+            
+        // Implementation for deleting selected customers
+        Console.WriteLine($"Deleting {selectedCount} customers...");
+        
+        using var context = await DbFactory.CreateDbContextAsync();
+        var customersToDelete = await context.Customers
+            .Where(c => selectedCustomerIds.Contains(c.Id))
+            .ToListAsync();
+            
+        // Soft delete the customers
+        foreach (var customer in customersToDelete)
+        {
+            customer.IsActive = false;
+        }
+        
+        await context.SaveChangesAsync();
+        
+        // Clear selection and reload
+        selectedCustomerIds.Clear();
+        UpdateSelectionState();
+        await LoadCustomers();
+    }
+    
+    private async Task GenerateReport(string reportType)
+    {
+        Console.WriteLine($"Generating report: {reportType}");
+        // Implementation for generating different reports
+        switch (reportType)
+        {
+            case "summary":
+                Navigation.NavigateTo("/reports/customers/summary");
+                break;
+            case "active":
+                Navigation.NavigateTo("/reports/customers/active");
+                break;
+            case "projects":
+                Navigation.NavigateTo("/reports/customers/projects");
+                break;
+            case "export-csv":
+                // Export to CSV logic
+                break;
+            case "export-pdf":
+                // Export to PDF logic
+                break;
+        }
+    }
+    
+    private async Task HandleAction(string action)
+    {
+        Console.WriteLine($"Handling action: {action}");
+        switch (action)
+        {
+            case "merge":
+                // Open merge dialog
+                break;
+            case "archive":
+                // Archive inactive customers
+                break;
+            case "settings":
+                // Open settings dialog
+                break;
+            case "clear-filters":
+                searchTerm = "";
+                filterActive = "";
+                StateHasChanged();
+                break;
+        }
+    }
+    
+    private async Task RefreshData()
+    {
+        _isRefreshing = true;
+        StateHasChanged();
+        await Task.Delay(100); // Allow UI to update
+        await LoadCustomers();
+        UpdateRelatedCounts();
+        _isRefreshing = false;
+        StateHasChanged();
+    }
+    
+    
+    private void UpdateRelatedCounts()
+    {
+        if (customers != null)
+        {
+            relatedItems[0].Count = customers.Sum(c => c.Projects.Count(p => !p.IsDeleted));
+            relatedItems[1].Count = customers.Sum(c => c.Contacts.Count(ct => ct.IsActive));
+            relatedItems[2].Count = customers.SelectMany(c => c.Projects).Count(p => !p.IsDeleted);
+        }
     }
     
     public void Dispose()

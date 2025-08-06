@@ -4,450 +4,428 @@
 @inject IDiceBearService DiceBearService
 
 <div class="avatar-selector">
-    <div class="w-100">
-            <!-- Avatar Preview Section -->
-            <div class="avatar-preview-section text-center p-4 border-bottom">
-                    <h5 class="card-title mb-3">🎭 Avatar Preview (Tabbed)</h5>
-                    @if (isLoadingPreview)
-                    {
-                        <div class="avatar-preview-container">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">Loading...</span>
+    <div class="d-flex gap-4">
+        <!-- Left: Avatar Preview Section -->
+        <div class="avatar-preview-section text-center p-4" style="min-width: 280px; max-width: 280px;">
+            <h5 class="card-title mb-3">🎭 Avatar Preview</h5>
+            @if (isLoadingPreview)
+            {
+                <div class="avatar-preview-container">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            }
+            else if (!string.IsNullOrEmpty(currentAvatarDataUrl))
+            {
+                <div class="avatar-preview-container">
+                    <img src="@currentAvatarDataUrl" alt="DiceBear Avatar" class="avatar-preview" />
+                </div>
+                <div class="mt-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary" @onclick="@(async () => await RandomizeSeed())">
+                        <i class="bi bi-shuffle"></i> Random
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="@(async () => await FlipAvatar())">
+                        <i class="bi bi-arrow-left-right"></i> Flip
+                    </button>
+                </div>
+            }
+            else
+            {
+                <div class="placeholder-avatar">
+                    <i class="bi bi-person-circle"></i>
+                    <p class="text-muted">Select Avatar Style</p>
+                </div>
+            }
+            
+            <!-- Avatar Type Selection -->
+            <div class="avatar-type-selection mt-4">
+                <h6 class="mb-3">Avatar Type</h6>
+                <div class="d-flex gap-3 justify-content-center">
+                    <button type="button" class="type-option-btn @(SelectedDiceBearStyle == "initials" ? "active" : "")"
+                         @onclick="@(() => SelectStyleAndSwitchTab("initials"))" 
+                         @onclick:preventDefault="true" 
+                         @onclick:stopPropagation="true">
+                        <i class="bi bi-type"></i>
+                        <span>Initials</span>
+                    </button>
+                    <button type="button" class="type-option-btn @(SelectedDiceBearStyle == "bottts" ? "active" : "")"
+                         @onclick="@(() => SelectStyleAndSwitchTab("bottts"))" 
+                         @onclick:preventDefault="true" 
+                         @onclick:stopPropagation="true">
+                        <i class="bi bi-robot"></i>
+                        <span>Bottts</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Avatar Customization Options with Tabs -->
+        <div class="avatar-tabs-container flex-grow-1 p-4">
+            @if (!string.IsNullOrEmpty(SelectedDiceBearStyle))
+            {
+                @if (SelectedDiceBearStyle == "bottts")
+                {
+                    <!-- Always Visible Color Options -->
+                    <div class="color-options-section mb-3">
+                        <div class="row g-3">
+                            <!-- Base Color -->
+                            <div class="col-6">
+                                <label class="form-label">Robot Base Color</label>
+                                <div class="color-swatches">
+                                    @foreach (var color in baseColors)
+                                    {
+                                        <button type="button" class="color-swatch @(selectedBaseColor == color ? "active" : "")"
+                                             style="background-color: @color; border: none; padding: 0;"
+                                             @onclick="@(async () => await SelectBaseColor(color))" 
+                                             @onclick:preventDefault="true" 
+                                             @onclick:stopPropagation="true">
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                            
+                            <!-- Background Color -->
+                            <div class="col-6">
+                                <label class="form-label">Background Color</label>
+                                <div class="color-swatches">
+                                    <button type="button" class="color-swatch @(selectedBackgroundColor == "transparent" ? "active" : "")"
+                                         style="background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%); background-size: 10px 10px; background-position: 0 0, 5px 5px; border: none; padding: 0;"
+                                         @onclick="@(async () => await SelectBackgroundColor("transparent"))" 
+                                         @onclick:preventDefault="true" 
+                                         @onclick:stopPropagation="true">
+                                    </button>
+                                    @foreach (var color in backgroundColors)
+                                    {
+                                        <button type="button" class="color-swatch @(selectedBackgroundColor == color ? "active" : "")"
+                                             style="background-color: @color; border: none; padding: 0;"
+                                             @onclick="@(async () => await SelectBackgroundColor(color))" 
+                                             @onclick:preventDefault="true" 
+                                             @onclick:stopPropagation="true">
+                                        </button>
+                                    }
+                                </div>
                             </div>
                         </div>
-                    }
-                    else if (!string.IsNullOrEmpty(currentAvatarDataUrl))
-                    {
-                        <div class="avatar-preview-container">
-                            <img src="@currentAvatarDataUrl" alt="DiceBear Avatar" class="avatar-preview" />
-                            <p class="avatar-style-name">@SelectedDiceBearStyle</p>
-                            <small class="text-muted">@DiceBearAvatars.GetById(SelectedDiceBearStyle)?.Description</small>
-                        </div>
-                        <div class="mt-2">
-                            <button type="button" class="btn btn-sm btn-outline-primary" @onclick="@(async () => await RandomizeSeed())">
-                                <i class="bi bi-shuffle"></i> Random
-                            </button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="@(async () => await FlipAvatar())">
-                                <i class="bi bi-arrow-left-right"></i> Flip
-                            </button>
-                        </div>
-                        <div class="mt-2 text-start">
-                            <small class="text-muted">
-                                <strong>License:</strong> @DiceBearAvatars.GetById(SelectedDiceBearStyle)?.License<br />
-                                <strong>Creator:</strong> @DiceBearAvatars.GetById(SelectedDiceBearStyle)?.Creator
-                            </small>
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="placeholder-avatar">
-                            <i class="bi bi-person-circle"></i>
-                            <p class="text-muted">Select Avatar Style</p>
-                        </div>
-                    }
-            </div>
-
-            <!-- Avatar Customization Options with Tabs -->
-            <div class="avatar-tabs-container p-4">
-                <!-- Tab Navigation -->
-                <ul class="nav nav-tabs mb-3" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link @(activeTab == "type" ? "active" : "")" type="button" 
-                                @onclick="@(() => SetActiveTab("type"))">
-                            <i class="bi bi-grid-3x3-gap"></i> Type
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link @(activeTab == "customize" ? "active" : "") @(!string.IsNullOrEmpty(SelectedDiceBearStyle) ? "" : "disabled")" 
-                                type="button" @onclick="@(() => SetActiveTab("customize"))"
-                                disabled="@(string.IsNullOrEmpty(SelectedDiceBearStyle))">
-                            <i class="bi bi-sliders"></i> Customize
-                        </button>
-                    </li>
-                </ul>
-
-                    <!-- Tab Content -->
-                    <div class="tab-content">
-                        <!-- Type Tab -->
-                        <div class="tab-pane @(activeTab == "type" ? "show active" : "")">
-                            @if (activeTab == "type")
-                            {
-                                <!-- Avatar Style Selection -->
-                                <div class="customization-section">
-                                    <h6><i class="bi bi-palette"></i> Choose Avatar Style</h6>
-                                    <div class="dicebear-styles-grid">
-                                        @foreach (var avatar in DiceBearAvatars.AvailableStyles)
+                    </div>
+                    
+                    <!-- All Customization Options for Bottts (No Tabs) -->
+                    <div class="customization-container">
+                        
+                        <!-- Face Shape Section -->
+                        <div class="customization-section">
+                            <h6 class="section-heading"><i class="bi bi-emoji-smile"></i> Face Shape</h6>
+                            <div class="visual-option-grid">
+                                @foreach (var faceType in faceTypes)
+                                {
+                                    <button type="button" class="visual-option-btn @(selectedFaceType == faceType ? "active" : "")"
+                                         @onclick="@(async () => await SelectFaceType(faceType))" 
+                                         @onclick:preventDefault="true" 
+                                         @onclick:stopPropagation="true">
+                                        @{
+                                            var faceCacheKey = $"face_{faceType}_{selectedBaseColor}_{cacheVersion}";
+                                        }
+                                        @if (previewCache.ContainsKey(faceCacheKey))
                                         {
-                                            <button type="button" class="dicebear-style-option @(SelectedDiceBearStyle == avatar.Id ? "active" : "")"
-                                                 @onclick="@(() => SelectStyleAndSwitchTab(avatar.Id))" 
+                                            <div class="dicebear-preview-wrapper">
+                                                <img src="@previewCache[faceCacheKey]" 
+                                                     alt="@faceType" 
+                                                     class="dicebear-full-preview" />
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="dicebear-preview-wrapper">
+                                                <div class="spinner-border spinner-border-sm" role="status">
+                                                    <span class="visually-hidden">Loading...</span>
+                                                </div>
+                                            </div>
+                                        }
+                                        <div class="option-label">@FormatLabel(faceType)</div>
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                        
+                        <!-- Eyes Section -->
+                        <div class="customization-section">
+                            <h6 class="section-heading"><i class="bi bi-eye"></i> Eye Type</h6>
+                            <div class="visual-option-grid">
+                                @foreach (var eyeType in eyeTypes)
+                                {
+                                    <button type="button" class="visual-option-btn @(selectedEyeType == eyeType ? "active" : "")"
+                                         @onclick="@(async () => await SelectEyeType(eyeType))" 
+                                         @onclick:preventDefault="true" 
+                                         @onclick:stopPropagation="true">
+                                        @{
+                                            var eyeCacheKey = $"eye_{eyeType}_{selectedBaseColor}_{cacheVersion}";
+                                        }
+                                        @if (previewCache.ContainsKey(eyeCacheKey))
+                                        {
+                                            <div class="dicebear-preview-wrapper">
+                                                <img src="@previewCache[eyeCacheKey]" 
+                                                     alt="@eyeType" 
+                                                     class="dicebear-full-preview" />
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="dicebear-preview-wrapper">
+                                                <div class="spinner-border spinner-border-sm" role="status">
+                                                    <span class="visually-hidden">Loading...</span>
+                                                </div>
+                                            </div>
+                                        }
+                                        <div class="option-label">@FormatLabel(eyeType)</div>
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                        
+                        <!-- Mouth Section -->
+                        <div class="customization-section">
+                            <h6 class="section-heading"><i class="bi bi-chat-dots"></i> Mouth Type</h6>
+                            <div class="visual-option-grid">
+                                @foreach (var mouthType in mouthTypes)
+                                {
+                                    <button type="button" class="visual-option-btn @(selectedMouthType == mouthType ? "active" : "")"
+                                         @onclick="@(async () => await SelectMouthType(mouthType))" 
+                                         @onclick:preventDefault="true" 
+                                         @onclick:stopPropagation="true">
+                                        @{
+                                            var mouthCacheKey = $"mouth_{mouthType}_{selectedBaseColor}_{cacheVersion}";
+                                        }
+                                        @if (previewCache.ContainsKey(mouthCacheKey))
+                                        {
+                                            <div class="dicebear-preview-wrapper">
+                                                <img src="@previewCache[mouthCacheKey]" 
+                                                     alt="@mouthType" 
+                                                     class="dicebear-full-preview" />
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="dicebear-preview-wrapper">
+                                                <div class="spinner-border spinner-border-sm" role="status">
+                                                    <span class="visually-hidden">Loading...</span>
+                                                </div>
+                                            </div>
+                                        }
+                                        <div class="option-label">@FormatLabel(mouthType)</div>
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                        
+                        <!-- Sides Section -->
+                        <div class="customization-section">
+                            <h6 class="section-heading"><i class="bi bi-box"></i> Sides</h6>
+                            <div class="visual-option-grid">
+                                @foreach (var sidesType in sidesTypes)
+                                {
+                                    <button type="button" class="visual-option-btn @(selectedSidesType == sidesType ? "active" : "")"
+                                         @onclick="@(async () => await SelectSidesType(sidesType))" 
+                                         @onclick:preventDefault="true" 
+                                         @onclick:stopPropagation="true">
+                                        @{
+                                            var sidesCacheKey = $"sides_{sidesType}_{selectedBaseColor}_{cacheVersion}";
+                                        }
+                                        @if (previewCache.ContainsKey(sidesCacheKey))
+                                        {
+                                            <div class="dicebear-preview-wrapper">
+                                                <img src="@previewCache[sidesCacheKey]" 
+                                                     alt="@sidesType" 
+                                                     class="dicebear-full-preview" />
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="dicebear-preview-wrapper">
+                                                <div class="spinner-border spinner-border-sm" role="status">
+                                                    <span class="visually-hidden">Loading...</span>
+                                                </div>
+                                            </div>
+                                        }
+                                        <div class="option-label">@FormatLabel(sidesType)</div>
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                        
+                        <!-- Top Section -->
+                        <div class="customization-section">
+                            <h6 class="section-heading"><i class="bi bi-hat"></i> Top</h6>
+                            <div class="visual-option-grid">
+                                @foreach (var topType in topTypes)
+                                {
+                                    <button type="button" class="visual-option-btn @(selectedTopType == topType ? "active" : "")"
+                                         @onclick="@(async () => await SelectTopType(topType))" 
+                                         @onclick:preventDefault="true" 
+                                         @onclick:stopPropagation="true">
+                                        @{
+                                            var topCacheKey = $"top_{topType}_{selectedBaseColor}_{cacheVersion}";
+                                        }
+                                        @if (previewCache.ContainsKey(topCacheKey))
+                                        {
+                                            <div class="dicebear-preview-wrapper">
+                                                <img src="@previewCache[topCacheKey]" 
+                                                     alt="@topType" 
+                                                     class="dicebear-full-preview" />
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="dicebear-preview-wrapper">
+                                                <div class="spinner-border spinner-border-sm" role="status">
+                                                    <span class="visually-hidden">Loading...</span>
+                                                </div>
+                                            </div>
+                                        }
+                                        <div class="option-label">@FormatLabel(topType)</div>
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+                else if (SelectedDiceBearStyle == "initials")
+                {
+                    <!-- Tab Navigation for Initials -->
+                    <ul class="nav nav-tabs mb-3" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link @(activeTab == "text" ? "active" : "")" type="button" 
+                                    @onclick="@(() => SetActiveTab("text"))">
+                                <i class="bi bi-type"></i> Text
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link @(activeTab == "style" ? "active" : "")" type="button" 
+                                    @onclick="@(() => SetActiveTab("style"))">
+                                <i class="bi bi-fonts"></i> Style
+                            </button>
+                        </li>
+                    </ul>
+                    
+                    <!-- Tab Content for Initials -->
+                    <div class="tab-content">
+                        <!-- Text Tab -->
+                        <div class="tab-pane @(activeTab == "text" ? "show active" : "")">
+                            @if (activeTab == "text")
+                            {
+                                <div class="customization-section">
+                                    <h6><i class="bi bi-type"></i> Initials Text</h6>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" placeholder="Enter initials (e.g., JD)"
+                                               @bind="initialsText" @bind:event="oninput" 
+                                               @onchange="UpdateAvatar" maxlength="3" />
+                                        <span class="input-group-text">@initialsText.Length/3</span>
+                                    </div>
+                                    <small class="text-muted">Enter 1-3 characters for your initials</small>
+                                </div>
+                                
+                                <div class="customization-section mt-3">
+                                    <h6><i class="bi bi-dice-5"></i> Avatar Seed</h6>
+                                    <div class="input-group input-group-sm">
+                                        <input type="text" class="form-control" placeholder="Enter text for unique avatar"
+                                               @bind="SelectedDiceBearSeed" @bind:event="oninput" @onchange="UpdateAvatar" />
+                                    </div>
+                                    <small class="text-muted">Each unique seed generates a different background pattern</small>
+                                </div>
+                            }
+                        </div>
+                        
+                        <!-- Style Tab -->
+                        <div class="tab-pane @(activeTab == "style" ? "show active" : "")">
+                            @if (activeTab == "style")
+                            {
+                                <div class="customization-section">
+                                    <h6><i class="bi bi-palette"></i> Background Color</h6>
+                                    <div class="color-swatches">
+                                        @foreach (var color in initialsBackgroundColors)
+                                        {
+                                            <button type="button" class="color-swatch @(selectedInitialsBackgroundColor == color ? "active" : "")"
+                                                 style="background-color: @color; border: none; padding: 0;"
+                                                 @onclick="@(async () => await SelectInitialsBackgroundColor(color))" 
                                                  @onclick:preventDefault="true" 
-                                                 @onclick:stopPropagation="true"
-                                                 title="@avatar.Description">
-                                                <img src="@GetStylePreviewUrl(avatar.Id)" alt="@avatar.Name" />
-                                                <div class="style-name">@avatar.Name</div>
+                                                 @onclick:stopPropagation="true">
                                             </button>
                                         }
                                     </div>
                                 </div>
-                            }
-                        </div>
+                                
+                                <div class="customization-section mt-3">
+                                    <h6><i class="bi bi-fonts"></i> Text Style</h6>
+                                    <div class="row g-3">
+                                        <!-- Font Size -->
+                                        <div class="col-6">
+                                            <label class="form-label">Font Size</label>
+                                            <div class="btn-group btn-group-sm w-100" role="group">
+                                                @foreach (var size in new[] { 24, 32, 40, 48, 56 })
+                                                {
+                                                    <button type="button" 
+                                                            class="btn @(selectedFontSize == size ? "btn-primary" : "btn-outline-primary")"
+                                                            @onclick="@(async () => await SelectFontSize(size))"
+                                                            @onclick:preventDefault="true" 
+                                                            @onclick:stopPropagation="true">
+                                                        @size
+                                                    </button>
+                                                }
+                                            </div>
+                                        </div>
 
-                        <!-- Customize Tab -->
-                        <div class="tab-pane @(activeTab == "customize" ? "show active" : "")">
-                            @if (activeTab == "customize" && !string.IsNullOrEmpty(SelectedDiceBearStyle))
-                            {
+                                        <!-- Font Weight -->
+                                        <div class="col-6">
+                                            <label class="form-label">Font Weight</label>
+                                            <div class="btn-group btn-group-sm w-100" role="group">
+                                                @foreach (var weight in new[] { 300, 400, 600, 700 })
+                                                {
+                                                    <button type="button" 
+                                                            class="btn @(selectedFontWeight == weight ? "btn-primary" : "btn-outline-primary")"
+                                                            @onclick="@(async () => await SelectFontWeight(weight))"
+                                                            @onclick:preventDefault="true" 
+                                                            @onclick:stopPropagation="true">
+                                                        @if (weight == 300) { <text>Light</text> }
+                                                        else if (weight == 400) { <text>Normal</text> }
+                                                        else if (weight == 600) { <text>Bold</text> }
+                                                        else { <text>Heavy</text> }
+                                                    </button>
+                                                }
+                                            </div>
+                                        </div>
 
-                        <!-- Avatar Seed -->
-                        <div class="customization-section">
-                            <h6><i class="bi bi-dice-5"></i> Avatar Seed</h6>
-                            <div class="input-group input-group-sm">
-                                <input type="text" class="form-control" placeholder="Enter text for unique avatar"
-                                       @bind="SelectedDiceBearSeed" @bind:event="oninput" @onchange="UpdateAvatar" />
-                            </div>
-                            <small class="text-muted">Each unique seed generates a different avatar appearance</small>
-                        </div>
-
-                        <!-- Style-specific customization -->
-                        <div class="customization-section">
-                            <h6><i class="bi bi-sliders"></i> Customize Your Avatar</h6>
-                            
-                            @if (SelectedDiceBearStyle == "bottts")
-                            {
-                                <div class="row g-3">
-                                    <!-- Base Color -->
-                                    <div class="col-6">
-                                        <label class="form-label">Robot Base Color</label>
-                                        <div class="color-swatches">
-                                            @foreach (var color in baseColors)
-                                            {
-                                                <button type="button" class="color-swatch @(selectedBaseColor == color ? "active" : "")"
-                                                     style="background-color: @color; border: none; padding: 0;"
-                                                     @onclick="@(async () => await SelectBaseColor(color))" 
-                                                     @onclick:preventDefault="true" 
-                                                     @onclick:stopPropagation="true">
-                                                </button>
-                                            }
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Background Color -->
-                                    <div class="col-6">
-                                        <label class="form-label">Background Color</label>
-                                        <div class="color-swatches">
-                                            <button type="button" class="color-swatch @(selectedBackgroundColor == "transparent" ? "active" : "")"
-                                                 style="background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%); background-size: 10px 10px; background-position: 0 0, 5px 5px; border: none; padding: 0;"
-                                                 @onclick="@(async () => await SelectBackgroundColor("transparent"))" 
-                                                 @onclick:preventDefault="true" 
-                                                 @onclick:stopPropagation="true">
-                                            </button>
-                                            @foreach (var color in backgroundColors)
-                                            {
-                                                <button type="button" class="color-swatch @(selectedBackgroundColor == color ? "active" : "")"
-                                                     style="background-color: @color; border: none; padding: 0;"
-                                                     @onclick="@(async () => await SelectBackgroundColor(color))" 
-                                                     @onclick:preventDefault="true" 
-                                                     @onclick:stopPropagation="true">
-                                                </button>
-                                            }
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Face Type -->
-                                    <div class="col-12">
-                                        <label class="form-label">Face Shape</label>
-                                        <div class="visual-option-grid">
-                                            @foreach (var faceType in faceTypes)
-                                            {
-                                                <button type="button" class="visual-option-btn @(selectedFaceType == faceType ? "active" : "")"
-                                                     @onclick="@(async () => await SelectFaceType(faceType))" 
-                                                     @onclick:preventDefault="true" 
-                                                     @onclick:stopPropagation="true">
-                                                    @{
-                                                        var faceCacheKey = $"face_{faceType}_{selectedBaseColor}";
-                                                    }
-                                                    @if (previewCache.ContainsKey(faceCacheKey))
-                                                    {
-                                                        <div class="dicebear-preview-wrapper">
-                                                            <img src="@previewCache[faceCacheKey]" 
-                                                                 alt="@faceType" 
-                                                                 class="dicebear-full-preview" />
-                                                        </div>
-                                                    }
-                                                    else
-                                                    {
-                                                        <div class="dicebear-preview-wrapper">
-                                                            <div class="spinner-border spinner-border-sm" role="status">
-                                                                <span class="visually-hidden">Loading...</span>
-                                                            </div>
-                                                        </div>
-                                                    }
-                                                    <div class="option-label">@faceType</div>
-                                                </button>
-                                            }
-                                        </div>
-                                    </div>
-
-                                    <!-- Eye Type -->
-                                    <div class="col-12">
-                                        <label class="form-label">Eye Type</label>
-                                        <div class="visual-option-grid">
-                                            @foreach (var eyeType in eyeTypes)
-                                            {
-                                                <button type="button" class="visual-option-btn @(selectedEyeType == eyeType ? "active" : "")"
-                                                     @onclick="@(async () => await SelectEyeType(eyeType))" 
-                                                     @onclick:preventDefault="true" 
-                                                     @onclick:stopPropagation="true">
-                                                    @{
-                                                        var eyeCacheKey = $"eye_{eyeType}_{selectedBaseColor}";
-                                                    }
-                                                    @if (previewCache.ContainsKey(eyeCacheKey))
-                                                    {
-                                                        <div class="dicebear-preview-wrapper">
-                                                            <img src="@previewCache[eyeCacheKey]" 
-                                                                 alt="@eyeType" 
-                                                                 class="dicebear-full-preview" />
-                                                        </div>
-                                                    }
-                                                    else
-                                                    {
-                                                        <div class="dicebear-preview-wrapper">
-                                                            <div class="spinner-border spinner-border-sm" role="status">
-                                                                <span class="visually-hidden">Loading...</span>
-                                                            </div>
-                                                        </div>
-                                                    }
-                                                    <div class="option-label">@eyeType</div>
-                                                </button>
-                                            }
-                                        </div>
-                                    </div>
-
-                                    <!-- Mouth Type -->
-                                    <div class="col-12">
-                                        <label class="form-label">Mouth Type</label>
-                                        <div class="visual-option-grid">
-                                            @foreach (var mouthType in mouthTypes)
-                                            {
-                                                <button type="button" class="visual-option-btn @(selectedMouthType == mouthType ? "active" : "")"
-                                                     @onclick="@(async () => await SelectMouthType(mouthType))" 
-                                                     @onclick:preventDefault="true" 
-                                                     @onclick:stopPropagation="true">
-                                                    @{
-                                                        var mouthCacheKey = $"mouth_{mouthType}_{selectedBaseColor}";
-                                                    }
-                                                    @if (previewCache.ContainsKey(mouthCacheKey))
-                                                    {
-                                                        <div class="dicebear-preview-wrapper">
-                                                            <img src="@previewCache[mouthCacheKey]" 
-                                                                 alt="@mouthType" 
-                                                                 class="dicebear-full-preview" />
-                                                        </div>
-                                                    }
-                                                    else
-                                                    {
-                                                        <div class="dicebear-preview-wrapper">
-                                                            <div class="spinner-border spinner-border-sm" role="status">
-                                                                <span class="visually-hidden">Loading...</span>
-                                                            </div>
-                                                        </div>
-                                                    }
-                                                    <div class="option-label">@mouthType</div>
-                                                </button>
-                                            }
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Sides -->
-                                    <div class="col-12">
-                                        <label class="form-label">Side Attachments</label>
-                                        <div class="visual-option-grid">
-                                            @foreach (var sidesType in sidesTypes)
-                                            {
-                                                <button type="button" class="visual-option-btn @(selectedSidesType == sidesType ? "active" : "")"
-                                                     @onclick="@(async () => await SelectSidesType(sidesType))" 
-                                                     @onclick:preventDefault="true" 
-                                                     @onclick:stopPropagation="true">
-                                                    @{
-                                                        var sidesCacheKey = $"sides_{sidesType}_{selectedBaseColor}";
-                                                    }
-                                                    @if (previewCache.ContainsKey(sidesCacheKey))
-                                                    {
-                                                        <div class="dicebear-preview-wrapper">
-                                                            <img src="@previewCache[sidesCacheKey]" 
-                                                                 alt="@sidesType" 
-                                                                 class="dicebear-full-preview" />
-                                                        </div>
-                                                    }
-                                                    else
-                                                    {
-                                                        <div class="dicebear-preview-wrapper">
-                                                            <div class="spinner-border spinner-border-sm" role="status">
-                                                                <span class="visually-hidden">Loading...</span>
-                                                            </div>
-                                                        </div>
-                                                    }
-                                                    <div class="option-label">@sidesType</div>
-                                                </button>
-                                            }
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Top -->
-                                    <div class="col-12">
-                                        <label class="form-label">Top Accessories</label>
-                                        <div class="visual-option-grid">
-                                            @foreach (var topType in topTypes)
-                                            {
-                                                <button type="button" class="visual-option-btn @(selectedTopType == topType ? "active" : "")"
-                                                     @onclick="@(async () => await SelectTopType(topType))" 
-                                                     @onclick:preventDefault="true" 
-                                                     @onclick:stopPropagation="true">
-                                                    @{
-                                                        var topCacheKey = $"top_{topType}_{selectedBaseColor}";
-                                                    }
-                                                    @if (previewCache.ContainsKey(topCacheKey))
-                                                    {
-                                                        <div class="dicebear-preview-wrapper">
-                                                            <img src="@previewCache[topCacheKey]" 
-                                                                 alt="@topType" 
-                                                                 class="dicebear-full-preview" />
-                                                        </div>
-                                                    }
-                                                    else
-                                                    {
-                                                        <div class="dicebear-preview-wrapper">
-                                                            <div class="spinner-border spinner-border-sm" role="status">
-                                                                <span class="visually-hidden">Loading...</span>
-                                                            </div>
-                                                        </div>
-                                                    }
-                                                    <div class="option-label">@topType</div>
-                                                </button>
-                                            }
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Texture (Single select with robot preview) -->
-                                    <div class="col-12">
-                                        <label class="form-label">Texture</label>
-                                        <div class="texture-options-grid">
-                                            @foreach (var texture in textureTypes)
-                                            {
-                                                <button type="button" class="visual-option-btn texture-option-btn @(selectedTextureType == texture ? "active" : "")"
-                                                        @onclick="@(async () => await SelectTexture(texture))" 
-                                                        @onclick:preventDefault="true" 
-                                                        @onclick:stopPropagation="true">
-                                                    @if (texturePreviewCache.ContainsKey($"texture-{texture}-{selectedBaseColor}"))
-                                                    {
-                                                        <img src="@texturePreviewCache[$"texture-{texture}-{selectedBaseColor}"]" alt="@texture" class="option-preview" />
-                                                    }
-                                                    else
-                                                    {
-                                                        <div class="loading-preview">
-                                                            <div class="spinner-border spinner-border-sm"></div>
-                                                        </div>
-                                                    }
-                                                    <div class="option-label">@texture</div>
-                                                </button>
-                                            }
+                                        <!-- Font Family -->
+                                        <div class="col-12">
+                                            <label class="form-label">Font Style</label>
+                                            <div class="font-family-grid">
+                                                @foreach (var font in new[] { "Arial", "Arial Rounded MT Bold", "Courier New", "Georgia", "Helvetica", "Times New Roman", "Verdana" })
+                                                {
+                                                    <button type="button" 
+                                                            class="font-option-btn @(selectedFontFamily == font ? "active" : "")"
+                                                            @onclick="@(async () => await SelectFontFamily(font))"
+                                                            @onclick:preventDefault="true" 
+                                                            @onclick:stopPropagation="true">
+                                                        <span style="font-family: '@font';">Aa</span>
+                                                        <div class="font-name">@font</div>
+                                                    </button>
+                                                }
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            }
-                            else if (SelectedDiceBearStyle == "initials")
-                            {
-                                <div class="row g-3">
-                                    <!-- Text Input -->
-                                    <div class="col-12">
-                                        <label class="form-label">Text for Initials</label>
-                                        <div class="input-group">
-                                            <input type="text" class="form-control" placeholder="Enter initials (e.g., JD)"
-                                                   @bind="initialsText" @bind:event="oninput" 
-                                                   @onchange="UpdateAvatar" maxlength="3" />
-                                            <span class="input-group-text">@initialsText.Length/3</span>
-                                        </div>
-                                        <small class="text-muted">Enter 1-3 characters for your initials</small>
-                                    </div>
-
-                                    <!-- Background Color -->
-                                    <div class="col-12">
-                                        <label class="form-label">Background Color</label>
-                                        <div class="color-swatches">
-                                            @foreach (var color in initialsBackgroundColors)
-                                            {
-                                                <button type="button" class="color-swatch @(selectedInitialsBackgroundColor == color ? "active" : "")"
-                                                     style="background-color: @color; border: none; padding: 0;"
-                                                     @onclick="@(async () => await SelectInitialsBackgroundColor(color))" 
-                                                     @onclick:preventDefault="true" 
-                                                     @onclick:stopPropagation="true">
-                                                </button>
-                                            }
-                                        </div>
-                                    </div>
-
-                                    <!-- Font Size -->
-                                    <div class="col-6">
-                                        <label class="form-label">Font Size</label>
-                                        <div class="btn-group btn-group-sm w-100" role="group">
-                                            @foreach (var size in new[] { 24, 32, 40, 48, 56 })
-                                            {
-                                                <button type="button" 
-                                                        class="btn @(selectedFontSize == size ? "btn-primary" : "btn-outline-primary")"
-                                                        @onclick="@(async () => await SelectFontSize(size))"
-                                                        @onclick:preventDefault="true" 
-                                                        @onclick:stopPropagation="true">
-                                                    @size
-                                                </button>
-                                            }
-                                        </div>
-                                    </div>
-
-                                    <!-- Font Weight -->
-                                    <div class="col-6">
-                                        <label class="form-label">Font Weight</label>
-                                        <div class="btn-group btn-group-sm w-100" role="group">
-                                            @foreach (var weight in new[] { 300, 400, 600, 700 })
-                                            {
-                                                <button type="button" 
-                                                        class="btn @(selectedFontWeight == weight ? "btn-primary" : "btn-outline-primary")"
-                                                        @onclick="@(async () => await SelectFontWeight(weight))"
-                                                        @onclick:preventDefault="true" 
-                                                        @onclick:stopPropagation="true">
-                                                    @if (weight == 300) { <text>Light</text> }
-                                                    else if (weight == 400) { <text>Normal</text> }
-                                                    else if (weight == 600) { <text>Bold</text> }
-                                                    else { <text>Heavy</text> }
-                                                </button>
-                                            }
-                                        </div>
-                                    </div>
-
-                                    <!-- Font Family -->
-                                    <div class="col-12">
-                                        <label class="form-label">Font Style</label>
-                                        <div class="font-family-grid">
-                                            @foreach (var font in new[] { "Arial", "Arial Rounded MT Bold", "Courier New", "Georgia", "Helvetica", "Times New Roman", "Verdana" })
-                                            {
-                                                <button type="button" 
-                                                        class="font-option-btn @(selectedFontFamily == font ? "active" : "")"
-                                                        @onclick="@(async () => await SelectFontFamily(font))"
-                                                        @onclick:preventDefault="true" 
-                                                        @onclick:stopPropagation="true">
-                                                    <span style="font-family: '@font';">Aa</span>
-                                                    <div class="font-name">@font</div>
-                                                </button>
-                                            }
-                                        </div>
-                                    </div>
-                                </div>
-                            }
-                        </div>
                             }
                         </div>
                     </div>
+                }
+            }
+            else
+            {
+                <div class="text-center p-5">
+                    <p class="text-muted">Please select an avatar type from the options below the preview.</p>
                 </div>
-            </div>
+            }
+        </div>
     </div>
+</div>
 
 <style>
     /* Similar styles as before, keeping the same visual design */
@@ -465,12 +443,24 @@
     }
 
     .avatar-tabs-container {
-        width: 100%;
+        flex: 1;
+        min-width: 0;
     }
 
     .avatar-preview-section {
         background: #f8f9fa;
-        width: 100%;
+        min-width: 280px;
+        max-width: 280px;
+        flex-shrink: 0;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .color-options-section {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid #e9ecef;
     }
 
     .avatar-preview-container {
@@ -488,16 +478,16 @@
     }
 
     .dicebear-preview-wrapper {
-        width: 80px;
-        height: 80px;
+        width: 90px;
+        height: 90px;
         display: flex;
         align-items: center;
         justify-content: center;
         background: white;
-        border: 1px solid #e9ecef;
-        border-radius: 8px;
+        border: none;
+        border-radius: 50%;
         overflow: hidden;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        box-shadow: none;
     }
 
     .dicebear-full-preview {
@@ -508,96 +498,63 @@
 
     .visual-option-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-        gap: 20px;
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 16px;
         width: 100%;
+        padding: 8px;
     }
 
     .visual-option-btn {
         display: flex;
         flex-direction: column;
         align-items: center;
-        padding: 12px 8px 8px 8px;
+        padding: 10px;
         border: 2px solid #dee2e6;
-        border-radius: 12px;
+        border-radius: 50%;
         cursor: pointer;
         transition: all 0.2s;
         background: white;
         position: relative;
+        width: 120px;
+        height: 120px;
+        justify-content: center;
     }
 
     .visual-option-btn:hover {
-        border-color: #0d1a80;
-        background: #f0f2ff;
+        border-color: #6c757d;
+        background: #f8f9fa;
+        transform: scale(1.02);
     }
 
     .visual-option-btn.active {
-        border-color: #0d1a80;
-        background: #0d1a80;
-        color: white;
+        border: 3px solid #0d1a80;
+        background: white;
+        box-shadow: 0 0 0 4px rgba(13, 26, 128, 0.15);
+        color: #0d1a80;
+        padding: 9px;
     }
 
     .visual-option-btn .option-label {
-        font-size: 0.7rem;
+        font-size: 0.65rem;
         font-weight: 500;
         text-transform: capitalize;
-        line-height: 1.2;
-    }
-
-    .texture-option-btn {
-        position: relative;
+        line-height: 1.1;
+        margin-top: 2px;
+        text-align: center;
+        position: absolute;
+        bottom: 5px;
+        width: calc(100% - 10px);
+        padding: 0 2px;
         overflow: hidden;
-        width: 100%;
-        min-width: 120px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
     
-    .texture-options-grid {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 12px;
-        width: 100%;
+    .visual-option-btn.active .option-label {
+        color: #0d1a80;
+        font-weight: 600;
     }
 
-    .texture-option-btn {
-        position: relative;
-    }
-    
-    .texture-options-grid {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 12px;
-        margin-top: 10px;
-    }
-    
-    .texture-option-btn .option-preview {
-        width: 60px;
-        height: 60px;
-        object-fit: contain;
-        margin-bottom: 4px;
-    }
-    
-    .texture-option-btn .loading-preview {
-        width: 60px;
-        height: 60px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: #f8f9fa;
-        border-radius: 8px;
-        margin-bottom: 4px;
-    }
-    
-    @@media (max-width: 768px) {
-        .texture-options-grid {
-            grid-template-columns: repeat(3, 1fr);
-        }
-    }
-    
-    @@media (max-width: 480px) {
-        .texture-options-grid {
-            grid-template-columns: repeat(2, 1fr);
-        }
-    }
 
     .color-swatches {
         display: flex;
@@ -709,59 +666,60 @@
         margin-top: 0.5rem;
     }
 
-    /* Tab styling */
-    .nav-tabs {
-        border-bottom: 2px solid #e9ecef;
-        display: flex;
-        align-items: flex-end;
+    /* Customization container styling */
+    .customization-container {
+        padding: 0;
+        width: 100%;
+        max-height: 600px;
+        overflow-y: auto;
+        overflow-x: hidden;
     }
 
-    .nav-tabs .nav-item {
-        margin-bottom: 0;
-        display: inline-block;
-        vertical-align: bottom;
+    /* Custom scrollbar for container */
+    .customization-container::-webkit-scrollbar {
+        width: 8px;
     }
 
-    .nav-tabs .nav-link {
-        border: none;
-        border-radius: 8px 8px 0 0;
-        color: #6c757d;
-        font-weight: 500;
-        padding: 12px 24px;
-        margin-right: 8px;
-        transition: all 0.2s ease;
-        background: #f8f9fa;
-        display: inline-flex;
-        align-items: center;
-        line-height: 1;
+    .customization-container::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
     }
 
-    .nav-tabs .nav-link:hover:not(.disabled) {
-        border: none;
-        background: #e9ecef;
+    .customization-container::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 4px;
+    }
+
+    .customization-container::-webkit-scrollbar-thumb:hover {
+        background: #555;
+    }
+
+    /* Section heading styling */
+    .section-heading {
         color: #0d1a80;
-        transform: translateY(-2px);
-    }
-
-    .nav-tabs .nav-link.active {
-        border: none;
-        background: #0d1a80;
-        color: white;
-        border-bottom: 2px solid #0d1a80;
-    }
-
-    .nav-tabs .nav-link.disabled {
-        background: #f8f9fa;
-        color: #adb5bd;
-        cursor: not-allowed;
-        opacity: 0.6;
-    }
-
-    .nav-tabs .nav-link i {
-        margin-right: 8px;
+        font-weight: 600;
         font-size: 1.1rem;
+        margin-bottom: 1rem;
+        padding: 0.75rem 0;
+        border-bottom: 2px solid #e9ecef;
     }
 
+    .section-heading i {
+        margin-right: 8px;
+        color: #007bff;
+    }
+
+    /* Customization section styling */
+    .customization-section {
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+    }
+
+    .customization-section:last-child {
+        margin-bottom: 0;
+    }
+
+    /* Tab content and pane styles for initials tab (keeping for backward compatibility) */
     .tab-content {
         min-height: 400px;
         padding: 0;
@@ -777,11 +735,9 @@
         display: block;
     }
 
-    /* Tab-specific customization sections */
-    .tab-pane .customization-section {
-        border: 1px solid #e9ecef;
+    /* Customization sections (no longer tab-specific) */
+    .customization-section {
         background: white;
-        border-left: 3px solid #0d1a80;
         margin: 0;
     }
     
@@ -831,6 +787,53 @@
         line-height: 1.2;
         text-align: center;
     }
+    
+    /* Type selection buttons */
+    .avatar-type-selection {
+        border-top: 1px solid #e9ecef;
+        padding-top: 1rem;
+    }
+    
+    .type-option-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 12px 20px;
+        border: 2px solid #dee2e6;
+        border-radius: 8px;
+        background: white;
+        cursor: pointer;
+        transition: all 0.2s;
+        gap: 8px;
+        font-family: inherit;
+        font-size: inherit;
+        line-height: inherit;
+    }
+    
+    .type-option-btn i {
+        font-size: 1.5rem;
+        color: #6c757d;
+    }
+    
+    .type-option-btn span {
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+    
+    .type-option-btn:hover {
+        border-color: #0d1a80;
+        background: #f0f2ff;
+    }
+    
+    .type-option-btn.active {
+        border-color: #0d1a80;
+        background: #0d1a80;
+        color: white;
+    }
+    
+    .type-option-btn.active i {
+        color: white;
+    }
 </style>
 
 @code {
@@ -844,13 +847,13 @@
     private bool isLoadingPreview = false;
     private string? currentAvatarDataUrl;
     private Dictionary<string, string> previewCache = new();
-    private Dictionary<string, string> texturePreviewCache = new();
+    private string cacheVersion = Guid.NewGuid().ToString(); // Force cache refresh
 
     // Customization options
     private bool flipAvatar = false;
     
     // Tab management
-    private string activeTab = "type";
+    private string activeTab = "face";
     
     // Selected colors
     private string selectedBackgroundColor = "transparent";
@@ -860,7 +863,6 @@
     private string selectedMouthType = "smile01";
     private string selectedFaceType = "square01";
     private string selectedSidesType = "antenna01";
-    private string selectedTextureType = "circuits";
     private string selectedTopType = "antenna";
     private string selectedBaseColor = "#1e88e5";
     
@@ -890,10 +892,6 @@
         "antenna01", "antenna02", "cables01", "cables02", "round", "square", "squareAssymetric"
     };
     
-    // Texture types for robots (from DiceBear Bottts docs)
-    private readonly string[] textureTypes = new[] {
-        "circuits", "circuits2", "dots", "grunge01", "grunge02", "grunge03", "grunge04", "grunge05"
-    };
     
     // Top types for robots
     private readonly string[] topTypes = new[] {
@@ -924,6 +922,10 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Clear cache and reset version on initialization
+        previewCache.Clear();
+        cacheVersion = Guid.NewGuid().ToString();
+        
         if (string.IsNullOrEmpty(SelectedDiceBearSeed))
         {
             SelectedDiceBearSeed = Guid.NewGuid().ToString("N")[..8];
@@ -1044,10 +1046,6 @@
             selectedTopType = topElement.GetString() ?? "antenna";
         }
         
-        if (options.TryGetValue("texture", out var texture) && texture is JsonElement textureElement && textureElement.ValueKind == JsonValueKind.String)
-        {
-            selectedTextureType = textureElement.GetString() ?? "circuits";
-        }
         
         if (options.TryGetValue("flip", out var flip) && flip is JsonElement flipElement && flipElement.ValueKind == JsonValueKind.True)
         {
@@ -1084,7 +1082,15 @@
     private async Task SelectStyleAndSwitchTab(string style)
     {
         await SelectStyle(style);
-        activeTab = "customize"; // Auto-switch to customize tab after selecting a style
+        // Set appropriate initial tab based on style
+        if (style == "bottts")
+        {
+            activeTab = "face";
+        }
+        else if (style == "initials")
+        {
+            activeTab = "text";
+        }
         StateHasChanged();
     }
     
@@ -1167,7 +1173,7 @@
         // Load eye type previews
         foreach (var eyeType in eyeTypes)
         {
-            var cacheKey = $"eye_{eyeType}_{selectedBaseColor}";
+            var cacheKey = $"eye_{eyeType}_{selectedBaseColor}_{cacheVersion}";
             if (!previewCache.ContainsKey(cacheKey))
             {
                 tasks.Add(LoadPreview("eye", eyeType));
@@ -1177,7 +1183,7 @@
         // Load mouth type previews
         foreach (var mouthType in mouthTypes)
         {
-            var cacheKey = $"mouth_{mouthType}_{selectedBaseColor}";
+            var cacheKey = $"mouth_{mouthType}_{selectedBaseColor}_{cacheVersion}";
             if (!previewCache.ContainsKey(cacheKey))
             {
                 tasks.Add(LoadPreview("mouth", mouthType));
@@ -1187,7 +1193,7 @@
         // Load face type previews
         foreach (var faceType in faceTypes)
         {
-            var cacheKey = $"face_{faceType}_{selectedBaseColor}";
+            var cacheKey = $"face_{faceType}_{selectedBaseColor}_{cacheVersion}";
             if (!previewCache.ContainsKey(cacheKey))
             {
                 tasks.Add(LoadPreview("face", faceType));
@@ -1197,7 +1203,7 @@
         // Load sides type previews
         foreach (var sidesType in sidesTypes)
         {
-            var cacheKey = $"sides_{sidesType}_{selectedBaseColor}";
+            var cacheKey = $"sides_{sidesType}_{selectedBaseColor}_{cacheVersion}";
             if (!previewCache.ContainsKey(cacheKey))
             {
                 tasks.Add(LoadPreview("sides", sidesType));
@@ -1207,22 +1213,13 @@
         // Load top type previews
         foreach (var topType in topTypes)
         {
-            var cacheKey = $"top_{topType}_{selectedBaseColor}";
+            var cacheKey = $"top_{topType}_{selectedBaseColor}_{cacheVersion}";
             if (!previewCache.ContainsKey(cacheKey))
             {
                 tasks.Add(LoadPreview("top", topType));
             }
         }
 
-        // Load texture previews with actual robot
-        foreach (var texture in textureTypes)
-        {
-            var cacheKey = $"texture-{texture}-{selectedBaseColor}";
-            if (!texturePreviewCache.ContainsKey(cacheKey))
-            {
-                tasks.Add(LoadTexturePreview(texture));
-            }
-        }
         
         if (tasks.Count > 0)
         {
@@ -1236,7 +1233,8 @@
         var options = new Dictionary<string, object>
         {
             { "backgroundColor", "#f8f9fa" },
-            { "baseColor", selectedBaseColor }
+            { "baseColor", selectedBaseColor },
+            { "texture", new string[] { } }  // Explicitly exclude textures
         };
 
         // Set default values for all options
@@ -1245,7 +1243,6 @@
         options["mouth"] = selectedMouthType;
         options["sides"] = selectedSidesType;
         options["top"] = selectedTopType;
-        options["texture"] = selectedTextureType;
         
         // Override the specific option being previewed
         switch (optionType)
@@ -1270,7 +1267,7 @@
         // Use a unique seed for each preview to show actual differences
         var previewSeed = $"preview_{optionType}_{optionValue}";
         var dataUrl = await DiceBearService.GetAvatarDataUrlAsync("bottts", previewSeed, options);
-        var cacheKey = $"{optionType}_{optionValue}_{selectedBaseColor}";
+        var cacheKey = $"{optionType}_{optionValue}_{selectedBaseColor}_{cacheVersion}";
         previewCache[cacheKey] = dataUrl;
     }
 
@@ -1291,7 +1288,7 @@
             options["mouth"] = selectedMouthType;
             options["sides"] = selectedSidesType;
             options["top"] = selectedTopType;
-            options["texture"] = selectedTextureType;
+            options["texture"] = new string[] { };  // Explicitly exclude textures
             
             if (selectedBackgroundColor != "transparent")
             {
@@ -1345,49 +1342,47 @@
         await UpdateAvatar();
     }
     
-    private async Task SelectTexture(string texture)
+    private string FormatLabel(string label)
     {
-        selectedTextureType = texture;
-        await UpdateAvatar();
-    }
-    
-    private async Task LoadTexturePreview(string texture)
-    {
-        var cacheKey = $"texture-{texture}-{selectedBaseColor}";
+        if (string.IsNullOrEmpty(label))
+            return label;
         
-        // Skip if already cached for this color
-        if (texturePreviewCache.ContainsKey(cacheKey))
-            return;
+        // Remove numbers at the end (e.g., "round01" -> "round")
+        var cleanLabel = System.Text.RegularExpressions.Regex.Replace(label, @"\d+$", "");
         
-        await Task.Run(() =>
+        // Add spaces between camelCase words (e.g., "roundFrame" -> "round Frame")
+        cleanLabel = System.Text.RegularExpressions.Regex.Replace(cleanLabel, @"([a-z])([A-Z])", "$1 $2");
+        
+        // Special cases for specific labels
+        cleanLabel = cleanLabel switch
         {
-            // Double-check in case another thread added it
-            if (texturePreviewCache.ContainsKey(cacheKey))
-                return;
-                
-            // Just use the URL directly for better performance
-            var options = new Dictionary<string, object>
+            "squareAssymetric" => "Square Asymmetric",
+            "antennaCrooked" => "Antenna Crooked",
+            "glowingBulb" => "Glowing Bulb",
+            "roundFrame" => "Round Frame",
+            "robocop" => "Robocop",
+            "eva" => "Eva",
+            _ => cleanLabel
+        };
+        
+        // Capitalize first letter of each word
+        var words = cleanLabel.Split(' ');
+        for (int i = 0; i < words.Length; i++)
+        {
+            if (!string.IsNullOrEmpty(words[i]))
             {
-                { "backgroundColor", "#f8f9fa" },
-                { "baseColor", selectedBaseColor },
-                { "eyes", selectedEyeType },
-                { "face", selectedFaceType },
-                { "mouth", selectedMouthType },
-                { "sides", selectedSidesType },
-                { "top", selectedTopType },
-                { "texture", texture }  // Show this specific texture
-            };
-            
-            var url = DiceBearAvatars.GenerateAvatarUrl("bottts", SelectedDiceBearSeed ?? "default", "svg", options);
-            texturePreviewCache[cacheKey] = url;
-        });
+                words[i] = char.ToUpper(words[i][0]) + (words[i].Length > 1 ? words[i].Substring(1).ToLower() : "");
+            }
+        }
+        
+        return string.Join(" ", words);
     }
     
     private async Task SelectBaseColor(string color)
     {
         selectedBaseColor = color;
         previewCache.Clear(); // Clear cache to reload with new color
-        texturePreviewCache.Clear(); // Clear texture previews to reload with new color
+        cacheVersion = Guid.NewGuid().ToString(); // Reset cache version to force regeneration
         await UpdateAvatar();
         await LoadCustomizationPreviews();
     }

@@ -1,0 +1,336 @@
+@namespace SteelEstimation.Web.Shared.Components
+@using Microsoft.AspNetCore.Components
+
+<div class="standard-toolbar @Class">
+    <div class="toolbar-section toolbar-primary">
+        @if (ShowNew && !string.IsNullOrEmpty(NewUrl))
+        {
+            <a href="@NewUrl" class="btn btn-toolbar btn-new">
+                <i class="fas fa-plus"></i>
+                <span>@NewLabel</span>
+            </a>
+        }
+        @if (ShowNew && OnNewClick.HasDelegate)
+        {
+            <button class="btn btn-toolbar btn-new" @onclick="OnNewClick">
+                <i class="fas fa-plus"></i>
+                <span>@NewLabel</span>
+            </button>
+        }
+        
+        @if (ShowImport)
+        {
+            <button class="btn btn-toolbar btn-import" @onclick="OnImportClick" disabled="@(!OnImportClick.HasDelegate)">
+                <i class="fas fa-file-import"></i>
+                <span>Import</span>
+            </button>
+        }
+        
+        @if (ShowExport)
+        {
+            <button class="btn btn-toolbar btn-export" @onclick="OnExportClick" disabled="@(!OnExportClick.HasDelegate)">
+                <i class="fas fa-file-export"></i>
+                <span>Export</span>
+            </button>
+        }
+        
+        @PrimaryActions
+    </div>
+
+    <div class="toolbar-section toolbar-secondary">
+        @if (ShowBulkDelete && HasSelection)
+        {
+            <button class="btn btn-toolbar btn-delete" @onclick="OnBulkDeleteClick">
+                <i class="fas fa-trash"></i>
+                <span>Delete (@SelectionCount)</span>
+            </button>
+        }
+        
+        @if (ShowReport)
+        {
+            <div class="dropdown">
+                <button class="btn btn-toolbar btn-report dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>Reports</span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    @if (ReportItems != null)
+                    {
+                        @foreach (var report in ReportItems)
+                        {
+                            <li>
+                                <a class="dropdown-item" href="#" @onclick:preventDefault="true" @onclick="async () => await OnReportClick.InvokeAsync(report.Key)">
+                                    <i class="@report.Icon me-2"></i>@report.Label
+                                </a>
+                            </li>
+                        }
+                    }
+                    else
+                    {
+                        <li>
+                            <a class="dropdown-item" href="#" @onclick:preventDefault="true" @onclick="@(async () => await OnReportClick.InvokeAsync("summary"))">
+                                <i class="fas fa-file-alt me-2"></i>Summary Report
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item" href="#" @onclick:preventDefault="true" @onclick="@(async () => await OnReportClick.InvokeAsync("detailed"))">
+                                <i class="fas fa-file-invoice me-2"></i>Detailed Report
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item" href="#" @onclick:preventDefault="true" @onclick="@(async () => await OnReportClick.InvokeAsync("export-csv"))">
+                                <i class="fas fa-file-csv me-2"></i>Export to CSV
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item" href="#" @onclick:preventDefault="true" @onclick="@(async () => await OnReportClick.InvokeAsync("export-pdf"))">
+                                <i class="fas fa-file-pdf me-2"></i>Export to PDF
+                            </a>
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+        
+        @if (ShowActions)
+        {
+            <div class="dropdown">
+                <button class="btn btn-toolbar btn-actions dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    <i class="fas fa-ellipsis-v"></i>
+                    <span>Actions</span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    @if (ActionItems != null)
+                    {
+                        @foreach (var action in ActionItems)
+                        {
+                            if (action.IsDivider)
+                            {
+                                <li><hr class="dropdown-divider"></li>
+                            }
+                            else
+                            {
+                                <li>
+                                    <a class="dropdown-item @(action.IsDestructive ? "text-danger" : "")" 
+                                       href="#" @onclick:preventDefault="true" 
+                                       @onclick="async () => await OnActionClick.InvokeAsync(action.Key)">
+                                        <i class="@action.Icon me-2"></i>@action.Label
+                                    </a>
+                                </li>
+                            }
+                        }
+                    }
+                    else
+                    {
+                        <li>
+                            <a class="dropdown-item" href="#" @onclick:preventDefault="true" @onclick="@(async () => await OnActionClick.InvokeAsync("refresh"))">
+                                <i class="fas fa-sync-alt me-2"></i>Refresh
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item" href="#" @onclick:preventDefault="true" @onclick="@(async () => await OnActionClick.InvokeAsync("settings"))">
+                                <i class="fas fa-cog me-2"></i>Settings
+                            </a>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <a class="dropdown-item" href="#" @onclick:preventDefault="true" @onclick="@(async () => await OnActionClick.InvokeAsync("archive"))">
+                                <i class="fas fa-archive me-2"></i>Archive
+                            </a>
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+        
+        @if (ShowRelated && RelatedItems != null && RelatedItems.Any())
+        {
+            <div class="dropdown">
+                <button class="btn btn-toolbar btn-related dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    <i class="fas fa-link"></i>
+                    <span>Related</span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    @foreach (var related in RelatedItems)
+                    {
+                        <li>
+                            <a class="dropdown-item" href="@related.Url">
+                                <i class="@related.Icon me-2"></i>@related.Label
+                                @if (related.Count > 0)
+                                {
+                                    <span class="badge bg-secondary ms-2">@related.Count</span>
+                                }
+                            </a>
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+        
+        @SecondaryActions
+    </div>
+
+    <div class="toolbar-section toolbar-utilities">
+        @if (ShowSearch)
+        {
+            <div class="toolbar-search">
+                <div class="input-group">
+                    <span class="input-group-text">
+                        <i class="fas fa-search"></i>
+                    </span>
+                    <input type="text" class="form-control" placeholder="@SearchPlaceholder" 
+                           @bind="SearchTerm" @bind:event="oninput" />
+                    @if (!string.IsNullOrEmpty(SearchTerm))
+                    {
+                        <button class="btn btn-outline-secondary" type="button" @onclick="ClearSearch">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    }
+                </div>
+            </div>
+        }
+        
+        @if (ShowRefresh)
+        {
+            <button class="btn btn-toolbar btn-refresh" @onclick="OnRefreshClick" title="Refresh">
+                <i class="fas fa-sync-alt @(IsRefreshing ? "fa-spin" : "")"></i>
+                <span class="d-none d-md-inline">Refresh</span>
+            </button>
+        }
+        
+        @if (ShowFilter)
+        {
+            <button class="btn btn-toolbar btn-filter @(HasActiveFilters ? "active" : "")" 
+                    @onclick="OnFilterClick" title="Filter">
+                <i class="fas fa-filter"></i>
+                <span class="d-none d-md-inline">Filter</span>
+                @if (ActiveFilterCount > 0)
+                {
+                    <span class="badge bg-danger ms-1">@ActiveFilterCount</span>
+                }
+            </button>
+        }
+        
+        @if (ShowViewOptions)
+        {
+            <div class="btn-group" role="group">
+                <button class="btn btn-toolbar @(ViewMode == "grid" ? "active" : "")" 
+                        @onclick="@(async () => await SetViewMode("grid"))" title="Grid View">
+                    <i class="fas fa-th"></i>
+                </button>
+                <button class="btn btn-toolbar @(ViewMode == "list" ? "active" : "")" 
+                        @onclick="@(async () => await SetViewMode("list"))" title="List View">
+                    <i class="fas fa-list"></i>
+                </button>
+                <button class="btn btn-toolbar @(ViewMode == "compact" ? "active" : "")" 
+                        @onclick="@(async () => await SetViewMode("compact"))" title="Compact View">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+        }
+        
+        @UtilityActions
+    </div>
+</div>
+
+@code {
+    // Display control
+    [Parameter] public bool ShowNew { get; set; } = true;
+    [Parameter] public bool ShowImport { get; set; } = false;
+    [Parameter] public bool ShowExport { get; set; } = false;
+    [Parameter] public bool ShowBulkDelete { get; set; } = true;
+    [Parameter] public bool ShowReport { get; set; } = true;
+    [Parameter] public bool ShowActions { get; set; } = true;
+    [Parameter] public bool ShowRelated { get; set; } = true;
+    [Parameter] public bool ShowSearch { get; set; } = false;
+    [Parameter] public bool ShowRefresh { get; set; } = true;
+    [Parameter] public bool ShowFilter { get; set; } = false;
+    [Parameter] public bool ShowViewOptions { get; set; } = false;
+    
+    // Labels and text
+    [Parameter] public string NewLabel { get; set; } = "New";
+    [Parameter] public string? NewUrl { get; set; }
+    [Parameter] public string SearchPlaceholder { get; set; } = "Search...";
+    [Parameter] public string Class { get; set; } = "";
+    
+    // State
+    [Parameter] public bool HasSelection { get; set; }
+    [Parameter] public int SelectionCount { get; set; }
+    [Parameter] public bool IsRefreshing { get; set; }
+    [Parameter] public bool HasActiveFilters { get; set; }
+    [Parameter] public int ActiveFilterCount { get; set; }
+    [Parameter] public string ViewMode { get; set; } = "list";
+    
+    // Search binding
+    private string _searchTerm = "";
+    [Parameter] public string SearchTerm 
+    { 
+        get => _searchTerm;
+        set
+        {
+            if (_searchTerm != value)
+            {
+                _searchTerm = value;
+                SearchTermChanged.InvokeAsync(value);
+            }
+        }
+    }
+    [Parameter] public EventCallback<string> SearchTermChanged { get; set; }
+    
+    // Custom content
+    [Parameter] public RenderFragment? PrimaryActions { get; set; }
+    [Parameter] public RenderFragment? SecondaryActions { get; set; }
+    [Parameter] public RenderFragment? UtilityActions { get; set; }
+    
+    // Data items
+    [Parameter] public List<ToolbarActionItem>? ActionItems { get; set; }
+    [Parameter] public List<ToolbarReportItem>? ReportItems { get; set; }
+    [Parameter] public List<ToolbarRelatedItem>? RelatedItems { get; set; }
+    
+    // Event callbacks
+    [Parameter] public EventCallback OnNewClick { get; set; }
+    [Parameter] public EventCallback OnImportClick { get; set; }
+    [Parameter] public EventCallback OnExportClick { get; set; }
+    [Parameter] public EventCallback OnBulkDeleteClick { get; set; }
+    [Parameter] public EventCallback OnRefreshClick { get; set; }
+    [Parameter] public EventCallback OnFilterClick { get; set; }
+    [Parameter] public EventCallback<string> OnReportClick { get; set; }
+    [Parameter] public EventCallback<string> OnActionClick { get; set; }
+    [Parameter] public EventCallback<string> OnViewModeChange { get; set; }
+    
+    private void ClearSearch()
+    {
+        SearchTerm = "";
+    }
+    
+    private async Task SetViewMode(string mode)
+    {
+        ViewMode = mode;
+        await OnViewModeChange.InvokeAsync(mode);
+    }
+    
+    // Helper classes for toolbar items
+    public class ToolbarActionItem
+    {
+        public string Key { get; set; } = "";
+        public string Label { get; set; } = "";
+        public string Icon { get; set; } = "fas fa-cog";
+        public bool IsDestructive { get; set; }
+        public bool IsDivider { get; set; }
+    }
+    
+    public class ToolbarReportItem
+    {
+        public string Key { get; set; } = "";
+        public string Label { get; set; } = "";
+        public string Icon { get; set; } = "fas fa-file-alt";
+    }
+    
+    public class ToolbarRelatedItem
+    {
+        public string Label { get; set; } = "";
+        public string Url { get; set; } = "#";
+        public string Icon { get; set; } = "fas fa-link";
+        public int Count { get; set; }
+    }
+}

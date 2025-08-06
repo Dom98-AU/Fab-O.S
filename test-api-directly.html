@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test DiceBear API Directly</title>
+</head>
+<body>
+    <h1>Testing DiceBear Bottts API v9.x</h1>
+    
+    <h2>With texture[]=</h2>
+    <p>This should explicitly disable textures:</p>
+    <img src="https://api.dicebear.com/9.x/bottts/svg?seed=test&baseColor=1e88e5&face=round01&texture[]=" width="100" />
+    <img src="https://api.dicebear.com/9.x/bottts/svg?seed=test&baseColor=1e88e5&face=square03&texture[]=" width="100" />
+    
+    <h2>Without any texture parameter</h2>
+    <p>This might include default textures:</p>
+    <img src="https://api.dicebear.com/9.x/bottts/svg?seed=test&baseColor=1e88e5&face=round01" width="100" />
+    <img src="https://api.dicebear.com/9.x/bottts/svg?seed=test&baseColor=1e88e5&face=square03" width="100" />
+    
+    <h2>Testing different seeds</h2>
+    <p>Different seeds with same face:</p>
+    <img src="https://api.dicebear.com/9.x/bottts/svg?seed=abc&baseColor=1e88e5&face=round01&texture[]=" width="100" />
+    <img src="https://api.dicebear.com/9.x/bottts/svg?seed=xyz&baseColor=1e88e5&face=round01&texture[]=" width="100" />
+    
+    <p>Open this HTML file in a browser to see if texture[]= actually removes the patterns</p>
+</body>
+</html>

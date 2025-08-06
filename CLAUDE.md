@@ -138,3 +138,4 @@ When new features require database changes, run the appropriate migration:
 
 - If playwrite MCP Test fully pass  delete them after
 - I prefer to run sql scripts (.sql) when updating databases 
+- When making changes to the system please always remove docker images, clear all build cache objects, rebuild completely from scratch
