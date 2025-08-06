@@ -8,6 +8,15 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:80
+      # Database connection from environment variables (following Microsoft's pattern)
+      - ConnectionStrings__DefaultConnection=${SQLCONNSTR_DefaultConnection}
+      # OAuth Settings
+      - Authentication__Microsoft__ClientId=${MICROSOFT_CLIENT_ID}
+      - Authentication__Microsoft__ClientSecret=${MICROSOFT_CLIENT_SECRET}
+      # Google Maps API
+      - GoogleMaps__ApiKey=${GOOGLE_MAPS_API_KEY}
+    env_file:
+      - .env
     ports:
       - "8080:80"
     networks:

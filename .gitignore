@@ -595,3 +595,10 @@ abr-guid.txt
 
 # MCP sensitive files
 set-mcp-env.ps1
+# Environment variables and secrets
+.env
+.env.local
+*.env
+appsettings.Development.json
+appsettings.Production.json
+appsettings.Staging.json
