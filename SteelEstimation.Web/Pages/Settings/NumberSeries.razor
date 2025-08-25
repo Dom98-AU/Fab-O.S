@@ -1,0 +1,441 @@
+@page "/settings/number-series"
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Authorization
+@using SteelEstimation.Infrastructure.Data
+@using SteelEstimation.Core.Interfaces
+@using NumberSeriesEntity = SteelEstimation.Core.Entities.NumberSeries
+@using SteelEstimation.Core.Entities
+@inject INumberSeriesService NumberSeriesService
+@inject ApplicationDbContext DbContext
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@attribute [Authorize(Roles = "Administrator")]
+
+<PageTitle>Number Series Configuration</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3><i class="fas fa-hashtag me-2"></i>Number Series Configuration</h3>
+        <button class="btn btn-primary" @onclick="InitializeDefaults" disabled="@isLoading">
+            <i class="fas fa-sync me-2"></i>Initialize Defaults
+        </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="fas fa-check-circle me-2"></i>@successMessage
+            <button type="button" class="btn-close" @onclick="() => successMessage = null"></button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-circle me-2"></i>@errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+        </div>
+    }
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (numberSeriesList == null || !numberSeriesList.Any())
+    {
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            No number series configured. Click "Initialize Defaults" to set up automatic numbering.
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            @foreach (var series in numberSeriesList)
+            {
+                <div class="col-lg-6 col-xl-4 mb-4">
+                    <div class="card h-100 @(series.IsActive ? "" : "opacity-75")">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="@GetEntityIcon(series.EntityType) me-2"></i>
+                                @series.EntityType
+                            </h5>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" @bind="series.IsActive" 
+                                       @onclick="() => ToggleActive(series)" />
+                                <label class="form-check-label">
+                                    @(series.IsActive ? "Active" : "Inactive")
+                                </label>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label small text-muted">Current Format</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="text" class="form-control" value="@series.Prefix" 
+                                           @onchange="e => UpdatePrefix(series, e.Value?.ToString())" 
+                                           placeholder="Prefix" />
+                                    <span class="input-group-text">@series.CurrentNumber.ToString($"D{series.MinDigits}")</span>
+                                    <input type="text" class="form-control" value="@series.Suffix" 
+                                           @onchange="e => UpdateSuffix(series, e.Value?.ToString())" 
+                                           placeholder="Suffix" />
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label small text-muted">Next Number Preview</label>
+                                <div class="alert alert-light py-2 text-center">
+                                    <strong>@series.GetNextNumberPreview()</strong>
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <label class="form-label small text-muted">Current #</label>
+                                    <input type="number" class="form-control form-control-sm" 
+                                           value="@series.CurrentNumber" readonly />
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small text-muted">Min Digits</label>
+                                    <input type="number" class="form-control form-control-sm" 
+                                           value="@series.MinDigits" min="1" max="10"
+                                           @onchange="e => UpdateMinDigits(series, e.Value?.ToString())" />
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" @bind="series.IncludeYear" 
+                                           @onclick="() => UpdateOptions(series)" />
+                                    <label class="form-check-label small">Include Year</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" @bind="series.IncludeMonth" 
+                                           @onclick="() => UpdateOptions(series)" />
+                                    <label class="form-check-label small">Include Month</label>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" @bind="series.ResetYearly" 
+                                           @onclick="() => UpdateOptions(series)" />
+                                    <label class="form-check-label small">Reset Yearly</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" @bind="series.ResetMonthly" 
+                                           @onclick="() => UpdateOptions(series)" />
+                                    <label class="form-check-label small">Reset Monthly</label>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" @bind="series.AllowManualEntry" 
+                                           @onclick="() => UpdateOptions(series)" />
+                                    <label class="form-check-label small">Allow Manual Override</label>
+                                </div>
+                            </div>
+
+                            <div class="d-flex justify-content-between">
+                                <button class="btn btn-sm btn-outline-primary" @onclick="() => EditAdvanced(series)">
+                                    <i class="fas fa-cog me-1"></i>Advanced
+                                </button>
+                                <button class="btn btn-sm btn-outline-warning" @onclick="() => ResetSeries(series)">
+                                    <i class="fas fa-undo me-1"></i>Reset
+                                </button>
+                            </div>
+
+                            @if (series.LastUsed != default)
+                            {
+                                <div class="mt-2">
+                                    <small class="text-muted">Last used: @series.LastUsed.ToString("g")</small>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<!-- Advanced Configuration Modal -->
+@if (showAdvancedModal && editingSeries != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Advanced Configuration - @editingSeries.EntityType</h5>
+                    <button type="button" class="btn-close" @onclick="CloseAdvancedModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Custom Format String</label>
+                        <input type="text" class="form-control" @bind="editingSeries.Format" 
+                               placeholder="e.g., {Prefix}{Year}-{Number:D5}{Suffix}" />
+                        <small class="text-muted">
+                            Available placeholders: {Prefix}, {Suffix}, {Number}, {Year}, {YY}, {Month}, {Day}
+                        </small>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Starting Number</label>
+                            <input type="number" class="form-control" @bind="editingSeries.StartingNumber" min="1" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Increment By</label>
+                            <input type="number" class="form-control" @bind="editingSeries.IncrementBy" min="1" />
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" @bind="editingSeries.Description" rows="2"></textarea>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <strong>Preview:</strong> @editingSeries.GetNextNumberPreview()
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseAdvancedModal">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveAdvanced">
+                        <i class="fas fa-save me-2"></i>Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
+
+<!-- Reset Confirmation Modal -->
+@if (showResetModal && resetSeries != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Reset Number Series - @resetSeries.EntityType</h5>
+                    <button type="button" class="btn-close" @onclick="CloseResetModal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>This will reset the counter for @resetSeries.EntityType.</p>
+                    <div class="mb-3">
+                        <label class="form-label">New Starting Number</label>
+                        <input type="number" class="form-control" @bind="resetStartNumber" min="1" />
+                    </div>
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Warning: Make sure the new starting number doesn't conflict with existing records.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseResetModal">Cancel</button>
+                    <button type="button" class="btn btn-danger" @onclick="ConfirmReset">
+                        <i class="fas fa-undo me-2"></i>Reset Counter
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
+
+@code {
+    private List<NumberSeriesEntity> numberSeriesList = new();
+    private User? currentUser;
+    private bool isLoading = true;
+    private string? errorMessage;
+    private string? successMessage;
+    
+    // Modal states
+    private bool showAdvancedModal = false;
+    private NumberSeriesEntity? editingSeries;
+    private bool showResetModal = false;
+    private NumberSeriesEntity? resetSeries;
+    private int resetStartNumber = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        errorMessage = null;
+        
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            currentUser = await DbContext.Users
+                .Include(u => u.Company)
+                .FirstOrDefaultAsync(u => u.Email == authState.User.Identity!.Name);
+            
+            if (currentUser?.CompanyId != null)
+            {
+                numberSeriesList = await NumberSeriesService.GetAllNumberSeriesAsync(currentUser.CompanyId);
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading number series: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task InitializeDefaults()
+    {
+        if (currentUser?.CompanyId == null) return;
+        
+        try
+        {
+            await NumberSeriesService.InitializeDefaultNumberSeriesAsync(currentUser.CompanyId, currentUser.Id);
+            successMessage = "Default number series initialized successfully";
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error initializing defaults: {ex.Message}";
+        }
+    }
+
+    private async Task ToggleActive(NumberSeriesEntity series)
+    {
+        try
+        {
+            series.LastModifiedByUserId = currentUser?.Id;
+            await NumberSeriesService.ConfigureNumberSeriesAsync(series);
+            successMessage = $"{series.EntityType} numbering {(series.IsActive ? "activated" : "deactivated")}";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error updating status: {ex.Message}";
+        }
+    }
+
+    private async Task UpdatePrefix(NumberSeriesEntity series, string? value)
+    {
+        series.Prefix = value;
+        await SaveChanges(series);
+    }
+
+    private async Task UpdateSuffix(NumberSeriesEntity series, string? value)
+    {
+        series.Suffix = value;
+        await SaveChanges(series);
+    }
+
+    private async Task UpdateMinDigits(NumberSeriesEntity series, string? value)
+    {
+        if (int.TryParse(value, out var digits) && digits > 0 && digits <= 10)
+        {
+            series.MinDigits = digits;
+            await SaveChanges(series);
+        }
+    }
+
+    private async Task UpdateOptions(NumberSeriesEntity series)
+    {
+        await SaveChanges(series);
+    }
+
+    private async Task SaveChanges(NumberSeriesEntity series)
+    {
+        try
+        {
+            series.LastModifiedByUserId = currentUser?.Id;
+            await NumberSeriesService.ConfigureNumberSeriesAsync(series);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error saving changes: {ex.Message}";
+        }
+    }
+
+    private void EditAdvanced(NumberSeriesEntity series)
+    {
+        editingSeries = series;
+        showAdvancedModal = true;
+    }
+
+    private void CloseAdvancedModal()
+    {
+        showAdvancedModal = false;
+        editingSeries = null;
+    }
+
+    private async Task SaveAdvanced()
+    {
+        if (editingSeries != null)
+        {
+            await SaveChanges(editingSeries);
+            successMessage = $"Advanced settings saved for {editingSeries.EntityType}";
+        }
+        CloseAdvancedModal();
+    }
+
+    private void ResetSeries(NumberSeriesEntity series)
+    {
+        resetSeries = series;
+        resetStartNumber = series.StartingNumber;
+        showResetModal = true;
+    }
+
+    private void CloseResetModal()
+    {
+        showResetModal = false;
+        resetSeries = null;
+        resetStartNumber = 1;
+    }
+
+    private async Task ConfirmReset()
+    {
+        if (resetSeries != null && currentUser?.CompanyId != null)
+        {
+            try
+            {
+                await NumberSeriesService.ResetNumberSeriesAsync(currentUser.CompanyId, resetSeries.EntityType, resetStartNumber);
+                successMessage = $"{resetSeries.EntityType} counter reset to {resetStartNumber}";
+                await LoadData();
+            }
+            catch (Exception ex)
+            {
+                errorMessage = $"Error resetting counter: {ex.Message}";
+            }
+        }
+        CloseResetModal();
+    }
+
+    private string GetEntityIcon(string entityType)
+    {
+        return entityType switch
+        {
+            NumberSeriesEntityTypes.Customer => "fas fa-users",
+            NumberSeriesEntityTypes.Project => "fas fa-project-diagram",
+            NumberSeriesEntityTypes.Package => "fas fa-box",
+            NumberSeriesEntityTypes.WorkCenter => "fas fa-industry",
+            NumberSeriesEntityTypes.MachineCenter => "fas fa-cogs",
+            NumberSeriesEntityTypes.RoutingTemplate => "fas fa-route",
+            NumberSeriesEntityTypes.Estimation => "fas fa-calculator",
+            NumberSeriesEntityTypes.User => "fas fa-user",
+            NumberSeriesEntityTypes.Material => "fas fa-cubes",
+            NumberSeriesEntityTypes.ProcessingItem => "fas fa-tasks",
+            NumberSeriesEntityTypes.WeldingItem => "fas fa-fire",
+            _ => "fas fa-hashtag"
+        };
+    }
+}

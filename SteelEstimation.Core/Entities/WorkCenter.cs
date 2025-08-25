@@ -33,12 +33,40 @@ public class WorkCenter
     public decimal DailyCapacityHours { get; set; } = 8;
     public int SimultaneousOperations { get; set; } = 1;
     
-    // Cost rates
+    // Cost rates - Comprehensive structure
     [Column(TypeName = "decimal(10,2)")]
-    public decimal HourlyRate { get; set; }
+    public decimal HourlyRate { get; set; } // Base hourly rate (legacy/simple mode)
     
     [Column(TypeName = "decimal(10,2)")]
-    public decimal OverheadRate { get; set; }
+    public decimal OverheadRate { get; set; } // Overhead per hour (legacy/simple mode)
+    
+    // Detailed cost breakdown
+    [Column(TypeName = "decimal(10,2)")]
+    public decimal DirectLaborRate { get; set; } = 0; // Direct labor cost per hour
+    
+    [Column(TypeName = "decimal(10,2)")]
+    public decimal IndirectLaborRate { get; set; } = 0; // Indirect labor cost per hour
+    
+    [Column(TypeName = "decimal(10,2)")]
+    public decimal OverheadPercentage { get; set; } = 0; // Overhead as % of labor
+    
+    [Column(TypeName = "decimal(10,2)")]
+    public decimal OtherCostsRate { get; set; } = 0; // Other costs per hour
+    
+    // Profit/Markup configuration
+    [MaxLength(20)]
+    public string ProfitCalculationType { get; set; } = "Percentage"; // Percentage, Fixed, None
+    
+    [Column(TypeName = "decimal(10,2)")]
+    public decimal ProfitValue { get; set; } = 30; // 30% default or fixed amount
+    
+    // Cost calculation method
+    [MaxLength(20)]
+    public string CostingMethod { get; set; } = "Simple"; // Simple (uses HourlyRate), Detailed (uses breakdown)
+    
+    // Dependencies and multipliers
+    [Column(TypeName = "decimal(5,2)")]
+    public decimal DependencyFactor { get; set; } = 1.0m; // Factor for dependent operations
     
     // Efficiency
     [Column(TypeName = "decimal(5,2)")]
@@ -76,6 +104,9 @@ public class WorkCenter
     public virtual ICollection<MachineCenter> MachineCenters { get; set; } = new List<MachineCenter>();
     public virtual ICollection<WorkCenterSkill> RequiredSkills { get; set; } = new List<WorkCenterSkill>();
     public virtual ICollection<WorkCenterShift> Shifts { get; set; } = new List<WorkCenterShift>();
+    public virtual ICollection<ProcessingItemWorkCenterTime> ProcessingTimes { get; set; } = new List<ProcessingItemWorkCenterTime>();
+    public virtual ICollection<WorkCenterDependency> DependentWorkCenters { get; set; } = new List<WorkCenterDependency>();
+    public virtual ICollection<WorkCenterDependency> RequiredForWorkCenters { get; set; } = new List<WorkCenterDependency>();
 }
 
 public class WorkCenterSkill

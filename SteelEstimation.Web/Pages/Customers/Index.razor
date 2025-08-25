@@ -136,7 +136,7 @@
     private HashSet<Customer> selectedCustomers = new();
     
     // DataTable columns configuration - initialized in OnInitializedAsync
-    private List<DataTable<Customer>.TableColumn<Customer>> tableColumns = new();
+    private List<TableColumn<Customer>> tableColumns = new();
 
     // Toolbar configuration
     private List<StandardToolbar.ToolbarReportItem> reportItems = new()
@@ -195,19 +195,19 @@
         companyId = await AuthService.GetUserCompanyIdAsync();
         
         // Initialize DataTable columns
-        tableColumns = new()
+        tableColumns = new List<TableColumn<Customer>>
         {
-            new() { Field = "CompanyName", Title = "Company Name", Sortable = true,
+            new TableColumn<Customer> { Field = "CompanyName", Title = "Company Name", Sortable = true,
                     Template = (customer) => @<strong>@customer.CompanyName</strong> },
-            new() { Field = "TradingName", Title = "Trading Name", 
+            new TableColumn<Customer> { Field = "TradingName", Title = "Trading Name", 
                     Template = (customer) => @<text>@(customer.TradingName ?? "-")</text> },
-            new() { Field = "ABN", Title = "ABN",
+            new TableColumn<Customer> { Field = "ABN", Title = "ABN",
                     Template = (customer) => @<text>@FormatABN(customer.ABN)</text> },
-            new() { Field = "Contacts", Title = "Contacts",
+            new TableColumn<Customer> { Field = "Contacts", Title = "Contacts",
                     Template = (customer) => @<span class="badge bg-secondary">@customer.Contacts.Count(c => c.IsActive)</span> },
-            new() { Field = "Projects", Title = "Projects",
+            new TableColumn<Customer> { Field = "Projects", Title = "Projects",
                     Template = (customer) => @<span class="badge bg-primary">@customer.Projects.Count(p => !p.IsDeleted)</span> },
-            new() { Field = "Status", Title = "Status",
+            new TableColumn<Customer> { Field = "Status", Title = "Status",
                     Template = (customer) => customer.IsActive 
                         ? @<span class="badge bg-success">Active</span>
                         : @<span class="badge bg-danger">Inactive</span> }

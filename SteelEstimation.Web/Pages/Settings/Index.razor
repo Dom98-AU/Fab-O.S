@@ -11,14 +11,102 @@
 </div>
 
 <div class="row">
-    <!-- User Management Section -->
-    <div class="col-md-6 mb-4">
-        <div class="card h-100">
+    <!-- OPERATIONAL SETTINGS COLUMN -->
+    <div class="col-lg-6">
+        <h3 class="section-title mb-3">
+            <i class="fas fa-cogs"></i> Operational Settings
+        </h3>
+        
+        <!-- Production & Resources Section -->
+        <div class="card mb-4">
             <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-industry"></i> Production & Resources</h5>
+            </div>
+            <div class="card-body">
+                <p>Configure production resources and workflows</p>
+                <div class="list-group">
+                    <a href="/settings/business-configuration/work-centers" class="list-group-item list-group-item-action">
+                        <i class="fas fa-industry me-2"></i>
+                        <strong>Work Centers</strong>
+                        <small class="d-block text-muted">Manage production work centers</small>
+                    </a>
+                    <a href="/settings/business-configuration/machine-centers" class="list-group-item list-group-item-action">
+                        <i class="fas fa-cogs me-2"></i>
+                        <strong>Machine Centers</strong>
+                        <small class="d-block text-muted">Configure machines and equipment</small>
+                    </a>
+                    <a href="/settings/business-configuration/routing-templates" class="list-group-item list-group-item-action">
+                        <i class="fas fa-project-diagram me-2"></i>
+                        <strong>Routing Templates</strong>
+                        <small class="d-block text-muted">Production routing and operation sequences</small>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Material & Efficiency Section -->
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="fas fa-cubes"></i> Material & Efficiency</h5>
+            </div>
+            <div class="card-body">
+                <p>Material types and efficiency configurations</p>
+                <div class="list-group">
+                    <a href="/admin/material-settings" class="list-group-item list-group-item-action">
+                        <i class="fas fa-boxes me-2"></i>
+                        <strong>Material Settings</strong>
+                        <small class="d-block text-muted">Material types and patterns</small>
+                    </a>
+                    <a href="/admin/efficiency-rates" class="list-group-item list-group-item-action">
+                        <i class="fas fa-percentage me-2"></i>
+                        <strong>Efficiency Rates</strong>
+                        <small class="d-block text-muted">Efficiency presets and rates</small>
+                    </a>
+                    <a href="/admin/connection-types" class="list-group-item list-group-item-action">
+                        <i class="fas fa-link me-2"></i>
+                        <strong>Connection Types</strong>
+                        <small class="d-block text-muted">Welding connection types</small>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Display & Preferences Section -->
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-desktop"></i> Display & Preferences</h5>
+            </div>
+            <div class="card-body">
+                <p>User interface and personal preferences</p>
+                <div class="list-group">
+                    <a href="/settings/display-settings" class="list-group-item list-group-item-action">
+                        <i class="fas fa-palette me-2"></i>
+                        <strong>Display Settings</strong>
+                        <small class="d-block text-muted">UI preferences and themes</small>
+                    </a>
+                    <a href="/settings/user-preferences" class="list-group-item list-group-item-action">
+                        <i class="fas fa-user-cog me-2"></i>
+                        <strong>User Preferences</strong>
+                        <small class="d-block text-muted">Personal settings and defaults</small>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GENERAL BUSINESS SETTINGS COLUMN -->
+    <div class="col-lg-6">
+        <h3 class="section-title mb-3">
+            <i class="fas fa-briefcase"></i> General Business Settings
+        </h3>
+        
+        <!-- User Management Section -->
+        <div class="card mb-4">
+            <div class="card-header bg-secondary text-white">
                 <h5 class="mb-0"><i class="fas fa-users"></i> User Management</h5>
             </div>
             <div class="card-body">
-                <p>Manage platform users, roles, and permissions</p>
+                <p>Manage platform users and access</p>
                 <div class="list-group">
                     <a href="/admin/users" class="list-group-item list-group-item-action">
                         <i class="fas fa-users-cog me-2"></i>
@@ -33,48 +121,22 @@
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Business Configuration Section -->
-    <div class="col-md-6 mb-4">
-        <div class="card h-100">
-            <div class="card-header bg-success text-white">
-                <h5 class="mb-0"><i class="fas fa-briefcase"></i> Business Configuration</h5>
+        <!-- System Configuration Section -->
+        <div class="card mb-4">
+            <div class="card-header bg-purple text-white">
+                <h5 class="mb-0"><i class="fas fa-sliders-h"></i> System Configuration</h5>
             </div>
             <div class="card-body">
-                <p>Configure business operations and production resources</p>
+                <p>Configure system-wide settings</p>
                 <div class="list-group">
-                    <a href="/settings/business-configuration" class="list-group-item list-group-item-action">
-                        <i class="fas fa-cogs me-2"></i>
-                        <strong>Business Settings</strong>
-                        <small class="d-block text-muted">Work centers, machines, and resources</small>
+                    <a href="/settings/number-series" class="list-group-item list-group-item-action">
+                        <i class="fas fa-hashtag me-2"></i>
+                        <strong>Number Series</strong>
+                        <small class="d-block text-muted">Configure auto-numbering for all entities</small>
                     </a>
-                    <a href="/settings/business-configuration/work-centers" class="list-group-item list-group-item-action">
-                        <i class="fas fa-industry me-2"></i>
-                        <strong>Work Centers</strong>
-                        <small class="d-block text-muted">Manage production work centers</small>
-                    </a>
-                    <a href="/settings/business-configuration/machine-centers" class="list-group-item list-group-item-action">
-                        <i class="fas fa-cogs me-2"></i>
-                        <strong>Machine Centers</strong>
-                        <small class="d-block text-muted">Configure machines and equipment</small>
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Platform Configuration Section -->
-    <div class="col-md-6 mb-4">
-        <div class="card h-100">
-            <div class="card-header bg-info text-white">
-                <h5 class="mb-0"><i class="fas fa-sliders-h"></i> Platform Configuration</h5>
-            </div>
-            <div class="card-body">
-                <p>Configure platform-wide settings and integrations</p>
-                <div class="list-group">
                     <a href="/admin/settings" class="list-group-item list-group-item-action">
-                        <i class="fas fa-sliders-h me-2"></i>
+                        <i class="fas fa-cog me-2"></i>
                         <strong>General Settings</strong>
                         <small class="d-block text-muted">GitHub integration and system configuration</small>
                     </a>
@@ -86,20 +148,18 @@
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Module Configuration Section -->
-    <div class="col-md-6 mb-4">
-        <div class="card h-100">
-            <div class="card-header bg-secondary text-white">
-                <h5 class="mb-0"><i class="fas fa-cubes"></i> Module Configuration</h5>
+        <!-- Module Management Section -->
+        <div class="card mb-4">
+            <div class="card-header bg-orange text-white">
+                <h5 class="mb-0"><i class="fas fa-th"></i> Module Management</h5>
             </div>
             <div class="card-body">
                 <p>Configure module access and licensing</p>
                 <div class="list-group">
                     <a href="/settings/modules" class="list-group-item list-group-item-action">
-                        <i class="fas fa-th me-2"></i>
-                        <strong>Module Management</strong>
+                        <i class="fas fa-puzzle-piece me-2"></i>
+                        <strong>Module Access</strong>
                         <small class="d-block text-muted">Configure module access per company</small>
                     </a>
                     <a href="/settings/product-roles" class="list-group-item list-group-item-action">
@@ -110,13 +170,11 @@
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- System Management Section -->
-    <div class="col-md-6 mb-4">
-        <div class="card h-100">
+        <!-- System Tools Section -->
+        <div class="card mb-4">
             <div class="card-header bg-warning">
-                <h5 class="mb-0"><i class="fas fa-tools"></i> System Management</h5>
+                <h5 class="mb-0"><i class="fas fa-tools"></i> System Tools</h5>
             </div>
             <div class="card-body">
                 <p>System health and maintenance tools</p>
@@ -130,6 +188,11 @@
                         <i class="fas fa-file-alt me-2"></i>
                         <strong>System Logs</strong>
                         <small class="d-block text-muted">View application logs and errors</small>
+                    </a>
+                    <a href="/admin/run-migration" class="list-group-item list-group-item-action">
+                        <i class="fas fa-database me-2"></i>
+                        <strong>Run Migrations</strong>
+                        <small class="d-block text-muted">Execute database migrations</small>
                     </a>
                 </div>
             </div>
@@ -205,6 +268,13 @@
         padding-bottom: 1rem;
     }
 
+    .section-title {
+        color: #495057;
+        font-weight: 600;
+        border-bottom: 2px solid #dee2e6;
+        padding-bottom: 0.5rem;
+    }
+
     .stat-item {
         padding: 1.5rem;
     }
@@ -232,5 +302,23 @@
     .card:hover {
         transform: translateY(-2px);
         box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
+    }
+
+    .bg-purple {
+        background-color: #6f42c1 !important;
+    }
+
+    .bg-orange {
+        background-color: #fd7e14 !important;
+    }
+
+    @@media (max-width: 991px) {
+        .section-title {
+            margin-top: 2rem;
+        }
+        
+        .section-title:first-child {
+            margin-top: 0;
+        }
     }
 </style>

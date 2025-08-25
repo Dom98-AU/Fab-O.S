@@ -1,7 +1,9 @@
 @using SteelEstimation.Core.Entities
 @using SteelEstimation.Infrastructure.Data
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Authorization
 @inject ApplicationDbContext DbContext
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <div class="modal @(IsVisible ? "show d-block" : "")" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-lg" role="document">
@@ -43,14 +45,29 @@
                     </div>
                 </div>
                 
-                <div class="mb-3">
-                    <label class="form-label">Status</label>
-                    <select class="form-control" @bind="status">
-                        <option value="Draft">Draft</option>
-                        <option value="Active">Active</option>
-                        <option value="Completed">Completed</option>
-                        <option value="On Hold">On Hold</option>
-                    </select>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Status</label>
+                        <select class="form-control" @bind="status">
+                            <option value="Draft">Draft</option>
+                            <option value="Active">Active</option>
+                            <option value="Completed">Completed</option>
+                            <option value="On Hold">On Hold</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Routing Template</label>
+                        <select class="form-control" @bind="selectedRoutingId">
+                            <option value="">-- Select Routing --</option>
+                            @if (routingTemplates != null)
+                            {
+                                @foreach (var routing in routingTemplates)
+                                {
+                                    <option value="@routing.Id">@routing.Name (@routing.Code)</option>
+                                }
+                            }
+                        </select>
+                    </div>
                 </div>
                 
             </div>
@@ -84,9 +101,25 @@
     private DateTime? endDate;
     private string status = "Draft";
     private string? errorMessage;
+    private int? selectedRoutingId;
+    private List<RoutingTemplate>? routingTemplates;
     
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
+        // Load routing templates for the current company
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = await DbContext.Users
+            .Include(u => u.Company)
+            .FirstOrDefaultAsync(u => u.Email == authState.User.Identity!.Name);
+            
+        if (user?.CompanyId != null)
+        {
+            routingTemplates = await DbContext.RoutingTemplates
+                .Where(r => r.CompanyId == user.CompanyId && r.IsActive)
+                .OrderBy(r => r.Name)
+                .ToListAsync();
+        }
+        
         if (IsEdit && EditPackage != null)
         {
             packageNumber = EditPackage.PackageNumber;
@@ -95,6 +128,7 @@
             startDate = EditPackage.StartDate;
             endDate = EditPackage.EndDate;
             status = EditPackage.Status;
+            selectedRoutingId = EditPackage.RoutingId;
         }
         else
         {
@@ -105,6 +139,7 @@
             startDate = null;
             endDate = null;
             status = "Draft";
+            selectedRoutingId = null;
         }
         errorMessage = null;
     }
@@ -149,6 +184,7 @@
                 package.StartDate = startDate;
                 package.EndDate = endDate;
                 package.Status = status;
+                package.RoutingId = selectedRoutingId;
                 package.LastModified = DateTime.UtcNow;
                 
                 // For existing packages, we don't remove worksheets - all packages must have all 3 worksheets
@@ -164,6 +200,7 @@
                     StartDate = startDate,
                     EndDate = endDate,
                     Status = status,
+                    RoutingId = selectedRoutingId,
                     CreatedDate = DateTime.UtcNow,
                     LastModified = DateTime.UtcNow,
                     IsDeleted = false

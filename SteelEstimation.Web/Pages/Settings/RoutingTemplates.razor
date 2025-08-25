@@ -1,0 +1,365 @@
+@page "/settings/business-configuration/routing-templates"
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Authorization
+@inject ApplicationDbContext DbContext
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+@attribute [Authorize(Roles = "Administrator,Project Manager")]
+
+<PageTitle>Routing Templates - Business Configuration</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3><i class="fas fa-project-diagram me-2"></i>Routing Templates</h3>
+        <button class="btn btn-primary" @onclick="async () => await ShowAddModal()">
+            <i class="fas fa-plus me-2"></i>Add New Routing
+        </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-circle me-2"></i>@errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+        </div>
+    }
+    
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (routingTemplates == null || !routingTemplates.Any())
+    {
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            No routing templates found. Click "Add New Routing" to create your first routing template.
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Code</th>
+                        <th>Name</th>
+                        <th>Description</th>
+                        <th>Operations</th>
+                        <th>Est. Hours</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var template in routingTemplates)
+                    {
+                        <tr @onclick="() => SelectRoutingTemplate(template)" style="cursor: pointer;">
+                            <td>@template.Code</td>
+                            <td>@template.Name</td>
+                            <td>@(string.IsNullOrEmpty(template.Description) ? "-" : template.Description)</td>
+                            <td>
+                                <span class="badge bg-secondary">
+                                    @template.Operations.Count operations
+                                </span>
+                            </td>
+                            <td>@template.EstimatedTotalHours.ToString("F2") hrs</td>
+                            <td>
+                                @if (template.IsActive)
+                                {
+                                    <span class="badge bg-success">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">Inactive</span>
+                                }
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-primary" @onclick="() => NavigateToDetail(template.Id)" @onclick:stopPropagation="true">
+                                    <i class="fas fa-project-diagram me-1"></i> Configure
+                                </button>
+                                <button class="btn btn-sm btn-secondary" @onclick="() => EditTemplate(template)" @onclick:stopPropagation="true">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => DeleteTemplate(template)" @onclick:stopPropagation="true">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@* Add/Edit Modal *@
+@if (showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(isEdit ? "Edit Routing Template" : "Create New Routing Template")</h5>
+                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-circle me-2"></i>@errorMessage
+                        </div>
+                    }
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Code <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" @bind="editCode" placeholder="e.g., RT-001" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" @bind="editName" placeholder="e.g., Standard Steel Processing" />
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" @bind="editDescription" rows="3" 
+                                  placeholder="Describe the routing template purpose and workflow..."></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        <select class="form-control" @bind="editIsActive">
+                            <option value="true">Active</option>
+                            <option value="false">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveRoutingTemplate">
+                        @if (isEdit)
+                        {
+                            <i class="fas fa-save me-2"></i>@:Update
+                        }
+                        else
+                        {
+                            <i class="fas fa-plus me-2"></i>@:Create
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
+
+@code {
+    private List<RoutingTemplate> routingTemplates = new();
+    private RoutingTemplate? selectedRoutingTemplate;
+    private User? currentUser;
+    private bool isLoading = true;
+    
+    // Modal states
+    private bool showModal = false;
+    private bool isEdit = false;
+    
+    // Edit form fields
+    private string editCode = string.Empty;
+    private string editName = string.Empty;
+    private string? editDescription;
+    private bool editIsActive = true;
+    private string? errorMessage;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCurrentUser();
+        await LoadRoutingTemplates();
+    }
+    
+    private async Task LoadCurrentUser()
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userEmail = authState.User.Identity?.Name;
+            
+            if (string.IsNullOrEmpty(userEmail))
+            {
+                errorMessage = "Unable to get user email from authentication state";
+                return;
+            }
+            
+            currentUser = await DbContext.Users
+                .Include(u => u.Company)
+                .FirstOrDefaultAsync(u => u.Email == userEmail);
+                
+            if (currentUser == null)
+            {
+                errorMessage = $"User not found for email: {userEmail}";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading user: {ex.Message}";
+        }
+    }
+    
+    private async Task LoadRoutingTemplates()
+    {
+        isLoading = true;
+        
+        if (currentUser != null)
+        {
+            routingTemplates = await DbContext.RoutingTemplates
+                .Include(rt => rt.Operations)
+                    .ThenInclude(op => op.WorkCenter)
+                .Where(rt => rt.CompanyId == currentUser.CompanyId)
+                .OrderBy(rt => rt.Code)
+                .ToListAsync();
+        }
+        
+        isLoading = false;
+    }
+    
+    private void SelectRoutingTemplate(RoutingTemplate template)
+    {
+        selectedRoutingTemplate = template;
+    }
+    
+    private void NavigateToDetail(int routingId)
+    {
+        Navigation.NavigateTo($"/settings/business-configuration/routing-templates/{routingId}");
+    }
+    
+    private async Task ShowAddModal()
+    {
+        // Ensure user is loaded
+        if (currentUser == null)
+        {
+            await LoadCurrentUser();
+        }
+        
+        isEdit = false;
+        editCode = string.Empty;
+        editName = string.Empty;
+        editDescription = null;
+        editIsActive = true;
+        errorMessage = null;
+        showModal = true;
+    }
+    
+    private void EditTemplate(RoutingTemplate template)
+    {
+        selectedRoutingTemplate = template;
+        isEdit = true;
+        editCode = template.Code;
+        editName = template.Name;
+        editDescription = template.Description;
+        editIsActive = template.IsActive;
+        errorMessage = null;
+        showModal = true;
+    }
+    
+    private async Task DeleteTemplate(RoutingTemplate template)
+    {
+        if (template == null) return;
+        
+        try
+        {
+            // Check if template is in use
+            var inUse = await DbContext.Packages
+                .AnyAsync(p => p.RoutingId == template.Id && !p.IsDeleted);
+                
+            if (inUse)
+            {
+                errorMessage = "Cannot delete routing template that is in use by packages";
+                return;
+            }
+            
+            DbContext.RoutingTemplates.Remove(template);
+            await DbContext.SaveChangesAsync();
+            await LoadRoutingTemplates();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error deleting routing template: {ex.Message}";
+        }
+    }
+    
+    private void CloseModal()
+    {
+        showModal = false;
+        errorMessage = null;
+    }
+    
+    private async Task SaveRoutingTemplate()
+    {
+        errorMessage = null;
+        
+        // Validation
+        if (string.IsNullOrWhiteSpace(editCode))
+        {
+            errorMessage = "Code is required";
+            return;
+        }
+        
+        if (string.IsNullOrWhiteSpace(editName))
+        {
+            errorMessage = "Name is required";
+            return;
+        }
+        
+        if (currentUser == null)
+        {
+            errorMessage = "User information not found";
+            return;
+        }
+        
+        try
+        {
+            if (isEdit && selectedRoutingTemplate != null)
+            {
+                // Update existing
+                selectedRoutingTemplate.Code = editCode;
+                selectedRoutingTemplate.Name = editName;
+                selectedRoutingTemplate.Description = editDescription;
+                selectedRoutingTemplate.IsActive = editIsActive;
+                selectedRoutingTemplate.LastModified = DateTime.UtcNow;
+                selectedRoutingTemplate.LastModifiedByUserId = currentUser.Id;
+            }
+            else
+            {
+                // Create new
+                var newTemplate = new RoutingTemplate
+                {
+                    Code = editCode,
+                    Name = editName,
+                    Description = editDescription,
+                    CompanyId = currentUser.CompanyId,
+                    IsActive = editIsActive,
+                    CreatedDate = DateTime.UtcNow,
+                    LastModified = DateTime.UtcNow,
+                    CreatedByUserId = currentUser.Id,
+                    LastModifiedByUserId = currentUser.Id
+                };
+                
+                DbContext.RoutingTemplates.Add(newTemplate);
+            }
+            
+            await DbContext.SaveChangesAsync();
+            await LoadRoutingTemplates();
+            CloseModal();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error saving routing template: {ex.Message}";
+        }
+    }
+}

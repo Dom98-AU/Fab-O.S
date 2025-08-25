@@ -157,10 +157,16 @@
                     <!-- Breadcrumb Navigation -->
                     <nav aria-label="breadcrumb" class="breadcrumb-nav">
                         <ol class="breadcrumb mb-0">
-                            <li class="breadcrumb-item"><a href="/">Home</a></li>
-                            @if (!string.IsNullOrEmpty(GetCurrentPageName()))
+                            @foreach (var crumb in GetBreadcrumbs())
                             {
-                                <li class="breadcrumb-item active" aria-current="page">@GetCurrentPageName()</li>
+                                if (crumb.IsActive)
+                                {
+                                    <li class="breadcrumb-item active" aria-current="page">@crumb.Label</li>
+                                }
+                                else
+                                {
+                                    <li class="breadcrumb-item"><a href="@crumb.Url">@crumb.Label</a></li>
+                                }
                             }
                         </ol>
                     </nav>
@@ -656,29 +662,127 @@
         });
     }
     
-    private string GetCurrentPageName()
+    private class BreadcrumbItem
     {
+        public string Label { get; set; } = "";
+        public string Url { get; set; } = "";
+        public bool IsActive { get; set; }
+    }
+    
+    private List<BreadcrumbItem> GetBreadcrumbs()
+    {
+        var breadcrumbs = new List<BreadcrumbItem>();
         var uri = Navigation.Uri;
         var path = new Uri(uri).AbsolutePath.ToLower();
+        var segments = path.Trim('/').Split('/').Where(s => !string.IsNullOrEmpty(s)).ToArray();
         
-        return path switch
+        // Always add Home
+        breadcrumbs.Add(new BreadcrumbItem { Label = "Home", Url = "/", IsActive = path == "/" });
+        
+        if (segments.Length == 0)
+            return breadcrumbs;
+        
+        // Build breadcrumbs based on path segments
+        if (segments[0] == "customers")
         {
-            "/" => "Dashboard",
-            "/customers" => "Customers",
-            "/projects" => "Projects",
-            "/estimation" => "Estimations",
-            "/packages" => "Packages",
-            "/reports" => "Reports",
-            "/settings" => "Settings",
-            "/settings/business-configuration" => "Business Configuration",
-            "/settings/work-centers" => "Work Centers",
-            "/settings/machine-centers" => "Machine Centers",
-            "/admin/users" => "User Management",
-            "/admin/settings" => "Admin Settings",
-            "/profile" => "My Profile",
-            "/notifications" => "Notifications",
-            _ => ""
-        };
+            breadcrumbs.Add(new BreadcrumbItem { Label = "Customers", Url = "/customers", IsActive = segments.Length == 1 });
+        }
+        else if (segments[0] == "settings")
+        {
+            breadcrumbs.Add(new BreadcrumbItem { Label = "Settings", Url = "/settings", IsActive = segments.Length == 1 });
+            
+            if (segments.Length > 1)
+            {
+                if (segments[1] == "business-configuration")
+                {
+                    breadcrumbs.Add(new BreadcrumbItem { 
+                        Label = "Business Configuration", 
+                        Url = "/settings/business-configuration", 
+                        IsActive = segments.Length == 2 
+                    });
+                    
+                    if (segments.Length > 2)
+                    {
+                        if (segments[2] == "routing-templates")
+                        {
+                            breadcrumbs.Add(new BreadcrumbItem { 
+                                Label = "Routing Templates", 
+                                Url = "/settings/business-configuration/routing-templates", 
+                                IsActive = segments.Length == 3 
+                            });
+                            
+                            if (segments.Length > 3)
+                            {
+                                // This is the detail page for a specific routing template
+                                breadcrumbs.Add(new BreadcrumbItem { 
+                                    Label = "Configure", 
+                                    Url = "", 
+                                    IsActive = true 
+                                });
+                            }
+                        }
+                        else if (segments[2] == "work-centers")
+                        {
+                            breadcrumbs.Add(new BreadcrumbItem { 
+                                Label = "Work Centers", 
+                                Url = "/settings/business-configuration/work-centers", 
+                                IsActive = true 
+                            });
+                        }
+                        else if (segments[2] == "machine-centers")
+                        {
+                            breadcrumbs.Add(new BreadcrumbItem { 
+                                Label = "Machine Centers", 
+                                Url = "/settings/business-configuration/machine-centers", 
+                                IsActive = true 
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        else if (segments[0] == "projects")
+        {
+            breadcrumbs.Add(new BreadcrumbItem { Label = "Projects", Url = "/projects", IsActive = segments.Length == 1 });
+        }
+        else if (segments[0] == "estimation")
+        {
+            breadcrumbs.Add(new BreadcrumbItem { Label = "Estimations", Url = "/estimation", IsActive = segments.Length == 1 });
+        }
+        else if (segments[0] == "packages")
+        {
+            breadcrumbs.Add(new BreadcrumbItem { Label = "Packages", Url = "/packages", IsActive = segments.Length == 1 });
+        }
+        else if (segments[0] == "reports")
+        {
+            breadcrumbs.Add(new BreadcrumbItem { Label = "Reports", Url = "/reports", IsActive = segments.Length == 1 });
+        }
+        else if (segments[0] == "admin")
+        {
+            breadcrumbs.Add(new BreadcrumbItem { Label = "Admin", Url = "/admin", IsActive = segments.Length == 1 });
+            
+            if (segments.Length > 1)
+            {
+                if (segments[1] == "users")
+                {
+                    breadcrumbs.Add(new BreadcrumbItem { Label = "User Management", Url = "/admin/users", IsActive = true });
+                }
+                else if (segments[1] == "settings")
+                {
+                    breadcrumbs.Add(new BreadcrumbItem { Label = "Admin Settings", Url = "/admin/settings", IsActive = true });
+                }
+            }
+        }
+        else if (segments[0] == "profile")
+        {
+            breadcrumbs.Add(new BreadcrumbItem { Label = "My Profile", Url = "/profile", IsActive = true });
+        }
+        else if (segments[0] == "notifications")
+        {
+            breadcrumbs.Add(new BreadcrumbItem { Label = "Notifications", Url = "/notifications", IsActive = true });
+        }
+        
+        return breadcrumbs;
     }
     
     public void Dispose()

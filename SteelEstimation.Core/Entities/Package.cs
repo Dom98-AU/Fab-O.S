@@ -39,6 +39,9 @@ public class Package
     // Reference to efficiency rate configuration
     public int? EfficiencyRateId { get; set; }
     
+    // Reference to routing (renamed from RoutingTemplateId)
+    public int? RoutingId { get; set; }
+    
     // Tracking
     public int? CreatedBy { get; set; }
     public int? LastModifiedBy { get; set; }
@@ -51,6 +54,7 @@ public class Package
     public virtual User? CreatedByUser { get; set; }
     public virtual User? LastModifiedByUser { get; set; }
     public virtual EfficiencyRate? EfficiencyRate { get; set; }
+    public virtual RoutingTemplate? Routing { get; set; }
     public virtual ICollection<PackageWorksheet> Worksheets { get; set; } = new List<PackageWorksheet>();
     public virtual ICollection<DeliveryBundle> DeliveryBundles { get; set; } = new List<DeliveryBundle>();
     public virtual ICollection<PackBundle> PackBundles { get; set; } = new List<PackBundle>();

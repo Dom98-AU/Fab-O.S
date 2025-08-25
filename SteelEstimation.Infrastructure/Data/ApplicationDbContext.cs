@@ -34,6 +34,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<CompanyMbeIdMapping> CompanyMbeIdMappings { get; set; }
     public DbSet<CompanyMaterialPattern> CompanyMaterialPatterns { get; set; }
     public DbSet<EfficiencyRate> EfficiencyRates { get; set; }
+    public DbSet<NumberSeries> NumberSeries { get; set; }
     
     // Customer Management
     public DbSet<Customer> Customers { get; set; }
@@ -98,6 +99,12 @@ public class ApplicationDbContext : DbContext
     public DbSet<WorkCenter> WorkCenters { get; set; }
     public DbSet<WorkCenterSkill> WorkCenterSkills { get; set; }
     public DbSet<WorkCenterShift> WorkCenterShifts { get; set; }
+    public DbSet<ProcessingItemWorkCenterTime> ProcessingItemWorkCenterTimes { get; set; }
+    public DbSet<WorkCenterDependency> WorkCenterDependencies { get; set; }
+    
+    // Routing Templates
+    public DbSet<RoutingTemplate> RoutingTemplates { get; set; }
+    public DbSet<RoutingOperation> RoutingOperations { get; set; }
     public DbSet<MachineCenter> MachineCenters { get; set; }
     public DbSet<MachineCapability> MachineCapabilities { get; set; }
     public DbSet<MachineOperator> MachineOperators { get; set; }
@@ -1105,6 +1112,105 @@ public class ApplicationDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict);
         });
         
+        // Routing Template configuration
+        modelBuilder.Entity<RoutingTemplate>(entity =>
+        {
+            entity.HasIndex(e => new { e.CompanyId, e.Code }).IsUnique();
+            entity.HasIndex(e => e.IsActive);
+            entity.HasIndex(e => e.TemplateType);
+            entity.HasIndex(e => e.ProductCategory);
+            entity.HasIndex(e => e.ApprovalStatus);
+            entity.HasIndex(e => e.UsageCount);
+            
+            entity.Property(e => e.EstimatedTotalHours)
+                .HasPrecision(10, 2);
+            entity.Property(e => e.DefaultEfficiencyPercentage)
+                .HasPrecision(5, 2);
+            
+            entity.HasOne(e => e.Company)
+                .WithMany()
+                .HasForeignKey(e => e.CompanyId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            entity.HasOne(e => e.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.CreatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+                
+            entity.HasOne(e => e.LastModifiedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.LastModifiedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+                
+            entity.HasOne(e => e.ApprovedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.ApprovedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+        
+        // Routing Operation configuration
+        modelBuilder.Entity<RoutingOperation>(entity =>
+        {
+            entity.HasIndex(e => e.RoutingTemplateId);
+            entity.HasIndex(e => e.WorkCenterId);
+            entity.HasIndex(e => e.SequenceNumber);
+            entity.HasIndex(e => e.OperationType);
+            entity.HasIndex(e => e.IsActive);
+            
+            entity.Property(e => e.SetupTimeMinutes)
+                .HasPrecision(10, 2);
+            entity.Property(e => e.ProcessingTimePerUnit)
+                .HasPrecision(10, 2);
+            entity.Property(e => e.ProcessingTimePerKg)
+                .HasPrecision(10, 2);
+            entity.Property(e => e.MovementTimeMinutes)
+                .HasPrecision(10, 2);
+            entity.Property(e => e.WaitingTimeMinutes)
+                .HasPrecision(10, 2);
+            entity.Property(e => e.InspectionPercentage)
+                .HasPrecision(5, 2);
+            entity.Property(e => e.OverrideHourlyRate)
+                .HasPrecision(10, 2);
+            entity.Property(e => e.MaterialCostPerUnit)
+                .HasPrecision(10, 2);
+            entity.Property(e => e.ToolingCost)
+                .HasPrecision(10, 2);
+            entity.Property(e => e.EfficiencyFactor)
+                .HasPrecision(5, 2);
+            entity.Property(e => e.ScrapPercentage)
+                .HasPrecision(5, 2);
+            
+            entity.HasOne(e => e.RoutingTemplate)
+                .WithMany(t => t.Operations)
+                .HasForeignKey(e => e.RoutingTemplateId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            entity.HasOne(e => e.WorkCenter)
+                .WithMany()
+                .HasForeignKey(e => e.WorkCenterId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            entity.HasOne(e => e.MachineCenter)
+                .WithMany()
+                .HasForeignKey(e => e.MachineCenterId)
+                .OnDelete(DeleteBehavior.SetNull);
+                
+            entity.HasOne(e => e.PreviousOperation)
+                .WithMany(o => o.NextOperations)
+                .HasForeignKey(e => e.PreviousOperationId)
+                .OnDelete(DeleteBehavior.NoAction);
+                
+            entity.HasOne(e => e.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.CreatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+                
+            entity.HasOne(e => e.LastModifiedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.LastModifiedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+        
         // Work Center Skill configuration
         modelBuilder.Entity<WorkCenterSkill>(entity =>
         {
@@ -1130,6 +1236,72 @@ public class ApplicationDbContext : DbContext
                 .HasForeignKey(e => e.WorkCenterId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+        
+        // ProcessingItemWorkCenterTime configuration
+        modelBuilder.Entity<ProcessingItemWorkCenterTime>(entity =>
+        {
+            entity.HasIndex(e => new { e.ProcessingItemId, e.WorkCenterId }).IsUnique();
+            entity.HasIndex(e => e.WorkCenterId);
+            entity.HasIndex(e => e.IsCompleted);
+            
+            entity.Property(e => e.ManualTimeMinutes)
+                .HasPrecision(10, 2);
+            entity.Property(e => e.OverrideHourlyRate)
+                .HasPrecision(10, 2);
+            entity.Property(e => e.DependencyFactor)
+                .HasPrecision(5, 2);
+            entity.Property(e => e.CalculatedCost)
+                .HasPrecision(12, 2);
+            entity.Property(e => e.EffectiveTimeMinutes)
+                .HasPrecision(10, 2);
+                
+            entity.HasOne(e => e.ProcessingItem)
+                .WithMany(p => p.WorkCenterTimes)
+                .HasForeignKey(e => e.ProcessingItemId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            entity.HasOne(e => e.WorkCenter)
+                .WithMany(w => w.ProcessingTimes)
+                .HasForeignKey(e => e.WorkCenterId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+        
+        // WorkCenterDependency configuration
+        modelBuilder.Entity<WorkCenterDependency>(entity =>
+        {
+            entity.HasIndex(e => new { e.DependentWorkCenterId, e.RequiredWorkCenterId, e.RoutingId }).IsUnique();
+            entity.HasIndex(e => e.CompanyId);
+            entity.HasIndex(e => e.IsActive);
+            
+            entity.Property(e => e.TimeMultiplier)
+                .HasPrecision(5, 2);
+            entity.Property(e => e.QualityFactor)
+                .HasPrecision(5, 2);
+            entity.Property(e => e.MinimumGapMinutes)
+                .HasPrecision(10, 2);
+            entity.Property(e => e.MaximumGapMinutes)
+                .HasPrecision(10, 2);
+                
+            entity.HasOne(e => e.DependentWorkCenter)
+                .WithMany(w => w.DependentWorkCenters)
+                .HasForeignKey(e => e.DependentWorkCenterId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            entity.HasOne(e => e.RequiredWorkCenter)
+                .WithMany(w => w.RequiredForWorkCenters)
+                .HasForeignKey(e => e.RequiredWorkCenterId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            entity.HasOne(e => e.Routing)
+                .WithMany()
+                .HasForeignKey(e => e.RoutingId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            entity.HasOne(e => e.Company)
+                .WithMany()
+                .HasForeignKey(e => e.CompanyId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
@@ -1139,7 +1311,9 @@ public class ApplicationDbContext : DbContext
             .Where(e => e.Entity is Project || e.Entity is Package || e.Entity is PackageWorksheet || 
                        e.Entity is ProcessingItem || e.Entity is WeldingItem || e.Entity is User ||
                        e.Entity is DeliveryBundle || e.Entity is PackBundle || e.Entity is WeldingConnection ||
-                       e.Entity is UserProfile || e.Entity is UserPreference || e.Entity is Comment)
+                       e.Entity is UserProfile || e.Entity is UserPreference || e.Entity is Comment ||
+                       e.Entity is ProcessingItemWorkCenterTime || e.Entity is WorkCenterDependency ||
+                       e.Entity is WorkCenter)
             .Where(e => e.State == EntityState.Modified);
 
         foreach (var entityEntry in entries)
@@ -1195,6 +1369,18 @@ public class ApplicationDbContext : DbContext
             else if (entityEntry.Entity is Comment comment)
             {
                 comment.UpdatedAt = DateTime.UtcNow;
+            }
+            else if (entityEntry.Entity is ProcessingItemWorkCenterTime workCenterTime)
+            {
+                workCenterTime.LastModified = DateTime.UtcNow;
+            }
+            else if (entityEntry.Entity is WorkCenterDependency dependency)
+            {
+                dependency.LastModified = DateTime.UtcNow;
+            }
+            else if (entityEntry.Entity is WorkCenter workCenter)
+            {
+                workCenter.LastModified = DateTime.UtcNow;
             }
         }
 

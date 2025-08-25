@@ -4,29 +4,29 @@
 @using SteelEstimation.Core.Entities
 @using SteelEstimation.Infrastructure.Data
 @using Microsoft.AspNetCore.Components.Authorization
+@using SteelEstimation.Web.Shared.Components
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IJSRuntime JSRuntime
 @inject NavigationManager Navigation
 @attribute [Authorize(Roles = "Administrator")]
-@implements IDisposable
 
 <PageTitle>Work Centers - Settings</PageTitle>
 
 <div class="container-fluid">
-    <div class="row">
+    <StandardToolbar 
+        Title="Work Centers"
+        Icon="fas fa-industry"
+        ShowAddButton="true"
+        AddButtonText="Add Work Center"
+        OnAddClick="ShowAddWorkCenterModal"
+        ShowSearchBar="true"
+        SearchPlaceholder="Search work centers..."
+        OnSearchChanged="OnSearchChanged" />
+    
+    <div class="row mt-3">
         <div class="col-12">
             <div class="card">
-                <div class="card-header">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h4 class="mb-0">
-                            <i class="fas fa-industry me-2"></i>Work Centers
-                        </h4>
-                        <button class="btn btn-primary" @onclick="ShowAddWorkCenterModal">
-                            <i class="fas fa-plus me-2"></i>Add Work Center
-                        </button>
-                    </div>
-                </div>
                 <div class="card-body">
                     @if (workCenters == null)
                     {
@@ -45,76 +45,13 @@
                     }
                     else
                     {
-                        <!-- ViewScape container -->
-                        <small class="text-muted">ViewScape</small>
-                        <div id="viewscape-container" class="mt-1">
-                            <div class="table-responsive">
-                            <table class="table table-hover work-centers-table">
-                                <thead>
-                                    <tr>
-                                        <th>Code</th>
-                                        <th>Name</th>
-                                        <th>Type</th>
-                                        <th>Department</th>
-                                        <th>Daily Capacity</th>
-                                        <th>Hourly Rate</th>
-                                        <th>Efficiency</th>
-                                        <th>Status</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var workCenter in workCenters)
-                                    {
-                                        <tr>
-                                            <td><code>@workCenter.Code</code></td>
-                                            <td>
-                                                <strong>@workCenter.Name</strong>
-                                                @if (!string.IsNullOrEmpty(workCenter.Description))
-                                                {
-                                                    <br />
-                                                    <small class="text-muted">@workCenter.Description</small>
-                                                }
-                                            </td>
-                                            <td>
-                                                <span class="badge bg-secondary">@workCenter.WorkCenterType</span>
-                                            </td>
-                                            <td>@(workCenter.Department ?? "-")</td>
-                                            <td>@workCenter.DailyCapacityHours hrs</td>
-                                            <td>$@workCenter.HourlyRate.ToString("N2")</td>
-                                            <td>@workCenter.EfficiencyPercentage%</td>
-                                            <td>
-                                                @if (workCenter.IsActive)
-                                                {
-                                                    <span class="badge bg-success">Active</span>
-                                                }
-                                                else
-                                                {
-                                                    <span class="badge bg-danger">Inactive</span>
-                                                }
-                                            </td>
-                                            <td>
-                                                <div class="btn-group btn-group-sm" role="group">
-                                                    <button class="btn btn-outline-primary" @onclick="() => ViewWorkCenter(workCenter)" title="View Details">
-                                                        <i class="fas fa-eye"></i>
-                                                    </button>
-                                                    <button class="btn btn-outline-secondary" @onclick="() => EditWorkCenter(workCenter)" title="Edit">
-                                                        <i class="fas fa-edit"></i>
-                                                    </button>
-                                                    <button class="btn btn-outline-info" @onclick="() => ManageShifts(workCenter)" title="Manage Shifts">
-                                                        <i class="fas fa-clock"></i>
-                                                    </button>
-                                                    <button class="btn btn-outline-danger" @onclick="() => DeleteWorkCenter(workCenter)" title="Delete">
-                                                        <i class="fas fa-trash"></i>
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    }
-                                </tbody>
-                            </table>
-                            </div>
-                        </div>
+                        <DataTable TItem="WorkCenter"
+                                   Items="filteredWorkCenters"
+                                   Columns="tableColumns"
+                                   EnableSelection="true"
+                                   EnablePagination="true"
+                                   PageSize="10"
+                                   EnableSorting="true" />
                     }
                 </div>
             </div>
@@ -297,13 +234,15 @@
 
 @code {
     private List<WorkCenter>? workCenters;
+    private List<WorkCenter>? filteredWorkCenters;
     private WorkCenter editingWorkCenter = new();
     private bool showModal = false;
     private int companyId = 1; // TODO: Get from user context
     private int machineCount = 0;
     private bool showMachineCount = true;
     private int? currentUserId;
-    private DotNetObjectReference<WorkCenters>? dotNetRef;
+    private string searchTerm = string.Empty;
+    private List<TableColumn<WorkCenter>> tableColumns = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -314,36 +253,102 @@
             currentUserId = userId;
         }
         
-        dotNetRef = DotNetObjectReference.Create(this);
+        InitializeTableColumns();
         await LoadWorkCenters();
     }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    
+    private void InitializeTableColumns()
     {
-        if (firstRender && workCenters != null && workCenters.Any())
+        tableColumns = new List<TableColumn<WorkCenter>>
         {
-            // Initialize ViewScape features
-            await JSRuntime.InvokeVoidAsync("viewscape.init", ".work-centers-table", new
-            {
-                enableResize = true,
-                enableReorder = true,
-                enableViewSaving = true,
-                enableFreezeColumns = true,
-                freezeColumns = 1, // Freeze the Code column
-                tableType = "WorkCenters",
-                dotNetRef = dotNetRef,
-                viewMode = "list",
-                enableViewModes = true,
-                enableGrouping = true,
-                groupingOptions = new[]
-                {
-                    new { value = "type", label = "Work Center Type" },
-                    new { value = "department", label = "Department" },
-                    new { value = "status", label = "Status" }
-                }
-            });
-        }
+            new TableColumn<WorkCenter> 
+            { 
+                Field = "Code", 
+                Title = "Code", 
+                Sortable = true,
+                Template = (context) => @<text><code>@context.Code</code></text>
+            },
+            new TableColumn<WorkCenter> 
+            { 
+                Field = "Name", 
+                Title = "Name", 
+                Sortable = true,
+                Template = (context) => @<text>
+                    <strong>@context.Name</strong>
+                    @if (!string.IsNullOrEmpty(context.Description))
+                    {
+                        <br />
+                        <small class="text-muted">@context.Description</small>
+                    }
+                </text>
+            },
+            new TableColumn<WorkCenter> 
+            { 
+                Field = "WorkCenterType", 
+                Title = "Type", 
+                Sortable = true,
+                Template = (context) => @<span class="badge bg-secondary">@context.WorkCenterType</span>
+            },
+            new TableColumn<WorkCenter> 
+            { 
+                Field = "Department", 
+                Title = "Department", 
+                Sortable = true,
+                Template = (context) => @<text>@(context.Department ?? "-")</text>
+            },
+            new TableColumn<WorkCenter> 
+            { 
+                Field = "DailyCapacityHours", 
+                Title = "Daily Capacity", 
+                Sortable = true,
+                Template = (context) => @<text>@context.DailyCapacityHours hrs</text>
+            },
+            new TableColumn<WorkCenter> 
+            { 
+                Field = "HourlyRate", 
+                Title = "Hourly Rate", 
+                Sortable = true,
+                Template = (context) => @<text>$@context.HourlyRate.ToString("N2")</text>
+            },
+            new TableColumn<WorkCenter> 
+            { 
+                Field = "EfficiencyPercentage", 
+                Title = "Efficiency", 
+                Sortable = true,
+                Template = (context) => @<text>@context.EfficiencyPercentage%</text>
+            },
+            new TableColumn<WorkCenter> 
+            { 
+                Field = "IsActive", 
+                Title = "Status", 
+                Sortable = true,
+                Template = (context) => context.IsActive 
+                    ? @<span class="badge bg-success">Active</span>
+                    : @<span class="badge bg-danger">Inactive</span>
+            },
+            new TableColumn<WorkCenter> 
+            { 
+                Field = "Actions", 
+                Title = "Actions", 
+                Sortable = false,
+                Template = (context) => @<div class="btn-group btn-group-sm" role="group">
+                    <button class="btn btn-outline-primary" @onclick="() => ViewWorkCenter(context)" title="View Details">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary" @onclick="() => EditWorkCenter(context)" title="Edit">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-outline-info" @onclick="() => ManageShifts(context)" title="Manage Shifts">
+                        <i class="fas fa-clock"></i>
+                    </button>
+                    <button class="btn btn-outline-danger" @onclick="() => DeleteWorkCenter(context)" title="Delete">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            }
+        };
     }
+
 
     private async Task LoadWorkCenters()
     {
@@ -357,6 +362,39 @@
         machineCount = await context.MachineCenters
             .Where(m => m.CompanyId == companyId && !m.IsDeleted)
             .CountAsync();
+            
+        FilterWorkCenters();
+    }
+    
+    private void FilterWorkCenters()
+    {
+        if (workCenters == null)
+        {
+            filteredWorkCenters = null;
+            return;
+        }
+        
+        if (string.IsNullOrWhiteSpace(searchTerm))
+        {
+            filteredWorkCenters = workCenters.ToList();
+        }
+        else
+        {
+            var term = searchTerm.ToLower();
+            filteredWorkCenters = workCenters.Where(w =>
+                w.Code.ToLower().Contains(term) ||
+                w.Name.ToLower().Contains(term) ||
+                (w.Description != null && w.Description.ToLower().Contains(term)) ||
+                w.WorkCenterType.ToLower().Contains(term) ||
+                (w.Department != null && w.Department.ToLower().Contains(term))
+            ).ToList();
+        }
+    }
+    
+    private void OnSearchChanged(string value)
+    {
+        searchTerm = value;
+        FilterWorkCenters();
     }
 
     private void ShowAddWorkCenterModal()
@@ -473,24 +511,4 @@
         editingWorkCenter = new();
     }
 
-    public void Dispose()
-    {
-        dotNetRef?.Dispose();
-    }
-
-    // ViewScape callback methods
-    [JSInvokable]
-    public async Task SaveViewConfiguration(string viewName, object configuration)
-    {
-        // Implementation for saving view configuration
-        await Task.CompletedTask;
-    }
-
-    [JSInvokable]
-    public async Task<object?> LoadViewConfiguration(string viewName)
-    {
-        // Implementation for loading view configuration
-        await Task.CompletedTask;
-        return null;
-    }
 }

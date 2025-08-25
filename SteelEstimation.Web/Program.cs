@@ -399,6 +399,8 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddScoped<ITokenService, SteelEstimation.Infrastructure.Services.TokenService>();
 builder.Services.AddScoped<IWorkCenterService, WorkCenterService>();
 builder.Services.AddScoped<IMachineCenterService, MachineCenterService>();
+builder.Services.AddScoped<IRoutingTemplateService, RoutingTemplateService>();
+builder.Services.AddScoped<INumberSeriesService, NumberSeriesService>();
 builder.Services.AddScoped<IInviteService, SteelEstimation.Infrastructure.Services.InviteService>();
 builder.Services.AddScoped<IUserService, SteelEstimation.Infrastructure.Services.UserService>();
 // builder.Services.AddScoped<IProjectService, ProjectService>();

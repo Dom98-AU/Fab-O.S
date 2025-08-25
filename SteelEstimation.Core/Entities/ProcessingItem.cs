@@ -48,6 +48,9 @@ public class ProcessingItem
     public int? PackBundleId { get; set; }
     public bool IsParentInPackBundle { get; set; } = false;
     
+    // Routing Operation link
+    public int? RoutingOperationId { get; set; }
+    
     // Audit fields
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
     public DateTime LastModified { get; set; } = DateTime.UtcNow;
@@ -61,6 +64,8 @@ public class ProcessingItem
     public virtual PackageWorksheet? PackageWorksheet { get; set; }
     public virtual DeliveryBundle? DeliveryBundle { get; set; }
     public virtual PackBundle? PackBundle { get; set; }
+    public virtual RoutingOperation? RoutingOperation { get; set; }
+    public virtual ICollection<ProcessingItemWorkCenterTime> WorkCenterTimes { get; set; } = new List<ProcessingItemWorkCenterTime>();
     
     // Computed properties
     [NotMapped]
