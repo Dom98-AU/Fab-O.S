@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sidebar Test - Simple Check</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; }
+        .status { 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        .success { 
+            background: #d4edda; 
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error { 
+            background: #f8d7da; 
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        .info { 
+            background: #d1ecf1; 
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        pre { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            overflow-x: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+        }
+        .test-section h2 {
+            margin-top: 0;
+            color: #495057;
+            font-size: 1.25rem;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .code-block {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🔍 Fab O.S Sidebar Test Report</h1>
+        
+        <div class="test-section">
+            <h2>Test Configuration</h2>
+            <div class="info status">
+                <strong>URL:</strong> http://localhost:8080<br>
+                <strong>Test Date:</strong> <span id="test-date"></span><br>
+                <strong>User Agent:</strong> <span id="user-agent"></span>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>Quick Actions</h2>
+            <button onclick="fetchPage()">Fetch Page HTML</button>
+            <button onclick="checkBlazor()">Check Blazor Status</button>
+            <button onclick="analyzeSidebar()">Analyze Sidebar</button>
+            <button onclick="runAllTests()">Run All Tests</button>
+        </div>
+
+        <div class="test-section">
+            <h2>Test Results</h2>
+            <div id="results"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>Page HTML Preview</h2>
+            <div id="html-preview"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>Recommendations</h2>
+            <div id="recommendations"></div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize
+        document.getElementById('test-date').textContent = new Date().toISOString();
+        document.getElementById('user-agent').textContent = navigator.userAgent;
+
+        function addResult(message, type = 'info') {
+            const results = document.getElementById('results');
+            const entry = document.createElement('div');
+            entry.className = `status ${type}`;
+            entry.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+            results.appendChild(entry);
+        }
+
+        async function fetchPage() {
+            addResult('Fetching page HTML...', 'info');
+            try {
+                const response = await fetch('http://localhost:8080');
+                const html = await response.text();
+                
+                // Check for key elements
+                const hasBlazor = html.includes('blazor.server.js');
+                const hasSidebar = html.includes('sidebar');
+                const hasNavMenu = html.includes('NavMenu');
+                
+                addResult(`Page fetched successfully (${html.length} bytes)`, 'success');
+                addResult(`Blazor script: ${hasBlazor ? 'Found ✓' : 'Not found ✗'}`, hasBlazor ? 'success' : 'error');
+                addResult(`Sidebar reference: ${hasSidebar ? 'Found ✓' : 'Not found ✗'}`, hasSidebar ? 'success' : 'warning');
+                addResult(`NavMenu component: ${hasNavMenu ? 'Found ✓' : 'Not found ✗'}`, hasNavMenu ? 'success' : 'warning');
+                
+                // Show first 1000 chars of HTML
+                const preview = document.getElementById('html-preview');
+                const previewHtml = html.substring(0, 1500);
+                preview.innerHTML = `<div class="code-block">${escapeHtml(previewHtml)}...</div>`;
+                
+                // Extract Blazor comments
+                const blazorComments = [...html.matchAll(/<!--Blazor:.*?-->/g)];
+                if (blazorComments.length > 0) {
+                    addResult(`Found ${blazorComments.length} Blazor component markers`, 'success');
+                    blazorComments.slice(0, 3).forEach(comment => {
+                        addResult(`Blazor marker: ${comment[0].substring(0, 50)}...`, 'info');
+                    });
+                }
+                
+            } catch (error) {
+                addResult(`Failed to fetch page: ${error.message}`, 'error');
+            }
+        }
+
+        function checkBlazor() {
+            addResult('Checking Blazor configuration...', 'info');
+            
+            // Check if we're on the actual page
+            if (window.location.href.includes('localhost:8080')) {
+                if (window.Blazor) {
+                    addResult('Blazor object found in window', 'success');
+                } else {
+                    addResult('Blazor object not found - SignalR may not be initialized', 'warning');
+                }
+            } else {
+                addResult('This test should be run directly on http://localhost:8080 for full Blazor checks', 'warning');
+            }
+        }
+
+        async function analyzeSidebar() {
+            addResult('Analyzing sidebar structure...', 'info');
+            
+            try {
+                const response = await fetch('http://localhost:8080');
+                const html = await response.text();
+                
+                // Parse HTML
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                
+                // Check for sidebar elements
+                const sidebar = doc.querySelector('.sidebar');
+                const navMenu = doc.querySelector('.nav-menu');
+                const mainSidebar = doc.querySelector('#main-sidebar');
+                const pageContainer = doc.querySelector('.page');
+                
+                if (sidebar || mainSidebar) {
+                    addResult('Sidebar element found in HTML', 'success');
+                } else {
+                    addResult('No sidebar element found in initial HTML', 'warning');
+                    addResult('This is expected - Blazor will render it after page load', 'info');
+                }
+                
+                // Check for Blazor app container
+                const blazorApp = doc.querySelector('#app');
+                if (blazorApp) {
+                    addResult('Blazor app container found', 'success');
+                    const appContent = blazorApp.innerHTML.trim();
+                    if (appContent && !appContent.includes('<!--Blazor')) {
+                        addResult('App container has content (pre-rendered)', 'success');
+                    } else if (appContent.includes('<!--Blazor')) {
+                        addResult('App container has Blazor markers (will render client-side)', 'info');
+                    } else {
+                        addResult('App container is empty (will be populated by Blazor)', 'info');
+                    }
+                }
+                
+                // Check CSS
+                const cssLinks = doc.querySelectorAll('link[rel="stylesheet"]');
+                let hasSiteCss = false;
+                cssLinks.forEach(link => {
+                    if (link.href.includes('site.css')) {
+                        hasSiteCss = true;
+                    }
+                });
+                addResult(`Site CSS: ${hasSiteCss ? 'Loaded ✓' : 'Not found ✗'}`, hasSiteCss ? 'success' : 'error');
+                
+                // Check JavaScript
+                const scripts = doc.querySelectorAll('script');
+                let hasBlazorJs = false;
+                let hasSiteJs = false;
+                scripts.forEach(script => {
+                    if (script.src.includes('blazor.server.js')) hasBlazorJs = true;
+                    if (script.src.includes('site.js')) hasSiteJs = true;
+                });
+                addResult(`Blazor JS: ${hasBlazorJs ? 'Loaded ✓' : 'Not found ✗'}`, hasBlazorJs ? 'success' : 'error');
+                addResult(`Site JS: ${hasSiteJs ? 'Loaded ✓' : 'Not found ✗'}`, hasSiteJs ? 'success' : 'error');
+                
+            } catch (error) {
+                addResult(`Analysis failed: ${error.message}`, 'error');
+            }
+        }
+
+        function runAllTests() {
+            document.getElementById('results').innerHTML = '';
+            addResult('Starting comprehensive test suite...', 'info');
+            
+            fetchPage().then(() => {
+                setTimeout(() => checkBlazor(), 500);
+                setTimeout(() => analyzeSidebar(), 1000);
+                setTimeout(() => generateRecommendations(), 2000);
+            });
+        }
+
+        function generateRecommendations() {
+            const recs = document.getElementById('recommendations');
+            recs.innerHTML = `
+                <div class="info status">
+                    <strong>Next Steps:</strong><br>
+                    1. Open http://localhost:8080 directly in your browser<br>
+                    2. Open Developer Tools (F12)<br>
+                    3. Check the Console for any JavaScript errors<br>
+                    4. In the Network tab, verify all resources load successfully<br>
+                    5. In the Elements tab, look for &lt;div class="sidebar"&gt; after page loads<br>
+                    6. Try logging in with admin@steelestimation.com / Admin@123<br>
+                    7. After login, check if the sidebar appears
+                </div>
+                <div class="warning status">
+                    <strong>Common Issues:</strong><br>
+                    • SignalR connection failed - Check WebSocket support<br>
+                    • Blazor not initializing - Check for JS errors<br>
+                    • Sidebar not visible - May need authentication<br>
+                    • CSS not loading - Check network requests
+                </div>
+            `;
+        }
+
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        // Auto-run tests on load
+        window.addEventListener('load', () => {
+            setTimeout(runAllTests, 500);
+        });
+    </script>
+</body>
+</html>

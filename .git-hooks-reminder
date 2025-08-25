@@ -1,0 +1,17 @@
+#!/bin/bash
+# Git hook reminder for Docker rebuild requirements
+
+echo "
+╔════════════════════════════════════════════════════════════╗
+║                    🐳 DOCKER REMINDER                       ║
+╠════════════════════════════════════════════════════════════╣
+║  Did you make C#/Razor changes?                             ║
+║  → Run: ./rebuild.ps1 (full rebuild required)               ║
+║                                                              ║
+║  Did you make CSS/JS changes only?                          ║
+║  → Run: docker-compose restart web (quick restart)          ║
+║                                                              ║
+║  Not sure what changed?                                     ║
+║  → Run: ./check-changes.ps1 (auto-detect & suggest)         ║
+╚════════════════════════════════════════════════════════════╝
+"

@@ -26,6 +26,30 @@
    - Login: admin@steelestimation.com
    - Password: Admin@123
 
+### 🚨 Claude Code Hooks (Automatic Docker Rebuild Detection)
+
+This project has **automatic hooks** that detect when you need to rebuild Docker:
+
+1. **File Change Detection**: When you edit C#/Razor files, you'll see:
+   ```
+   ⚠️ C#/Razor file changed! 
+   Required action: .\rebuild.ps1
+   ```
+
+2. **Command Interception**: If you try `docker-compose restart` with pending C# changes:
+   ```
+   ❌ WARNING: You have C#/Razor changes!
+   Use .\rebuild.ps1 instead of restart!
+   ```
+
+3. **Session Reminders**: Each new prompt reminds you of pending rebuilds
+
+**To test hooks**: Run `.\test-hooks.ps1`
+
+**Hook files**:
+- `.claude-code-project/settings.json` - Hook configuration
+- `.claude-code/track-changes.ps1` - Change tracking script
+
 ### Authentication Structure
 
 The application uses **Cookie-based authentication** with the following structure:
@@ -55,6 +79,8 @@ The application uses **Cookie-based authentication** with the following structur
 
 ### Troubleshooting
 
+#### Common Issues & Solutions
+
 1. **Database connection fails**:
    - Check Azure SQL firewall rules
    - Verify connection string in appsettings
@@ -70,6 +96,28 @@ The application uses **Cookie-based authentication** with the following structur
    - Check browser console for errors
    - Ensure all NuGet packages are restored
 
+4. **Changes not appearing after saving**:
+   - **FIRST**: Run `.\check-changes.ps1` to detect what needs to be done
+   - **CSS/JS not updating**: Hard refresh browser (Ctrl+F5)
+   - **C# changes not working**: Run `.\rebuild.ps1` (NOT just restart!)
+   - **Still not working**: Full cache clear with `.\rebuild.ps1`
+
+5. **Container won't start**:
+   ```powershell
+   # Check logs
+   docker-compose logs web
+   
+   # If port in use
+   docker-compose down
+   docker ps -a  # Check for orphaned containers
+   docker-compose up -d
+   ```
+
+6. **"File not found" errors after adding new files**:
+   - New static files (CSS/JS): Should work immediately with volume mounts
+   - New C# files: Run `docker-compose restart web`
+   - New projects/packages: Run `./rebuild.ps1`
+
 ### Deployment Considerations
 
 When deploying to Azure:
@@ -78,9 +126,70 @@ When deploying to Azure:
 3. Run migrations before deployment
 4. Test in Staging environment first
 
+### Development Workflow with Docker
+
+#### ⚠️ CRITICAL: Always Check First!
+```powershell
+.\check-changes.ps1  # This tells you EXACTLY what to do!
+```
+
+#### File Change Guide
+- **CSS/JS/Image Changes**: Just save and refresh browser (auto-synced via volume mounts)
+- **HTML in Razor Pages**: Just save and refresh (synced via volumes)
+- **C# Code Changes**: Run `.\rebuild.ps1` ⚠️ (NOT just restart - rebuild required!)
+- **Razor @code blocks**: Run `.\rebuild.ps1` ⚠️ (These compile to DLLs - rebuild required!)
+- **New NuGet Packages**: Run `.\rebuild.ps1` (Full rebuild required)
+- **Docker Config Changes**: Run `.\rebuild.ps1` (Dockerfile, docker-compose.yml changes)
+- **Strange Issues**: Run `.\rebuild.ps1` (Clears cache and rebuilds fresh)
+
+#### Volume Mounts
+The following directories are mounted for instant updates:
+- `./SteelEstimation.Web/wwwroot` → `/app/wwwroot` (CSS, JS, images)
+- `./SteelEstimation.Web/Pages` → `/app/Pages` (Razor pages)
+- `./SteelEstimation.Web/Shared` → `/app/Shared` (Shared components)
+- `./SteelEstimation.Web/Components` → `/app/Components` (Blazor components)
+
+#### Quick Commands Reference
+
+**For C# Code Changes** (Controllers, Services, Models, @code blocks):
+```powershell
+docker-compose restart web
+# Wait ~10 seconds for restart
+```
+
+**For New NuGet Packages or Major Changes**:
+```powershell
+./rebuild.ps1
+# This will stop, rebuild, and restart everything fresh
+```
+
+#### When to Use Each Command
+
+| Change Type | Command | Wait Time |
+|------------|---------|-----------|
+| CSS/JS/Images | None - just refresh | Instant |
+| HTML in Razor | None - just refresh | Instant |
+| @code blocks | `./rebuild.ps1` ⚠️ | ~2-3 min |
+| C# files (.cs) | `./rebuild.ps1` ⚠️ | ~2-3 min |
+| Component files (.razor) | `./rebuild.ps1` ⚠️ | ~2-3 min |
+| New NuGet package | `./rebuild.ps1` | ~2-3 min |
+| **Not sure?** | **`./check-changes.ps1`** | **Tells you!** |
+| appsettings.json | `docker-compose restart web` | ~10 sec |
+| Dockerfile | `./rebuild.ps1` | ~2-3 min |
+| docker-compose.yml | `./rebuild.ps1` | ~2-3 min |
+
 ### Common Commands
 
 ```powershell
+# Quick rebuild (when needed)
+./rebuild.ps1
+
+# View logs
+docker-compose logs -f web
+
+# Restart container (for C# changes)
+docker-compose restart web
+
 # Run migrations manually
 cd SteelEstimation.Web
 dotnet ef database update

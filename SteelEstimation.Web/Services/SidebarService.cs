@@ -31,16 +31,22 @@ namespace SteelEstimation.Web.Services
         {
             try
             {
-                // For now, always default to open to fix the disappearing issue
-                // Users can still toggle it closed if they prefer
-                IsOpen = true;
+                // Get saved state from localStorage, default to open
+                var savedState = await _jsRuntime.InvokeAsync<string>("localStorage.getItem", "sidebarOpen");
+                IsOpen = string.IsNullOrEmpty(savedState) ? true : savedState.ToLower() == "true";
                 
-                // Save the open state to localStorage
-                await _jsRuntime.InvokeVoidAsync("localStorage.setItem", "sidebarOpen", "true");
+                // Update DOM to match the state
+                await UpdateDomAsync();
             }
             catch
             {
                 IsOpen = true; // Default to open on error
+                try
+                {
+                    await _jsRuntime.InvokeVoidAsync("localStorage.setItem", "sidebarOpen", "true");
+                    await UpdateDomAsync();
+                }
+                catch { }
             }
         }
         
@@ -52,7 +58,7 @@ namespace SteelEstimation.Web.Services
             {
                 await _jsRuntime.InvokeVoidAsync("localStorage.setItem", "sidebarOpen", IsOpen.ToString().ToLower());
                 
-                // Update DOM
+                // Update DOM using proper JS interop instead of eval
                 await UpdateDomAsync();
             }
             catch { }
@@ -62,29 +68,8 @@ namespace SteelEstimation.Web.Services
         {
             try
             {
-                var script = IsOpen 
-                    ? @"
-                        const page = document.getElementById('main-page');
-                        const sidebar = document.getElementById('main-sidebar');
-                        if (page) page.classList.remove('sidebar-collapsed');
-                        if (sidebar) {
-                            sidebar.classList.add('sidebar-open');
-                            sidebar.style.display = 'block';
-                            sidebar.style.visibility = 'visible';
-                        }
-                        console.log('Sidebar opened');
-                    "
-                    : @"
-                        const page = document.getElementById('main-page');
-                        const sidebar = document.getElementById('main-sidebar');
-                        if (page) page.classList.add('sidebar-collapsed');
-                        if (sidebar) {
-                            sidebar.classList.remove('sidebar-open');
-                        }
-                        console.log('Sidebar collapsed');
-                    ";
-                    
-                await _jsRuntime.InvokeVoidAsync("eval", script);
+                // Use proper JS interop method instead of eval
+                await _jsRuntime.InvokeVoidAsync("updateSidebarState", IsOpen);
             }
             catch { }
         }

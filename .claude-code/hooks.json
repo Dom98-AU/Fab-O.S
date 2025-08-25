@@ -1,0 +1,31 @@
+{
+  "hooks": {
+    "after_file_write": {
+      "description": "Track file changes and warn about Docker rebuild needs",
+      "command": "pwsh ./.claude-code/check-docker-rebuild.ps1 -FileName '{file_path}' -Action 'write'"
+    },
+    "after_file_edit": {
+      "description": "Track file edits and warn about Docker rebuild needs",
+      "command": "pwsh ./.claude-code/check-docker-rebuild.ps1 -FileName '{file_path}' -Action 'edit'"
+    },
+    "after_multi_edit": {
+      "description": "Track multiple edits and warn about Docker rebuild needs",
+      "command": "pwsh ./.claude-code/check-docker-rebuild.ps1 -FileName '{file_path}' -Action 'multi_edit'"
+    },
+    "before_bash_command": {
+      "description": "Intercept docker-compose restart and suggest rebuild if needed",
+      "pattern": "docker-compose restart",
+      "command": "pwsh -Command \"if (Test-Path './.claude-code/rebuild-required.marker') { Write-Host ''; Write-Host '❌ STOP! You have C#/Razor changes!' -ForegroundColor Red; Write-Host '   Use: .\\rebuild.ps1 instead' -ForegroundColor Yellow; Write-Host ''; exit 1 } else { exit 0 }\"",
+      "blocking": true
+    },
+    "on_session_start": {
+      "description": "Clear session tracking files",
+      "command": "pwsh -Command \"Remove-Item -Path './.claude-code/session-changes.txt' -ErrorAction SilentlyContinue; Remove-Item -Path './.claude-code/rebuild-required.marker' -ErrorAction SilentlyContinue\""
+    },
+    "after_docker_rebuild": {
+      "description": "Clear rebuild marker after successful rebuild",
+      "pattern": "rebuild.ps1",
+      "command": "pwsh -Command \"Remove-Item -Path './.claude-code/rebuild-required.marker' -ErrorAction SilentlyContinue; Remove-Item -Path './.claude-code/session-changes.txt' -ErrorAction SilentlyContinue; Write-Host '✅ Docker rebuilt - session tracking cleared' -ForegroundColor Green\""
+    }
+  }
+}

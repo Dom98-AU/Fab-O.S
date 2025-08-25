@@ -1,0 +1,67 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fab O.S</title>
+    <base href="/" />
+    <link rel="shortcut icon" type="image/x-icon" href="/fabos-favicon.ico?v=3">
+    <link rel="icon" type="image/png" href="/fabos-favicon.png?v=3">
+    <link rel="icon" type="image/png" sizes="32x32" href="/fabos-favicon-32.png?v=3">
+    <link rel="icon" type="image/png" sizes="16x16" href="/fabos-favicon-16.png?v=3">
+    <link rel="apple-touch-icon" href="/fabos-favicon.png?v=3">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link rel="stylesheet" href="css/site.css?v=18" />
+    <link rel="stylesheet" href="css/viewscape.css?v=1" />
+    <style>
+        :root {
+            --bs-primary: rgb(13, 26, 128);
+            --bs-primary-rgb: 13, 26, 128;
+        }
+        .btn-primary {
+            background-color: rgb(13, 26, 128) !important;
+            border-color: rgb(13, 26, 128) !important;
+        }
+        .btn-primary:hover {
+            background-color: rgb(10, 20, 102) !important;
+            border-color: rgb(10, 20, 102) !important;
+        }
+        .bg-primary {
+            background-color: rgb(13, 26, 128) !important;
+        }
+    </style>
+    <!--Blazor:{"type":"server","prerenderId":"782f197c18824935a911c7061cbd74d1","key":{"locationHash":"77D12F14A8105320B1AAED6AE7E689DA0EC4483270A645E84079EAA0FFDF550D:0","formattedComponentKey":""},"sequence":0,"descriptor":"CfDJ8D6mq4W18WZNhlI1B7N8DuBCFL71SYf200\u002Br3gkhZC/FDfKTp7iBSEJaLlZD5QIAlvLvIvPKXDXXSKWbORwRBqmQn28wOQCDZqe2Q8Y7NeSEPSYsG7T3TX4\u002B8N\u002BFFBBT\u002BcSO7wKxh7K2uaXzLhahzZl3AxwfAqYSsIp8I0TsAaDQShbfiJ0RlhRf9l9E4Ijx2/7EXXRuiux6VUPhlAcgjKIJxTQZHAa2dArlf3B2vZmXoFN883BOxF1AYKguS7qhube7HeSvJRV\u002BuciUCG\u002BJKNU0jgZKHiMZcjlaWo02EKHn2zq6xUxyd7umsyy1RNxNywjP7hoF1pL3SIBLfRrMdzVa4LVdCZI/B3n11qXekROYpluwcDpKi1m28Dxx7fBU8AKtDPFret0mBx/3Zc/GgDgO53vZeSUKZCniNPnP2MIRMYcVlFzj3gE1qwiS7teeKH2bmDTs7Ek5WQZPDBDYgsCiGutP2ufPtpBedZjBGkgxoAI0v7eBKGR7yq6/kVVwoGS5Z9cM8XripF9hzLLtB8Va9/bXYVEWs6IOb7XdUOjlKYk/nc1JCrZoLPZb61vQdNxMJz1mFrnF1i3GUlyQGn8="}--><!--Blazor:{"prerenderId":"782f197c18824935a911c7061cbd74d1"}-->
+</head>
+<body>
+    
+<!--Blazor:{"type":"server","key":{"locationHash":"5FF154784CDC9D24963DCD7E9D21E41C7C622BCF820D4182F099ED76F9457D04:0","formattedComponentKey":""},"sequence":1,"descriptor":"CfDJ8D6mq4W18WZNhlI1B7N8DuDTJCQdz/cznryf0jgRy36XDr7QNEoULSBRDC2\u002BeCEcoSUNkEJlt8Yp1m8lbaXsoJthNKd6MHkGa\u002B9p1J868wckBuIBZqB2A8I4lydvxAyVR156d4LzzdJxH/QdfrfOd4hv6A7uHlGvw5/ggDSZ9iFSd\u002BtsYmQX1RVUTnV4pTKVHuOHLkJBOb6LqWuP4JIXF9yKrpiOlwFGOTTwlGtPjMxR8etnEz02f/EGKtLe3maKYnDk5k7lsO3ZnnrJBUkEPBKeouGOrWxBR6KD5eLS4zT3J62YDOmZiBFxFamNebBJlDrNXAJBZMWw1gxpOTk03YT\u002BC7T9XLcLgHrHrjVhtQ2LkRDOT5ExgLz6Qh0odNLzelqLmEqAJaNXefrXgteo2uVEBEEAXJ2xnE\u002BOLX9J\u002B0VN5E67wU0EmZ3v7AEDIxBb4fqliSJCE9prqS3JueWswUsrxMidn9TLKufIG1/BAkpkzRP/QCzP8Czkap2O3SwNf1LKxdHefoYLesCHyVWcwvk="}-->
+
+    <script src="_framework/blazor.server.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@6.0.1/dist/browser/signalr.min.js"></script>
+    <script>
+        // Early initialization of safeCall to prevent errors before site.js loads
+        window.safeCall = window.safeCall || function(functionName, ...args) {
+            console.warn('safeCall: ' + functionName + ' not yet available, will be called when ready');
+            return undefined;
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="js/site.js?v=4"></script>
+    <script src="js/table-resize.js?v=5"></script>
+    <script src="js/simple-resize.js?v=3"></script>
+    <script src="js/clipboard.js?v=2"></script>
+    <script src="js/clipboard-paste.js?v=1"></script>
+    <script src="js/inactivity-monitor.js?v=2"></script>
+    <script src="js/dashboard-charts.js?v=2"></script>
+    <script src="js/undo-redo.js?v=2"></script>
+    <script src="js/column-reorder.js?v=2"></script>
+    <script src="js/viewscape.js?v=1"></script>
+    <script src="js/toast.js?v=1"></script>
+    <script src="js/bundle-drag.js?v=2"></script>
+    <script src="js/timeAnalytics.js?v=1"></script>
+    <script src="js/estimation-summary-charts.js?v=1"></script>
+</body>
+</html>

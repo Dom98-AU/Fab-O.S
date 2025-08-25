@@ -42,6 +42,32 @@
                     </div>
                 </div>
 
+                <!-- Business Configuration Section -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <h6 class="text-info mb-3"><i class="fas fa-building"></i> Business Configuration</h6>
+                        <p class="text-muted small mb-3">Manage work centers, machine centers, and production resources</p>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="d-grid">
+                            <button class="btn btn-outline-info p-3" @onclick='() => Navigation.NavigateTo("/settings/work-centers")'>
+                                <i class="fas fa-industry fa-2x mb-2"></i>
+                                <h6>Work Centers</h6>
+                                <small class="text-muted">Production lines, welding stations, QC centers</small>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="d-grid">
+                            <button class="btn btn-outline-info p-3" @onclick='() => Navigation.NavigateTo("/settings/machine-centers")'>
+                                <i class="fas fa-cog fa-2x mb-2"></i>
+                                <h6>Machine Centers</h6>
+                                <small class="text-muted">CNC machines, robots, equipment management</small>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Worksheet Configuration Section -->
                 <div class="row mb-4">
                     <div class="col-12">

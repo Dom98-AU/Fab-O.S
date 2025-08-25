@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sidebar Test Capture</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 10px; border: 1px solid #ddd; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+        iframe { width: 100%; height: 600px; border: 2px solid #333; }
+    </style>
+</head>
+<body>
+    <h1>Sidebar Test Report</h1>
+    
+    <div class="test-section">
+        <h2>Test Configuration</h2>
+        <p>URL: http://localhost:8080</p>
+        <p>Test Date: <span id="test-date"></span></p>
+    </div>
+
+    <div class="test-section">
+        <h2>Application Frame</h2>
+        <button onclick="loadApp()">Load Application</button>
+        <button onclick="checkSidebar()">Check Sidebar</button>
+        <button onclick="attemptLogin()">Attempt Login</button>
+        <div id="frame-container" style="margin-top: 20px;">
+            <!-- Frame will be inserted here -->
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Results</h2>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        document.getElementById('test-date').textContent = new Date().toISOString();
+        
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            const entry = document.createElement('div');
+            entry.className = type;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            results.appendChild(entry);
+        }
+
+        function loadApp() {
+            log('Loading application...');
+            const container = document.getElementById('frame-container');
+            container.innerHTML = '<iframe id="app-frame" src="http://localhost:8080"></iframe>';
+            
+            const iframe = document.getElementById('app-frame');
+            iframe.onload = function() {
+                log('Application loaded', 'success');
+                setTimeout(() => {
+                    checkSidebar();
+                }, 2000); // Wait for Blazor to initialize
+            };
+            
+            iframe.onerror = function(e) {
+                log('Failed to load application: ' + e, 'error');
+            };
+        }
+
+        function checkSidebar() {
+            try {
+                const iframe = document.getElementById('app-frame');
+                if (!iframe) {
+                    log('No iframe found', 'error');
+                    return;
+                }
+
+                // Try to access iframe content
+                let iframeDoc;
+                try {
+                    iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                } catch (e) {
+                    log('Cannot access iframe content (CORS): ' + e.message, 'error');
+                    log('This is expected for cross-origin requests. Use developer tools to inspect manually.', 'info');
+                    return;
+                }
+
+                // Check for sidebar elements
+                const sidebar = iframeDoc.querySelector('.sidebar');
+                const navMenu = iframeDoc.querySelector('.nav-menu');
+                const mainContent = iframeDoc.querySelector('.main-content');
+                const blazorApp = iframeDoc.querySelector('#app');
+
+                log('Sidebar element: ' + (sidebar ? 'FOUND' : 'NOT FOUND'), sidebar ? 'success' : 'error');
+                log('NavMenu element: ' + (navMenu ? 'FOUND' : 'NOT FOUND'), navMenu ? 'success' : 'error');
+                log('MainContent element: ' + (mainContent ? 'FOUND' : 'NOT FOUND'), mainContent ? 'success' : 'error');
+                log('Blazor App element: ' + (blazorApp ? 'FOUND' : 'NOT FOUND'), blazorApp ? 'success' : 'error');
+
+                if (sidebar) {
+                    const styles = window.getComputedStyle(sidebar);
+                    log(`Sidebar styles: width=${styles.width}, display=${styles.display}, position=${styles.position}`, 'info');
+                }
+
+                // Check for Blazor comments
+                const walker = document.createTreeWalker(
+                    iframeDoc.body,
+                    NodeFilter.SHOW_COMMENT,
+                    null,
+                    false
+                );
+                
+                let blazorCommentCount = 0;
+                while(walker.nextNode()) {
+                    if (walker.currentNode.textContent.includes('Blazor')) {
+                        blazorCommentCount++;
+                    }
+                }
+                log(`Found ${blazorCommentCount} Blazor comments`, blazorCommentCount > 0 ? 'success' : 'error');
+
+            } catch (e) {
+                log('Error checking sidebar: ' + e.message, 'error');
+            }
+        }
+
+        function attemptLogin() {
+            log('Attempting login...', 'info');
+            // This would need to be done manually due to CORS
+            log('Please manually login with: admin@steelestimation.com / Admin@123', 'info');
+        }
+
+        // Auto-load on page load
+        window.onload = function() {
+            loadApp();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,496 @@
+@page "/settings/work-centers"
+@page "/settings/business-configuration/work-centers"
+@using Microsoft.EntityFrameworkCore
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Infrastructure.Data
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+@attribute [Authorize(Roles = "Administrator")]
+@implements IDisposable
+
+<PageTitle>Work Centers - Settings</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0">
+                            <i class="fas fa-industry me-2"></i>Work Centers
+                        </h4>
+                        <button class="btn btn-primary" @onclick="ShowAddWorkCenterModal">
+                            <i class="fas fa-plus me-2"></i>Add Work Center
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    @if (workCenters == null)
+                    {
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    }
+                    else if (!workCenters.Any())
+                    {
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            No work centers defined yet. Click "Add Work Center" to create your first work center.
+                        </div>
+                    }
+                    else
+                    {
+                        <!-- ViewScape container -->
+                        <small class="text-muted">ViewScape</small>
+                        <div id="viewscape-container" class="mt-1">
+                            <div class="table-responsive">
+                            <table class="table table-hover work-centers-table">
+                                <thead>
+                                    <tr>
+                                        <th>Code</th>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Department</th>
+                                        <th>Daily Capacity</th>
+                                        <th>Hourly Rate</th>
+                                        <th>Efficiency</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var workCenter in workCenters)
+                                    {
+                                        <tr>
+                                            <td><code>@workCenter.Code</code></td>
+                                            <td>
+                                                <strong>@workCenter.Name</strong>
+                                                @if (!string.IsNullOrEmpty(workCenter.Description))
+                                                {
+                                                    <br />
+                                                    <small class="text-muted">@workCenter.Description</small>
+                                                }
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-secondary">@workCenter.WorkCenterType</span>
+                                            </td>
+                                            <td>@(workCenter.Department ?? "-")</td>
+                                            <td>@workCenter.DailyCapacityHours hrs</td>
+                                            <td>$@workCenter.HourlyRate.ToString("N2")</td>
+                                            <td>@workCenter.EfficiencyPercentage%</td>
+                                            <td>
+                                                @if (workCenter.IsActive)
+                                                {
+                                                    <span class="badge bg-success">Active</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-danger">Inactive</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                <div class="btn-group btn-group-sm" role="group">
+                                                    <button class="btn btn-outline-primary" @onclick="() => ViewWorkCenter(workCenter)" title="View Details">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
+                                                    <button class="btn btn-outline-secondary" @onclick="() => EditWorkCenter(workCenter)" title="Edit">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    <button class="btn btn-outline-info" @onclick="() => ManageShifts(workCenter)" title="Manage Shifts">
+                                                        <i class="fas fa-clock"></i>
+                                                    </button>
+                                                    <button class="btn btn-outline-danger" @onclick="() => DeleteWorkCenter(workCenter)" title="Delete">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @if (showMachineCount && workCenters != null && workCenters.Any())
+            {
+                <div class="card mt-3">
+                    <div class="card-body">
+                        <h5 class="card-title">Work Center Statistics</h5>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h3>@workCenters.Count()</h3>
+                                    <small class="text-muted">Total Work Centers</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h3>@workCenters.Count(w => w.IsActive)</h3>
+                                    <small class="text-muted">Active Centers</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h3>@workCenters.Sum(w => w.DailyCapacityHours).ToString("N0")</h3>
+                                    <small class="text-muted">Total Daily Hours</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h3>@machineCount</h3>
+                                    <small class="text-muted">Total Machines</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Work Center Modal -->
+@if (showModal)
+{
+    <div class="modal fade show" style="display: block;" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        @(editingWorkCenter.Id == 0 ? "Add New Work Center" : "Edit Work Center")
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                </div>
+                <EditForm Model="editingWorkCenter" OnValidSubmit="SaveWorkCenter">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Code <span class="text-danger">*</span></label>
+                                    <InputText @bind-Value="editingWorkCenter.Code" class="form-control" placeholder="WC001" />
+                                    <ValidationMessage For="@(() => editingWorkCenter.Code)" />
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Name <span class="text-danger">*</span></label>
+                                    <InputText @bind-Value="editingWorkCenter.Name" class="form-control" placeholder="Main Assembly Line" />
+                                    <ValidationMessage For="@(() => editingWorkCenter.Name)" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <InputTextArea @bind-Value="editingWorkCenter.Description" class="form-control" rows="2" />
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Work Center Type <span class="text-danger">*</span></label>
+                                    <InputSelect @bind-Value="editingWorkCenter.WorkCenterType" class="form-select">
+                                        <option value="Production">Production</option>
+                                        <option value="Assembly">Assembly</option>
+                                        <option value="Welding">Welding</option>
+                                        <option value="Cutting">Cutting</option>
+                                        <option value="QualityControl">Quality Control</option>
+                                        <option value="Packaging">Packaging</option>
+                                        <option value="Maintenance">Maintenance</option>
+                                        <option value="Other">Other</option>
+                                    </InputSelect>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Department</label>
+                                    <InputText @bind-Value="editingWorkCenter.Department" class="form-control" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Building</label>
+                                    <InputText @bind-Value="editingWorkCenter.Building" class="form-control" />
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Floor</label>
+                                    <InputText @bind-Value="editingWorkCenter.Floor" class="form-control" />
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Daily Capacity (Hours)</label>
+                                    <InputNumber @bind-Value="editingWorkCenter.DailyCapacityHours" class="form-control" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Hourly Rate ($)</label>
+                                    <InputNumber @bind-Value="editingWorkCenter.HourlyRate" class="form-control" />
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Overhead Rate ($)</label>
+                                    <InputNumber @bind-Value="editingWorkCenter.OverheadRate" class="form-control" />
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Efficiency (%)</label>
+                                    <InputNumber @bind-Value="editingWorkCenter.EfficiencyPercentage" class="form-control" min="0" max="100" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Simultaneous Operations</label>
+                                    <InputNumber @bind-Value="editingWorkCenter.SimultaneousOperations" class="form-control" min="1" />
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Maintenance Interval (Days)</label>
+                                    <InputNumber @bind-Value="editingWorkCenter.MaintenanceIntervalDays" class="form-control" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-check">
+                            <InputCheckbox @bind-Value="editingWorkCenter.IsActive" class="form-check-input" id="isActive" />
+                            <label class="form-check-label" for="isActive">
+                                Active
+                            </label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Save Work Center
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
+
+@code {
+    private List<WorkCenter>? workCenters;
+    private WorkCenter editingWorkCenter = new();
+    private bool showModal = false;
+    private int companyId = 1; // TODO: Get from user context
+    private int machineCount = 0;
+    private bool showMachineCount = true;
+    private int? currentUserId;
+    private DotNetObjectReference<WorkCenters>? dotNetRef;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var userIdClaim = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+        if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var userId))
+        {
+            currentUserId = userId;
+        }
+        
+        dotNetRef = DotNetObjectReference.Create(this);
+        await LoadWorkCenters();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && workCenters != null && workCenters.Any())
+        {
+            // Initialize ViewScape features
+            await JSRuntime.InvokeVoidAsync("viewscape.init", ".work-centers-table", new
+            {
+                enableResize = true,
+                enableReorder = true,
+                enableViewSaving = true,
+                enableFreezeColumns = true,
+                freezeColumns = 1, // Freeze the Code column
+                tableType = "WorkCenters",
+                dotNetRef = dotNetRef,
+                viewMode = "list",
+                enableViewModes = true,
+                enableGrouping = true,
+                groupingOptions = new[]
+                {
+                    new { value = "type", label = "Work Center Type" },
+                    new { value = "department", label = "Department" },
+                    new { value = "status", label = "Status" }
+                }
+            });
+        }
+    }
+
+    private async Task LoadWorkCenters()
+    {
+        using var context = await DbFactory.CreateDbContextAsync();
+        
+        workCenters = await context.WorkCenters
+            .Where(w => w.CompanyId == companyId && !w.IsDeleted)
+            .OrderBy(w => w.Code)
+            .ToListAsync();
+
+        machineCount = await context.MachineCenters
+            .Where(m => m.CompanyId == companyId && !m.IsDeleted)
+            .CountAsync();
+    }
+
+    private void ShowAddWorkCenterModal()
+    {
+        editingWorkCenter = new WorkCenter
+        {
+            CompanyId = companyId,
+            IsActive = true,
+            EfficiencyPercentage = 100,
+            DailyCapacityHours = 8,
+            SimultaneousOperations = 1,
+            MaintenanceIntervalDays = 90,
+            WorkCenterType = "Production"
+        };
+        showModal = true;
+    }
+
+    private void EditWorkCenter(WorkCenter workCenter)
+    {
+        editingWorkCenter = new WorkCenter
+        {
+            Id = workCenter.Id,
+            Code = workCenter.Code,
+            Name = workCenter.Name,
+            Description = workCenter.Description,
+            CompanyId = workCenter.CompanyId,
+            WorkCenterType = workCenter.WorkCenterType,
+            DailyCapacityHours = workCenter.DailyCapacityHours,
+            SimultaneousOperations = workCenter.SimultaneousOperations,
+            HourlyRate = workCenter.HourlyRate,
+            OverheadRate = workCenter.OverheadRate,
+            EfficiencyPercentage = workCenter.EfficiencyPercentage,
+            Department = workCenter.Department,
+            Building = workCenter.Building,
+            Floor = workCenter.Floor,
+            IsActive = workCenter.IsActive,
+            MaintenanceIntervalDays = workCenter.MaintenanceIntervalDays
+        };
+        showModal = true;
+    }
+
+    private async Task SaveWorkCenter()
+    {
+        using var context = await DbFactory.CreateDbContextAsync();
+
+        if (editingWorkCenter.Id == 0)
+        {
+            editingWorkCenter.CreatedDate = DateTime.UtcNow;
+            editingWorkCenter.CreatedByUserId = currentUserId;
+            context.WorkCenters.Add(editingWorkCenter);
+        }
+        else
+        {
+            var existing = await context.WorkCenters.FindAsync(editingWorkCenter.Id);
+            if (existing != null)
+            {
+                existing.Code = editingWorkCenter.Code;
+                existing.Name = editingWorkCenter.Name;
+                existing.Description = editingWorkCenter.Description;
+                existing.WorkCenterType = editingWorkCenter.WorkCenterType;
+                existing.DailyCapacityHours = editingWorkCenter.DailyCapacityHours;
+                existing.SimultaneousOperations = editingWorkCenter.SimultaneousOperations;
+                existing.HourlyRate = editingWorkCenter.HourlyRate;
+                existing.OverheadRate = editingWorkCenter.OverheadRate;
+                existing.EfficiencyPercentage = editingWorkCenter.EfficiencyPercentage;
+                existing.Department = editingWorkCenter.Department;
+                existing.Building = editingWorkCenter.Building;
+                existing.Floor = editingWorkCenter.Floor;
+                existing.IsActive = editingWorkCenter.IsActive;
+                existing.MaintenanceIntervalDays = editingWorkCenter.MaintenanceIntervalDays;
+                existing.LastModified = DateTime.UtcNow;
+                existing.LastModifiedByUserId = currentUserId;
+            }
+        }
+
+        await context.SaveChangesAsync();
+        await LoadWorkCenters();
+        CloseModal();
+    }
+
+    private async Task DeleteWorkCenter(WorkCenter workCenter)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", 
+            $"Are you sure you want to delete the work center '{workCenter.Name}'?");
+        
+        if (confirmed)
+        {
+            using var context = await DbFactory.CreateDbContextAsync();
+            var existing = await context.WorkCenters.FindAsync(workCenter.Id);
+            if (existing != null)
+            {
+                existing.IsDeleted = true;
+                existing.LastModified = DateTime.UtcNow;
+                existing.LastModifiedByUserId = currentUserId;
+                await context.SaveChangesAsync();
+                await LoadWorkCenters();
+            }
+        }
+    }
+
+    private void ViewWorkCenter(WorkCenter workCenter)
+    {
+        Navigation.NavigateTo($"/settings/work-centers/{workCenter.Id}");
+    }
+
+    private void ManageShifts(WorkCenter workCenter)
+    {
+        Navigation.NavigateTo($"/settings/work-centers/{workCenter.Id}/shifts");
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        editingWorkCenter = new();
+    }
+
+    public void Dispose()
+    {
+        dotNetRef?.Dispose();
+    }
+
+    // ViewScape callback methods
+    [JSInvokable]
+    public async Task SaveViewConfiguration(string viewName, object configuration)
+    {
+        // Implementation for saving view configuration
+        await Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public async Task<object?> LoadViewConfiguration(string viewName)
+    {
+        // Implementation for loading view configuration
+        await Task.CompletedTask;
+        return null;
+    }
+}

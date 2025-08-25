@@ -1,0 +1,222 @@
+@namespace SteelEstimation.Web.Shared.Components
+@using SteelEstimation.Core.Entities
+@using Microsoft.AspNetCore.Components
+
+<div class="customer-cards-container">
+    @if (ViewMode == CardViewMode.Grid)
+    {
+        @if (!Customers.Any())
+        {
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                No customers found. Try adjusting your filters or search criteria.
+            </div>
+        }
+        else
+        {
+            <div class="row g-3">
+                @foreach (var customer in Customers)
+                {
+                    <div class="col-12 col-md-6 col-lg-4 col-xl-3">
+                        <div class="modern-customer-card @(SelectedCustomerIds.Contains(customer.Id) ? "selected" : "")" 
+                             @onclick="() => HandleCardClick(customer)">
+                            
+                            <!-- Selection Checkbox -->
+                            <div class="card-selection" @onclick:stopPropagation="true">
+                                <input type="checkbox" class="form-check-input"
+                                       checked="@SelectedCustomerIds.Contains(customer.Id)"
+                                       @onchange="() => HandleSelectionToggle(customer.Id)" />
+                            </div>
+                            
+                            <!-- Status Ribbon -->
+                            <div class="status-ribbon @(customer.IsActive ? "active" : "inactive")">
+                                @(customer.IsActive ? "Active" : "Inactive")
+                            </div>
+                            
+                            <!-- Card Content -->
+                            <div class="card-content">
+                                <!-- Company Icon/Avatar -->
+                                <div class="company-avatar">
+                                    <i class="fas fa-building"></i>
+                                </div>
+                                
+                                <!-- Company Info -->
+                                <div class="company-info">
+                                    <h5 class="company-name" title="@customer.CompanyName">
+                                        @customer.CompanyName
+                                    </h5>
+                                    @if (!string.IsNullOrEmpty(customer.TradingName))
+                                    {
+                                        <p class="trading-name" title="@customer.TradingName">
+                                            <i class="fas fa-store"></i> @customer.TradingName
+                                        </p>
+                                    }
+                                    <p class="abn-number">
+                                        <i class="fas fa-fingerprint"></i> @FormatABN(customer.ABN)
+                                    </p>
+                                </div>
+                                
+                                <!-- Stats Section -->
+                                <div class="stats-grid">
+                                    <div class="stat-box contacts">
+                                        <i class="fas fa-users"></i>
+                                        <div class="stat-content">
+                                            <span class="stat-value">@customer.Contacts.Count(c => c.IsActive)</span>
+                                            <span class="stat-label">Contacts</span>
+                                        </div>
+                                    </div>
+                                    <div class="stat-box projects">
+                                        <i class="fas fa-clipboard-list"></i>
+                                        <div class="stat-content">
+                                            <span class="stat-value">@customer.Projects.Count(p => !p.IsDeleted)</span>
+                                            <span class="stat-label">Projects</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Action Buttons -->
+                                <div class="action-buttons" @onclick:stopPropagation="true">
+                                    <button class="action-btn view-btn" @onclick="() => HandleView(customer.Id)" title="View Details">
+                                        <i class="fas fa-eye"></i>
+                                        <span>View</span>
+                                    </button>
+                                    <button class="action-btn edit-btn" @onclick="() => HandleEdit(customer.Id)" title="Edit Customer">
+                                        <i class="fas fa-pen"></i>
+                                        <span>Edit</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+    else
+    {
+        <div class="customer-cards-list" style="display: flex !important; flex-direction: column !important; gap: 0.5rem !important;">
+            @foreach (var customer in Customers)
+            {
+                <div class="modern-list-item @(SelectedCustomerIds.Contains(customer.Id) ? "selected" : "")"
+                     @onclick="() => HandleCardClick(customer)">
+                    <div class="list-item-checkbox" @onclick:stopPropagation="true">
+                        <input type="checkbox" class="form-check-input"
+                               checked="@SelectedCustomerIds.Contains(customer.Id)"
+                               @onchange="() => HandleSelectionToggle(customer.Id)" />
+                    </div>
+                    
+                    <div class="list-company-avatar">
+                        <i class="fas fa-building"></i>
+                    </div>
+                    
+                    <div class="list-item-content">
+                        <div class="list-item-header">
+                            <strong class="company-name">@customer.CompanyName</strong>
+                            @if (!string.IsNullOrEmpty(customer.TradingName))
+                            {
+                                <span class="trading-name-badge">
+                                    <i class="fas fa-store"></i> @customer.TradingName
+                                </span>
+                            }
+                        </div>
+                        <div class="list-item-meta">
+                            <span class="meta-item">
+                                <i class="fas fa-fingerprint"></i> @FormatABN(customer.ABN)
+                            </span>
+                            <span class="meta-item">
+                                <i class="fas fa-users"></i> 
+                                <strong>@customer.Contacts.Count(c => c.IsActive)</strong> Contacts
+                            </span>
+                            <span class="meta-item">
+                                <i class="fas fa-clipboard-list"></i> 
+                                <strong>@customer.Projects.Count(p => !p.IsDeleted)</strong> Projects
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="list-item-status">
+                        <span class="status-pill @(customer.IsActive ? "active" : "inactive")">
+                            <span class="status-dot"></span>
+                            @(customer.IsActive ? "Active" : "Inactive")
+                        </span>
+                    </div>
+                    
+                    <div class="list-item-actions" @onclick:stopPropagation="true">
+                        <button class="icon-btn" @onclick="() => HandleView(customer.Id)" title="View Details">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="icon-btn" @onclick="() => HandleEdit(customer.Id)" title="Edit Customer">
+                            <i class="fas fa-pen"></i>
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public List<Customer> Customers { get; set; } = new();
+    [Parameter] public HashSet<int> SelectedCustomerIds { get; set; } = new();
+    [Parameter] public CardViewMode ViewMode { get; set; } = CardViewMode.Grid;
+    [Parameter] public int ColumnsPerRow { get; set; } = 3;
+    [Parameter] public EventCallback<Customer> OnCustomerClick { get; set; }
+    [Parameter] public EventCallback<int> OnEditClick { get; set; }
+    [Parameter] public EventCallback<int> OnViewClick { get; set; }
+    [Parameter] public EventCallback<int> OnSelectionToggle { get; set; }
+
+    public enum CardViewMode
+    {
+        Grid,
+        List
+    }
+
+    private async Task HandleCardClick(Customer customer)
+    {
+        if (OnCustomerClick.HasDelegate)
+        {
+            await OnCustomerClick.InvokeAsync(customer);
+        }
+    }
+
+    private async Task HandleEdit(int customerId)
+    {
+        if (OnEditClick.HasDelegate)
+        {
+            await OnEditClick.InvokeAsync(customerId);
+        }
+    }
+
+    private async Task HandleView(int customerId)
+    {
+        if (OnViewClick.HasDelegate)
+        {
+            await OnViewClick.InvokeAsync(customerId);
+        }
+    }
+
+    private async Task HandleSelectionToggle(int customerId)
+    {
+        if (SelectedCustomerIds.Contains(customerId))
+        {
+            SelectedCustomerIds.Remove(customerId);
+        }
+        else
+        {
+            SelectedCustomerIds.Add(customerId);
+        }
+
+        if (OnSelectionToggle.HasDelegate)
+        {
+            await OnSelectionToggle.InvokeAsync(customerId);
+        }
+    }
+
+    private string FormatABN(string abn)
+    {
+        if (string.IsNullOrEmpty(abn) || abn.Length != 11)
+            return abn;
+            
+        return $"{abn.Substring(0, 2)} {abn.Substring(2, 3)} {abn.Substring(5, 3)} {abn.Substring(8, 3)}";
+    }
+}

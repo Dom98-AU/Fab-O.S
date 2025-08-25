@@ -774,3 +774,37 @@ window.applyTheme = function(theme) {
     const savedTheme = localStorage.getItem('theme') || 'light';
     window.applyTheme(savedTheme);
 })();
+
+// Sidebar state management function
+window.updateSidebarState = function(isOpen) {
+    const page = document.querySelector('.page');
+    const sidebar = document.querySelector('.custom-sidebar');
+    
+    if (page && sidebar) {
+        if (isOpen) {
+            page.classList.remove('sidebar-collapsed');
+            sidebar.classList.remove('collapsed');
+            sidebar.setAttribute('aria-expanded', 'true');
+        } else {
+            page.classList.add('sidebar-collapsed');
+            sidebar.classList.add('collapsed');
+            sidebar.setAttribute('aria-expanded', 'false');
+        }
+        
+        // Store state in localStorage
+        localStorage.setItem('sidebarOpen', isOpen.toString());
+        
+        // Ensure layout is recalculated
+        window.dispatchEvent(new Event('resize'));
+    }
+};
+
+// Initialize sidebar state on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Get saved state or default to open
+    const savedState = localStorage.getItem('sidebarOpen');
+    const isOpen = savedState === null ? true : savedState === 'true';
+    
+    // Apply initial state
+    window.updateSidebarState(isOpen);
+});

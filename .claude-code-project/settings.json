@@ -1,0 +1,50 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -Command \"$file = '{file_path}'; if ($file -match '\\.(cs|razor|cshtml)$') { Write-Host ''; Write-Host '⚠️  C#/Razor file modified: Run .\\rebuild.ps1 to apply changes!' -ForegroundColor Yellow }\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -Command \"$cmd = '{command}'; if ($cmd -match 'docker-compose restart' -and (Test-Path './.claude-code/cs-changes.marker')) { Write-Host ''; Write-Host '❌ WARNING: You have C#/Razor changes! Use .\\rebuild.ps1 instead of restart!' -ForegroundColor Red; Write-Host '' }\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -Command \"if (Test-Path './.claude-code/cs-changes.marker') { Write-Host ''; Write-Host '📌 Reminder: You have pending C#/Razor changes that require .\\rebuild.ps1' -ForegroundColor Cyan; Write-Host '' }\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -Command \"Remove-Item './.claude-code/*.marker' -ErrorAction SilentlyContinue\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sidebar Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border-left: 4px solid #007bff;
+            background: #f8f9fa;
+        }
+        .test-title {
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 10px;
+        }
+        .code-block {
+            background: #282c34;
+            color: #abb2bf;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            margin: 10px 0;
+        }
+        .issue-list {
+            list-style: none;
+            padding: 0;
+        }
+        .issue-list li {
+            padding: 10px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 5px;
+            border-left: 4px solid #dc3545;
+        }
+        .solution-list {
+            list-style: none;
+            padding: 0;
+        }
+        .solution-list li {
+            padding: 10px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 5px;
+            border-left: 4px solid #28a745;
+        }
+        iframe {
+            width: 100%;
+            height: 600px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .button-group {
+            margin: 20px 0;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Steel Estimation Platform - Sidebar Diagnostic</h1>
+        
+        <div class="test-section">
+            <div class="test-title">Current Issue</div>
+            <p>The sidebar is not rendering properly - it appears as plain links above the main content instead of a fixed panel on the left side.</p>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">Expected Behavior</div>
+            <ul class="solution-list">
+                <li>Sidebar should be 250px wide, fixed on the left side</li>
+                <li>Main content should have a left margin of 250px</li>
+                <li>Sidebar should have a white background with border</li>
+                <li>Navigation items should be styled with icons and hover effects</li>
+                <li>Sidebar should be collapsible via toggle button</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">Identified Issues</div>
+            <ul class="issue-list">
+                <li>Blazor Server-Side Rendering may not be completing</li>
+                <li>SignalR connection issues (Connection refused errors in logs)</li>
+                <li>CSS may not be properly applied to dynamically rendered content</li>
+                <li>JavaScript initialization may be failing</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">CSS Rules That Should Apply</div>
+            <div class="code-block">
+.sidebar {
+    width: 250px;
+    height: 100vh;
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    z-index: 1000;
+    background: #ffffff;
+    border-right: 1px solid #e9ecef;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+    overflow-y: auto;
+    transition: transform 0.3s ease;
+}
+
+main {
+    margin-left: 250px !important;
+    padding-top: 0;
+    min-height: 100vh;
+    transition: margin-left 0.3s ease;
+    position: relative;
+}
+
+.page.sidebar-collapsed .sidebar {
+    transform: translateX(-250px);
+}
+
+.page.sidebar-collapsed main {
+    margin-left: 0;
+    width: 100%;
+}
+            </div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">Quick Tests</div>
+            <div class="button-group">
+                <button onclick="checkSidebar()">Check Sidebar in DOM</button>
+                <button onclick="checkCSS()">Check CSS Loading</button>
+                <button onclick="checkBlazor()">Check Blazor Status</button>
+                <button onclick="loadApp()">Load Application</button>
+            </div>
+            <div id="test-results"></div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">Live Application View</div>
+            <iframe id="app-frame" src="about:blank"></iframe>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">Recommended Fixes</div>
+            <ol class="solution-list">
+                <li>Verify Blazor Server is properly initialized in _Layout.cshtml</li>
+                <li>Check that blazor.server.js is loading correctly</li>
+                <li>Ensure SignalR hub connection is established</li>
+                <li>Verify CSS file is being served with correct MIME type</li>
+                <li>Check for JavaScript errors preventing component initialization</li>
+                <li>Ensure SidebarService is properly registered in DI container</li>
+                <li>Verify MainLayout.razor is rendering the sidebar div</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        function checkSidebar() {
+            const frame = document.getElementById('app-frame');
+            if (!frame.src || frame.src === 'about:blank') {
+                showResult('Please load the application first', 'warning');
+                return;
+            }
+            
+            try {
+                const sidebar = frame.contentDocument.querySelector('.sidebar');
+                const navMenu = frame.contentDocument.querySelector('.nav-menu');
+                const mainLayout = frame.contentDocument.querySelector('.page');
+                
+                let results = [];
+                results.push(`Sidebar element: ${sidebar ? 'Found' : 'NOT FOUND'}`);
+                results.push(`NavMenu element: ${navMenu ? 'Found' : 'NOT FOUND'}`);
+                results.push(`Main layout: ${mainLayout ? 'Found' : 'NOT FOUND'}`);
+                
+                if (sidebar) {
+                    const styles = frame.contentWindow.getComputedStyle(sidebar);
+                    results.push(`Sidebar width: ${styles.width}`);
+                    results.push(`Sidebar position: ${styles.position}`);
+                    results.push(`Sidebar display: ${styles.display}`);
+                }
+                
+                showResult(results.join('<br>'), sidebar ? 'success' : 'error');
+            } catch (e) {
+                showResult('Error accessing frame content: ' + e.message, 'error');
+            }
+        }
+        
+        function checkCSS() {
+            const frame = document.getElementById('app-frame');
+            if (!frame.src || frame.src === 'about:blank') {
+                showResult('Please load the application first', 'warning');
+                return;
+            }
+            
+            try {
+                const stylesheets = frame.contentDocument.styleSheets;
+                let results = [];
+                results.push(`Total stylesheets: ${stylesheets.length}`);
+                
+                for (let sheet of stylesheets) {
+                    if (sheet.href && sheet.href.includes('site.css')) {
+                        results.push(`site.css found: ${sheet.href}`);
+                        try {
+                            const rules = sheet.cssRules || sheet.rules;
+                            results.push(`site.css has ${rules.length} rules`);
+                            
+                            let sidebarRules = 0;
+                            for (let rule of rules) {
+                                if (rule.selectorText && rule.selectorText.includes('sidebar')) {
+                                    sidebarRules++;
+                                }
+                            }
+                            results.push(`Found ${sidebarRules} sidebar-related rules`);
+                        } catch (e) {
+                            results.push('Cannot access CSS rules (CORS)');
+                        }
+                    }
+                }
+                
+                showResult(results.join('<br>'), 'success');
+            } catch (e) {
+                showResult('Error checking CSS: ' + e.message, 'error');
+            }
+        }
+        
+        function checkBlazor() {
+            const frame = document.getElementById('app-frame');
+            if (!frame.src || frame.src === 'about:blank') {
+                showResult('Please load the application first', 'warning');
+                return;
+            }
+            
+            try {
+                const blazorScript = frame.contentDocument.querySelector('script[src*="blazor.server.js"]');
+                const signalrScript = frame.contentDocument.querySelector('script[src*="signalr"]');
+                
+                let results = [];
+                results.push(`Blazor script: ${blazorScript ? 'Found' : 'NOT FOUND'}`);
+                results.push(`SignalR script: ${signalrScript ? 'Found' : 'NOT FOUND'}`);
+                
+                if (frame.contentWindow.Blazor) {
+                    results.push('Blazor object exists in window');
+                } else {
+                    results.push('Blazor object NOT FOUND in window');
+                }
+                
+                // Check for Blazor comments
+                const html = frame.contentDocument.documentElement.innerHTML;
+                const blazorComments = (html.match(/<!--Blazor:/g) || []).length;
+                results.push(`Found ${blazorComments} Blazor comment markers`);
+                
+                showResult(results.join('<br>'), blazorScript ? 'success' : 'error');
+            } catch (e) {
+                showResult('Error checking Blazor: ' + e.message, 'error');
+            }
+        }
+        
+        function loadApp() {
+            const frame = document.getElementById('app-frame');
+            frame.src = 'http://localhost:8080';
+            showResult('Loading application... Please wait for it to fully load before running tests.', 'warning');
+            
+            frame.onload = function() {
+                setTimeout(() => {
+                    showResult('Application loaded. You can now run the diagnostic tests.', 'success');
+                }, 2000);
+            };
+        }
+        
+        function showResult(message, type) {
+            const resultsDiv = document.getElementById('test-results');
+            resultsDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+    </script>
+</body>
+</html>

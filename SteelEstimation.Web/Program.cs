@@ -397,6 +397,8 @@ builder.Services.AddAuthorization(options =>
 // Register application services
 // FabOSAuthenticationService now implements all IAuthenticationService methods directly
 builder.Services.AddScoped<ITokenService, SteelEstimation.Infrastructure.Services.TokenService>();
+builder.Services.AddScoped<IWorkCenterService, WorkCenterService>();
+builder.Services.AddScoped<IMachineCenterService, MachineCenterService>();
 builder.Services.AddScoped<IInviteService, SteelEstimation.Infrastructure.Services.InviteService>();
 builder.Services.AddScoped<IUserService, SteelEstimation.Infrastructure.Services.UserService>();
 // builder.Services.AddScoped<IProjectService, ProjectService>();

@@ -11,39 +11,299 @@
 @inject ITimeTrackingService TimeTrackingService
 @implements IDisposable
 
-<div class="page" id="main-page">
-    <AuthorizeView>
-        <Authorized>
-            <div class="sidebar" id="main-sidebar">
-                <NavMenu />
-            </div>
-        </Authorized>
-    </AuthorizeView>
+<style>
+    /* Clean layout styles - sidebar is handled by NavMenu component */
+    #main-page {
+        position: relative;
+        min-height: 100vh;
+        display: block;
+    }
+    
+    #main-content {
+        margin-left: 250px;
+        min-height: 100vh;
+        position: relative;
+        background: #f5f7fa;
+        transition: all 0.3s ease;
+    }
+    
+    /* When sidebar is collapsed */
+    #main-page.sidebar-collapsed #main-content {
+        margin-left: 0;
+        width: 100%;
+    }
+    
+    /* Top row and breadcrumb alignment */
+    .top-row {
+        padding: 1rem 1.5rem !important;
+        background: white;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    
+    .menu-toggle-btn {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        color: #6b7280;
+        margin-right: 1rem;
+        flex-shrink: 0;
+    }
+    
+    .menu-toggle-btn:hover {
+        background: #f9fafb;
+        border-color: #667eea;
+        color: #667eea;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(102, 126, 234, 0.15);
+    }
+    
+    .menu-toggle-btn:active {
+        transform: translateY(0);
+    }
+    
+    .menu-toggle-btn svg {
+        transition: transform 0.2s ease;
+    }
+    
+    .menu-toggle-btn:hover svg {
+        transform: scale(1.1);
+    }
+    
+    /* Breadcrumb alignment with content */
+    .breadcrumb-nav {
+        flex: 1;
+    }
+    
+    .breadcrumb-nav .breadcrumb {
+        background: transparent;
+        padding: 0;
+        margin: 0;
+        box-shadow: none;
+        border: none;
+        font-size: 0.875rem;
+    }
+    
+    .breadcrumb-item + .breadcrumb-item::before {
+        content: "/";
+        font-size: 0.875rem;
+        color: #9ca3af;
+        padding: 0 0.5rem;
+    }
+    
+    .breadcrumb-item a {
+        color: #6b7280;
+        text-decoration: none;
+        transition: color 0.2s ease;
+        padding: 0;
+        border-radius: 0;
+    }
+    
+    .breadcrumb-item a:hover {
+        color: #667eea;
+        background: transparent;
+        transform: none;
+    }
+    
+    .breadcrumb-item a::after {
+        display: none;
+    }
+    
+    .breadcrumb-item.active {
+        color: #374151;
+        font-weight: 500;
+    }
+    
+    /* Content area alignment */
+    article.content {
+        padding: 1.5rem !important;
+    }
+    
+    /* Mobile responsive */
+    @@media (max-width: 768px) {
+        #main-content {
+            margin-left: 0;
+        }
+        
+        .menu-toggle-btn {
+            width: 36px;
+            height: 36px;
+        }
+    }
+</style>
 
-    <main id="main-content">
-        <AuthorizeView Context="authContext">
-            <Authorized>
+<AuthorizeView>
+    <Authorized>
+        <div class="page" id="main-page">
+            <NavMenu />
+
+            <main id="main-content">
                 <div class="top-row px-4">
-                    <div class="d-flex align-items-center justify-content-between w-100">
-                        <div class="d-flex align-items-center gap-3">
-                            <button class="menu-toggle-btn" @onclick="ToggleSidebar" title="Toggle navigation">
-                                <i class="fas fa-bars"></i>
-                            </button>
-                            <EnvironmentBadge />
+            <div class="d-flex align-items-center justify-content-between w-100">
+                <div class="d-flex align-items-center" style="flex: 1;">
+                    <button class="menu-toggle-btn" @onclick="ToggleSidebar" title="Toggle navigation">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M3 12H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M3 6H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M3 18H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                    <!-- Breadcrumb Navigation -->
+                    <nav aria-label="breadcrumb" class="breadcrumb-nav">
+                        <ol class="breadcrumb mb-0">
+                            <li class="breadcrumb-item"><a href="/">Home</a></li>
+                            @if (!string.IsNullOrEmpty(GetCurrentPageName()))
+                            {
+                                <li class="breadcrumb-item active" aria-current="page">@GetCurrentPageName()</li>
+                            }
+                        </ol>
+                    </nav>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <div class="global-search-trigger">
+                        <button class="btn btn-link text-muted global-search-btn" @onclick="ToggleGlobalSearch" title="Search (Ctrl+K)">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                    <EnvironmentBadge />
+                    <UserIndicator />
+                </div>
+            </div>
+                </div>
+
+                <article class="content px-4">
+                    @Body
+                </article>
+            </main>
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <div class="page-unauthenticated">
+            @Body
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+<!-- Global Search Modal -->
+@if (showGlobalSearchModal)
+{
+    <div class="global-search-modal show" @onclick="CloseGlobalSearch">
+        <div class="global-search-modal-content" @onclick:stopPropagation="true">
+        <div class="global-search-header">
+            <div class="search-input-container">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" class="global-search-input" 
+                       placeholder="Search pages, reports, customers, actions..." 
+                       @bind="globalSearchTerm" 
+                       @bind:event="oninput"
+                       @ref="globalSearchInput"
+                       @onkeydown="HandleSearchKeyDown" />
+                @if (!string.IsNullOrEmpty(globalSearchTerm))
+                {
+                    <button class="btn btn-link clear-search-btn" @onclick="ClearGlobalSearch">
+                        <i class="fas fa-times"></i>
+                    </button>
+                }
+                <button class="btn btn-link close-search-btn" @onclick="CloseGlobalSearch">
+                    <span class="text-muted">ESC</span>
+                </button>
+            </div>
+        </div>
+        
+        <div class="global-search-body">
+            @if (string.IsNullOrWhiteSpace(globalSearchTerm))
+            {
+                <div class="search-suggestions">
+                    <div class="suggestion-group">
+                        <div class="suggestion-title">Quick Access</div>
+                        <div class="suggestion-items">
+                            <a href="/" class="suggestion-item" @onclick="CloseGlobalSearch">
+                                <i class="fas fa-tachometer-alt"></i>
+                                <span>Dashboard</span>
+                                <span class="suggestion-shortcut">Alt+D</span>
+                            </a>
+                            <a href="/customers" class="suggestion-item" @onclick="CloseGlobalSearch">
+                                <i class="fas fa-building"></i>
+                                <span>Customers</span>
+                                <span class="suggestion-shortcut">Alt+C</span>
+                            </a>
+                            <a href="/projects" class="suggestion-item" @onclick="CloseGlobalSearch">
+                                <i class="fas fa-project-diagram"></i>
+                                <span>Projects</span>
+                                <span class="suggestion-shortcut">Alt+P</span>
+                            </a>
+                            <a href="/estimation" class="suggestion-item" @onclick="CloseGlobalSearch">
+                                <i class="fas fa-calculator"></i>
+                                <span>Estimations</span>
+                                <span class="suggestion-shortcut">Alt+E</span>
+                            </a>
                         </div>
-                        <div class="d-flex align-items-center">
-                            <UserIndicator />
+                    </div>
+                    <div class="suggestion-group">
+                        <div class="suggestion-title">Recent</div>
+                        <div class="suggestion-items">
+                            <a href="#" class="suggestion-item" @onclick="CloseGlobalSearch">
+                                <i class="fas fa-history"></i>
+                                <span>Recently viewed items will appear here</span>
+                            </a>
                         </div>
                     </div>
                 </div>
-            </Authorized>
-        </AuthorizeView>
-
-        <article class="content px-4">
-            @Body
-        </article>
-    </main>
-</div>
+            }
+            else if (globalSearchResults.Any())
+            {
+                <div class="search-results">
+                    @foreach (var category in globalSearchResults.GroupBy(r => r.Category))
+                    {
+                        <div class="result-category">
+                            <div class="category-header">@category.Key</div>
+                            <div class="category-results">
+                                @foreach (var result in category.Take(8))
+                                {
+                                    <a href="@result.Url" class="result-item @(selectedResultIndex == globalSearchResults.IndexOf(result) ? "selected" : "")" 
+                                       @onclick="() => NavigateToResult(result.Url)">
+                                        <i class="@result.Icon result-icon"></i>
+                                        <div class="result-content">
+                                            <div class="result-title">@result.Title</div>
+                                            @if (!string.IsNullOrEmpty(result.Description))
+                                            {
+                                                <div class="result-description">@result.Description</div>
+                                            }
+                                        </div>
+                                        <i class="fas fa-arrow-right result-arrow"></i>
+                                    </a>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="no-results">
+                    <i class="fas fa-search-minus"></i>
+                    <h5>No results found</h5>
+                    <p>Try searching with different keywords</p>
+                </div>
+            }
+        </div>
+        
+        <div class="global-search-footer">
+            <div class="search-hints">
+                <span class="hint"><kbd>↑↓</kbd> Navigate</span>
+                <span class="hint"><kbd>Enter</kbd> Select</span>
+                <span class="hint"><kbd>ESC</kbd> Close</span>
+            </div>
+        </div>
+        </div>
+    </div>
+}
 
 <ReAuthenticationModal @ref="_reAuthModal" 
                       OnReAuthenticated="HandleReAuthenticated" 
@@ -53,21 +313,53 @@
 @code {
     private ReAuthenticationModal? _reAuthModal;
     private bool _isAuthenticated;
+    private string globalSearchTerm = "";
+    private bool showGlobalSearchModal = false;
+    private List<GlobalSearchResult> globalSearchResults = new();
+    private System.Timers.Timer? searchDebounceTimer;
+    private ElementReference globalSearchInput;
+    private int selectedResultIndex = -1;
+    
+    public class GlobalSearchResult
+    {
+        public string Category { get; set; } = "";
+        public string Title { get; set; } = "";
+        public string? Description { get; set; }
+        public string Url { get; set; } = "";
+        public string Icon { get; set; } = "fas fa-file";
+    }
     
     protected override async Task OnInitializedAsync()
     {
-        await SidebarService.InitializeAsync();
         SidebarService.OnChange += StateHasChanged;
         
+        // Initialize search debounce timer
+        searchDebounceTimer = new System.Timers.Timer(300);
+        searchDebounceTimer.Elapsed += async (sender, e) => await PerformGlobalSearch();
+        searchDebounceTimer.AutoReset = false;
+        
         // Check if user is authenticated
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        _isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            _isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
+        }
+        catch
+        {
+            _isAuthenticated = false;
+        }
         
         // Move JS interop calls to OnAfterRenderAsync
     }
     
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        // Initialize sidebar service on first render
+        if (firstRender)
+        {
+            await SidebarService.InitializeAsync();
+        }
+        
         // Update DOM after every render to ensure consistency
         await SidebarService.UpdateDomAsync();
         
@@ -81,12 +373,188 @@
             // Set up session timeout monitoring
             SessionTimeoutMonitor.OnSessionExpired += HandleSessionExpired;
             SessionTimeoutMonitor.StartMonitoring();
+            
+            // Set up keyboard shortcut for global search (Ctrl+K)
+            await JSRuntime.InvokeVoidAsync("eval", @"
+                document.addEventListener('keydown', function(e) {
+                    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                        e.preventDefault();
+                        document.querySelector('.global-search-btn')?.click();
+                    }
+                });
+            ");
         }
     }
     
     private async Task ToggleSidebar()
     {
         await SidebarService.ToggleAsync();
+    }
+    
+    private async Task ToggleGlobalSearch()
+    {
+        showGlobalSearchModal = !showGlobalSearchModal;
+        if (showGlobalSearchModal)
+        {
+            globalSearchTerm = "";
+            globalSearchResults.Clear();
+            selectedResultIndex = -1;
+            StateHasChanged();
+            await Task.Delay(50); // Allow modal to render
+            await globalSearchInput.FocusAsync();
+        }
+    }
+    
+    private void CloseGlobalSearch()
+    {
+        showGlobalSearchModal = false;
+        globalSearchTerm = "";
+        globalSearchResults.Clear();
+        selectedResultIndex = -1;
+    }
+    
+    private void ClearGlobalSearch()
+    {
+        globalSearchTerm = "";
+        globalSearchResults.Clear();
+        selectedResultIndex = -1;
+    }
+    
+    private async Task HandleSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            CloseGlobalSearch();
+        }
+        else if (e.Key == "ArrowDown")
+        {
+            if (globalSearchResults.Any())
+            {
+                selectedResultIndex = Math.Min(selectedResultIndex + 1, globalSearchResults.Count - 1);
+            }
+        }
+        else if (e.Key == "ArrowUp")
+        {
+            selectedResultIndex = Math.Max(selectedResultIndex - 1, -1);
+        }
+        else if (e.Key == "Enter" && selectedResultIndex >= 0 && selectedResultIndex < globalSearchResults.Count)
+        {
+            NavigateToResult(globalSearchResults[selectedResultIndex].Url);
+        }
+        else if (!string.IsNullOrEmpty(globalSearchTerm))
+        {
+            searchDebounceTimer?.Stop();
+            searchDebounceTimer?.Start();
+        }
+    }
+    
+    private void NavigateToResult(string url)
+    {
+        if (url != "#")
+        {
+            Navigation.NavigateTo(url);
+        }
+        CloseGlobalSearch();
+    }
+    
+    private async Task PerformGlobalSearch()
+    {
+        if (string.IsNullOrWhiteSpace(globalSearchTerm))
+        {
+            globalSearchResults.Clear();
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+        
+        var searchTerm = globalSearchTerm.ToLower();
+        var results = new List<GlobalSearchResult>();
+        
+        // Search Pages
+        var pages = new[]
+        {
+            new { Title = "Dashboard", Url = "/", Icon = "fas fa-tachometer-alt", Keywords = "dashboard home overview metrics" },
+            new { Title = "Customers", Url = "/customers", Icon = "fas fa-building", Keywords = "customers clients companies" },
+            new { Title = "Projects", Url = "/projects", Icon = "fas fa-project-diagram", Keywords = "projects jobs" },
+            new { Title = "Estimations", Url = "/estimation", Icon = "fas fa-calculator", Keywords = "estimation quote pricing" },
+            new { Title = "Packages", Url = "/packages", Icon = "fas fa-box", Keywords = "packages bundles groups" },
+            new { Title = "Settings", Url = "/settings", Icon = "fas fa-cog", Keywords = "settings configuration preferences" },
+            new { Title = "Work Centers", Url = "/settings/work-centers", Icon = "fas fa-industry", Keywords = "work centers manufacturing" },
+            new { Title = "Machine Centers", Url = "/settings/machine-centers", Icon = "fas fa-cogs", Keywords = "machine centers equipment" },
+            new { Title = "Templates", Url = "/worksheets/templates", Icon = "fas fa-file-alt", Keywords = "templates worksheets" },
+            new { Title = "Reports", Url = "/reports", Icon = "fas fa-chart-bar", Keywords = "reports analytics charts" },
+            new { Title = "Users", Url = "/admin/users", Icon = "fas fa-users", Keywords = "users team members employees" },
+            new { Title = "Roles", Url = "/admin/roles", Icon = "fas fa-user-shield", Keywords = "roles permissions access" },
+            new { Title = "Efficiency Rates", Url = "/settings/efficiency-rates", Icon = "fas fa-percentage", Keywords = "efficiency rates productivity" },
+            new { Title = "Welding Time", Url = "/reports/welding-time", Icon = "fas fa-clock", Keywords = "welding time duration" }
+        };
+        
+        foreach (var page in pages)
+        {
+            if (page.Title.ToLower().Contains(searchTerm) || page.Keywords.ToLower().Contains(searchTerm))
+            {
+                results.Add(new GlobalSearchResult
+                {
+                    Category = "Pages",
+                    Title = page.Title,
+                    Url = page.Url,
+                    Icon = page.Icon
+                });
+            }
+        }
+        
+        // Search Reports
+        var reports = new[]
+        {
+            new { Title = "Customer Summary Report", Icon = "fas fa-chart-pie", Keywords = "customer summary report" },
+            new { Title = "Project Status Report", Icon = "fas fa-tasks", Keywords = "project status report" },
+            new { Title = "Estimation Analysis", Icon = "fas fa-chart-line", Keywords = "estimation analysis report" },
+            new { Title = "Welding Time Report", Icon = "fas fa-clock", Keywords = "welding time report" },
+            new { Title = "Efficiency Report", Icon = "fas fa-percentage", Keywords = "efficiency productivity report" },
+            new { Title = "Export to CSV", Icon = "fas fa-file-csv", Keywords = "export csv download" },
+            new { Title = "Export to PDF", Icon = "fas fa-file-pdf", Keywords = "export pdf download" }
+        };
+        
+        foreach (var report in reports)
+        {
+            if (report.Title.ToLower().Contains(searchTerm) || report.Keywords.ToLower().Contains(searchTerm))
+            {
+                results.Add(new GlobalSearchResult
+                {
+                    Category = "Reports",
+                    Title = report.Title,
+                    Url = "#",
+                    Icon = report.Icon,
+                    Description = "Generate report"
+                });
+            }
+        }
+        
+        // Search Actions
+        var actions = new[]
+        {
+            new { Title = "New Customer", Url = "/customers/new", Icon = "fas fa-plus", Keywords = "add new create customer" },
+            new { Title = "New Project", Url = "/projects/new", Icon = "fas fa-plus", Keywords = "add new create project" },
+            new { Title = "New Estimation", Url = "/estimation/new", Icon = "fas fa-plus", Keywords = "add new create estimation quote" },
+            new { Title = "Import Data", Url = "#", Icon = "fas fa-file-import", Keywords = "import upload data" },
+            new { Title = "Export Data", Url = "#", Icon = "fas fa-file-export", Keywords = "export download data" }
+        };
+        
+        foreach (var action in actions)
+        {
+            if (action.Title.ToLower().Contains(searchTerm) || action.Keywords.ToLower().Contains(searchTerm))
+            {
+                results.Add(new GlobalSearchResult
+                {
+                    Category = "Actions",
+                    Title = action.Title,
+                    Url = action.Url,
+                    Icon = action.Icon
+                });
+            }
+        }
+        
+        globalSearchResults = results.Take(15).ToList();
+        await InvokeAsync(StateHasChanged);
     }
     
     private void ShowReAuthModal()
@@ -188,9 +656,35 @@
         });
     }
     
+    private string GetCurrentPageName()
+    {
+        var uri = Navigation.Uri;
+        var path = new Uri(uri).AbsolutePath.ToLower();
+        
+        return path switch
+        {
+            "/" => "Dashboard",
+            "/customers" => "Customers",
+            "/projects" => "Projects",
+            "/estimation" => "Estimations",
+            "/packages" => "Packages",
+            "/reports" => "Reports",
+            "/settings" => "Settings",
+            "/settings/business-configuration" => "Business Configuration",
+            "/settings/work-centers" => "Work Centers",
+            "/settings/machine-centers" => "Machine Centers",
+            "/admin/users" => "User Management",
+            "/admin/settings" => "Admin Settings",
+            "/profile" => "My Profile",
+            "/notifications" => "Notifications",
+            _ => ""
+        };
+    }
+    
     public void Dispose()
     {
         SidebarService.OnChange -= StateHasChanged;
+        searchDebounceTimer?.Dispose();
         
         if (_isAuthenticated)
         {

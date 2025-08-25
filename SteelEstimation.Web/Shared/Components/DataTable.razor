@@ -1,0 +1,291 @@
+@namespace SteelEstimation.Web.Shared.Components
+@using Microsoft.AspNetCore.Components
+@typeparam TItem
+
+<div class="data-table-container">
+    <div class="table-wrapper">
+        <table class="table table-hover data-table @TableClass">
+            <thead>
+                <tr>
+                    @if (ShowSelection)
+                    {
+                        <th class="selection-column">
+                            <input type="checkbox" class="form-check-input" 
+                                   checked="@AllSelected" 
+                                   @onchange="ToggleSelectAll" />
+                        </th>
+                    }
+                    @foreach (var column in Columns)
+                    {
+                        <th class="@(column.Sortable ? "sortable" : "")" 
+                            @onclick="@(() => { if (column.Sortable) Sort(column.Field); })">
+                            @column.Title
+                            @if (column.Sortable && SortField == column.Field)
+                            {
+                                <i class="fas fa-sort-@(SortAscending ? "up" : "down") ms-1"></i>
+                            }
+                        </th>
+                    }
+                    @if (ShowActions)
+                    {
+                        <th class="actions-column">Actions</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Items.Any())
+                {
+                    <tr>
+                        <td colspan="@(Columns.Count + (ShowSelection ? 1 : 0) + (ShowActions ? 1 : 0))" class="text-center py-4">
+                            <div class="no-data">
+                                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                                <p class="text-muted">@EmptyMessage</p>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var item in PagedItems)
+                    {
+                        <tr class="@(IsSelected(item) ? "table-active" : "")" 
+                            @onclick="@(() => OnRowClick.InvokeAsync(item))">
+                            @if (ShowSelection)
+                            {
+                                <td class="selection-column" @onclick:stopPropagation="true">
+                                    <input type="checkbox" class="form-check-input" 
+                                           checked="@IsSelected(item)" 
+                                           @onchange="@(() => ToggleSelection(item))" />
+                                </td>
+                            }
+                            @foreach (var column in Columns)
+                            {
+                                <td class="@column.CssClass">
+                                    @if (column.Template != null)
+                                    {
+                                        @column.Template(item)
+                                    }
+                                    else
+                                    {
+                                        @GetPropertyValue(item, column.Field)
+                                    }
+                                </td>
+                            }
+                            @if (ShowActions)
+                            {
+                                <td class="actions-column" @onclick:stopPropagation="true">
+                                    @if (ActionsTemplate != null)
+                                    {
+                                        @ActionsTemplate(item)
+                                    }
+                                    else
+                                    {
+                                        <div class="btn-group btn-group-sm">
+                                            @if (OnEdit.HasDelegate)
+                                            {
+                                                <button class="btn btn-outline-primary" @onclick="@(() => OnEdit.InvokeAsync(item))" title="Edit">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                            }
+                                            @if (OnView.HasDelegate)
+                                            {
+                                                <button class="btn btn-outline-info" @onclick="@(() => OnView.InvokeAsync(item))" title="View">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                            }
+                                            @if (OnDelete.HasDelegate)
+                                            {
+                                                <button class="btn btn-outline-danger" @onclick="@(() => OnDelete.InvokeAsync(item))" title="Delete">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            }
+                                        </div>
+                                    }
+                                </td>
+                            }
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (ShowPagination && TotalPages > 1)
+    {
+        <nav class="data-table-pagination">
+            <div class="pagination-info">
+                Showing @((CurrentPage - 1) * PageSize + 1) to @Math.Min(CurrentPage * PageSize, FilteredItems.Count()) of @FilteredItems.Count() entries
+            </div>
+            <ul class="pagination justify-content-center mb-0">
+                <li class="page-item @(CurrentPage == 1 ? "disabled" : "")">
+                    <button class="page-link" @onclick="@(() => ChangePage(CurrentPage - 1))">
+                        <i class="fas fa-chevron-left"></i> Previous
+                    </button>
+                </li>
+                
+                @for (int i = Math.Max(1, CurrentPage - 2); i <= Math.Min(TotalPages, CurrentPage + 2); i++)
+                {
+                    var pageNum = i;
+                    <li class="page-item @(CurrentPage == pageNum ? "active" : "")">
+                        <button class="page-link" @onclick="@(() => ChangePage(pageNum))">
+                            @pageNum
+                        </button>
+                    </li>
+                }
+                
+                <li class="page-item @(CurrentPage == TotalPages ? "disabled" : "")">
+                    <button class="page-link" @onclick="@(() => ChangePage(CurrentPage + 1))">
+                        Next <i class="fas fa-chevron-right"></i>
+                    </button>
+                </li>
+            </ul>
+        </nav>
+    }
+</div>
+
+@code {
+    [Parameter] public List<TItem> Items { get; set; } = new();
+    [Parameter] public List<TableColumn<TItem>> Columns { get; set; } = new();
+    [Parameter] public bool ShowSelection { get; set; } = true;
+    [Parameter] public bool ShowActions { get; set; } = true;
+    [Parameter] public bool ShowPagination { get; set; } = true;
+    [Parameter] public int PageSize { get; set; } = 20;
+    [Parameter] public string EmptyMessage { get; set; } = "No data available";
+    [Parameter] public string TableClass { get; set; } = "";
+    [Parameter] public string? SearchTerm { get; set; }
+    [Parameter] public Func<TItem, bool>? FilterPredicate { get; set; }
+    [Parameter] public HashSet<TItem> SelectedItems { get; set; } = new();
+    [Parameter] public RenderFragment<TItem>? ActionsTemplate { get; set; }
+    
+    // Events
+    [Parameter] public EventCallback<TItem> OnRowClick { get; set; }
+    [Parameter] public EventCallback<TItem> OnEdit { get; set; }
+    [Parameter] public EventCallback<TItem> OnView { get; set; }
+    [Parameter] public EventCallback<TItem> OnDelete { get; set; }
+    [Parameter] public EventCallback<HashSet<TItem>> OnSelectionChanged { get; set; }
+    
+    private int CurrentPage = 1;
+    private string? SortField;
+    private bool SortAscending = true;
+    
+    private IEnumerable<TItem> FilteredItems
+    {
+        get
+        {
+            var filtered = Items.AsEnumerable();
+            
+            if (FilterPredicate != null)
+            {
+                filtered = filtered.Where(FilterPredicate);
+            }
+            
+            if (!string.IsNullOrWhiteSpace(SearchTerm))
+            {
+                // Simple search across all string properties
+                filtered = filtered.Where(item =>
+                {
+                    var type = typeof(TItem);
+                    return type.GetProperties()
+                        .Where(p => p.PropertyType == typeof(string))
+                        .Any(p =>
+                        {
+                            var value = p.GetValue(item)?.ToString();
+                            return !string.IsNullOrEmpty(value) && 
+                                   value.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase);
+                        });
+                });
+            }
+            
+            return filtered;
+        }
+    }
+    
+    private IEnumerable<TItem> SortedItems
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(SortField))
+                return FilteredItems;
+                
+            var property = typeof(TItem).GetProperty(SortField);
+            if (property == null)
+                return FilteredItems;
+                
+            return SortAscending
+                ? FilteredItems.OrderBy(x => property.GetValue(x))
+                : FilteredItems.OrderByDescending(x => property.GetValue(x));
+        }
+    }
+    
+    private IEnumerable<TItem> PagedItems => SortedItems
+        .Skip((CurrentPage - 1) * PageSize)
+        .Take(PageSize);
+    
+    private int TotalPages => (int)Math.Ceiling((double)FilteredItems.Count() / PageSize);
+    
+    private bool AllSelected => PagedItems.Any() && PagedItems.All(item => SelectedItems.Contains(item));
+    
+    private bool IsSelected(TItem item) => SelectedItems.Contains(item);
+    
+    private async Task ToggleSelection(TItem item)
+    {
+        if (SelectedItems.Contains(item))
+            SelectedItems.Remove(item);
+        else
+            SelectedItems.Add(item);
+            
+        await OnSelectionChanged.InvokeAsync(SelectedItems);
+    }
+    
+    private async Task ToggleSelectAll()
+    {
+        if (AllSelected)
+        {
+            foreach (var item in PagedItems)
+                SelectedItems.Remove(item);
+        }
+        else
+        {
+            foreach (var item in PagedItems)
+                SelectedItems.Add(item);
+        }
+        
+        await OnSelectionChanged.InvokeAsync(SelectedItems);
+    }
+    
+    private void Sort(string field)
+    {
+        if (SortField == field)
+        {
+            SortAscending = !SortAscending;
+        }
+        else
+        {
+            SortField = field;
+            SortAscending = true;
+        }
+    }
+    
+    private void ChangePage(int page)
+    {
+        if (page >= 1 && page <= TotalPages)
+        {
+            CurrentPage = page;
+        }
+    }
+    
+    private object? GetPropertyValue(TItem item, string propertyName)
+    {
+        var property = typeof(TItem).GetProperty(propertyName);
+        return property?.GetValue(item);
+    }
+    
+    public class TableColumn<T>
+    {
+        public string Field { get; set; } = "";
+        public string Title { get; set; } = "";
+        public bool Sortable { get; set; } = false;
+        public string? CssClass { get; set; }
+        public RenderFragment<T>? Template { get; set; }
+    }
+}

@@ -107,7 +107,8 @@ public class LoginModel : PageModel
                     return LocalRedirect("/welcome");
                 }
 
-                return LocalRedirect(returnUrl);
+                // Force a full page reload to establish new SignalR connection with auth context
+                return Redirect(returnUrl);
             }
 
             ModelState.AddModelError(string.Empty, result.Message ?? "Invalid login attempt.");

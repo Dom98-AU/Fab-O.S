@@ -25,6 +25,11 @@ services:
     volumes:
       - ./logs:/app/logs
       - ./uploads:/app/uploads
+      # Development volume mounts for instant file updates
+      - ./SteelEstimation.Web/wwwroot:/app/wwwroot:ro
+      - ./SteelEstimation.Web/Pages:/app/Pages:ro
+      - ./SteelEstimation.Web/Shared:/app/Shared:ro
+      - ./SteelEstimation.Web/Components:/app/Components:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80/health"]
       interval: 30s

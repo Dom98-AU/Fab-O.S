@@ -1,0 +1,156 @@
+@page "/settings/business-configuration"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject NavigationManager Navigation
+@attribute [Authorize(Roles = "Administrator")]
+
+<PageTitle>Business Configuration - Settings</PageTitle>
+
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/settings">Settings</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Business Configuration</li>
+                </ol>
+            </nav>
+            <h2 class="mb-3">
+                <i class="fas fa-briefcase me-2"></i>Business Configuration
+            </h2>
+            <p class="text-muted">Configure your business operations, work centers, and production resources.</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100 settings-card" @onclick='() => NavigateTo("/settings/business-configuration/work-centers")'>
+                <div class="card-body text-center">
+                    <div class="icon-wrapper mb-3">
+                        <i class="fas fa-industry fa-3x text-primary"></i>
+                    </div>
+                    <h5 class="card-title">Work Centers</h5>
+                    <p class="card-text text-muted">
+                        Define and manage production work centers, departments, and their operational parameters.
+                    </p>
+                    <span class="btn btn-sm btn-outline-primary">
+                        Manage <i class="fas fa-arrow-right ms-1"></i>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100 settings-card" @onclick='() => NavigateTo("/settings/business-configuration/machine-centers")'>
+                <div class="card-body text-center">
+                    <div class="icon-wrapper mb-3">
+                        <i class="fas fa-cogs fa-3x text-info"></i>
+                    </div>
+                    <h5 class="card-title">Machine Centers</h5>
+                    <p class="card-text text-muted">
+                        Configure machines, equipment, and their capabilities for accurate production planning.
+                    </p>
+                    <span class="btn btn-sm btn-outline-info">
+                        Manage <i class="fas fa-arrow-right ms-1"></i>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100 settings-card disabled">
+                <div class="card-body text-center">
+                    <div class="icon-wrapper mb-3">
+                        <i class="fas fa-users-cog fa-3x text-secondary"></i>
+                    </div>
+                    <h5 class="card-title">Labor Resources</h5>
+                    <p class="card-text text-muted">
+                        Manage workforce, skills, and labor allocation.
+                    </p>
+                    <span class="badge bg-secondary">Coming Soon</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100 settings-card disabled">
+                <div class="card-body text-center">
+                    <div class="icon-wrapper mb-3">
+                        <i class="fas fa-clock fa-3x text-secondary"></i>
+                    </div>
+                    <h5 class="card-title">Shift Management</h5>
+                    <p class="card-text text-muted">
+                        Define work shifts, schedules, and capacity planning.
+                    </p>
+                    <span class="badge bg-secondary">Coming Soon</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100 settings-card disabled">
+                <div class="card-body text-center">
+                    <div class="icon-wrapper mb-3">
+                        <i class="fas fa-percentage fa-3x text-secondary"></i>
+                    </div>
+                    <h5 class="card-title">Efficiency Rates</h5>
+                    <p class="card-text text-muted">
+                        Set up efficiency factors and productivity metrics.
+                    </p>
+                    <span class="badge bg-secondary">Coming Soon</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100 settings-card disabled">
+                <div class="card-body text-center">
+                    <div class="icon-wrapper mb-3">
+                        <i class="fas fa-warehouse fa-3x text-secondary"></i>
+                    </div>
+                    <h5 class="card-title">Facilities</h5>
+                    <p class="card-text text-muted">
+                        Manage buildings, floors, and production areas.
+                    </p>
+                    <span class="badge bg-secondary">Coming Soon</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .settings-card {
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        border: 1px solid #e0e0e0;
+    }
+    
+    .settings-card:not(.disabled):hover {
+        transform: translateY(-5px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    
+    .settings-card.disabled {
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+    
+    .icon-wrapper {
+        height: 80px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .breadcrumb {
+        background-color: transparent;
+        padding: 0;
+    }
+</style>
+
+@code {
+    private void NavigateTo(string path)
+    {
+        Navigation.NavigateTo(path);
+    }
+}

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sidebar Test Instructions - Fab O.S</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .instruction-box {
+            background: #f0f4f8;
+            border: 2px solid #0d1a80;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .step {
+            margin: 15px 0;
+            padding: 10px;
+            background: white;
+            border-left: 4px solid #0d1a80;
+        }
+        .screenshot-placeholder {
+            border: 2px dashed #ccc;
+            padding: 40px;
+            text-align: center;
+            margin: 20px 0;
+            background: #f9f9f9;
+        }
+        .checklist {
+            background: #e8f4f8;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .checklist h3 {
+            color: #0d1a80;
+            margin-top: 0;
+        }
+        .checklist ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        .checklist li {
+            padding: 8px 0;
+            border-bottom: 1px solid #ddd;
+        }
+        .checklist li:before {
+            content: "☐ ";
+            font-size: 1.2em;
+            margin-right: 10px;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        .url-box {
+            background: #fff;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 10px 0;
+            font-size: 1.1em;
+        }
+    </style>
+</head>
+<body>
+    <h1>Manual Sidebar Verification - Fab O.S Platform</h1>
+    
+    <div class="instruction-box">
+        <h2>Test Objective</h2>
+        <p>Verify that the sidebar in the Fab O.S platform is displaying correctly with proper formatting, styling, and all navigation elements visible.</p>
+    </div>
+
+    <div class="step">
+        <h3>Step 1: Navigate to the Application</h3>
+        <div class="url-box">
+            <strong>URL:</strong> <a href="http://localhost:8080" target="_blank">http://localhost:8080</a>
+        </div>
+        <p>Open this URL in a new browser tab/window</p>
+    </div>
+
+    <div class="step">
+        <h3>Step 2: Login to the Application</h3>
+        <p>Use the following credentials:</p>
+        <ul>
+            <li><strong>Email:</strong> <code>admin@steelestimation.com</code></li>
+            <li><strong>Password:</strong> <code>Admin@123</code></li>
+        </ul>
+    </div>
+
+    <div class="step">
+        <h3>Step 3: Take Screenshots</h3>
+        <p>Once logged in, capture screenshots of the following:</p>
+        <ol>
+            <li><strong>Full page view</strong> - Shows the entire layout with sidebar</li>
+            <li><strong>Sidebar close-up</strong> - Focus on just the sidebar area</li>
+            <li><strong>Logo area</strong> - Top of the sidebar showing the Fab O.S logo</li>
+            <li><strong>Navigation menu</strong> - All menu items in the sidebar</li>
+        </ol>
+        <p><strong>Windows:</strong> Use <code>Win + Shift + S</code> or Snipping Tool<br>
+           <strong>Mac:</strong> Use <code>Cmd + Shift + 4</code><br>
+           <strong>Linux:</strong> Use Screenshot tool or <code>PrtScn</code></p>
+    </div>
+
+    <div class="checklist">
+        <h3>Verification Checklist</h3>
+        <p>Please verify the following aspects of the sidebar:</p>
+        <ul>
+            <li><strong>Width:</strong> Should be exactly 250px wide</li>
+            <li><strong>Background Color:</strong> Should be dark blue (#0d1a80)</li>
+            <li><strong>Logo:</strong> Fab O.S logo should be visible at the top</li>
+            <li><strong>Navigation Items:</strong> All menu items should be visible and properly styled</li>
+            <li><strong>Text Color:</strong> White or light colored text for good contrast</li>
+            <li><strong>Icons:</strong> FontAwesome icons should be visible next to menu items</li>
+            <li><strong>Hover Effects:</strong> Menu items should have hover effects</li>
+            <li><strong>Active State:</strong> Current page should be highlighted in the menu</li>
+            <li><strong>Spacing:</strong> Proper padding and margins between elements</li>
+            <li><strong>Responsiveness:</strong> Sidebar should stay fixed when scrolling</li>
+        </ul>
+    </div>
+
+    <div class="checklist">
+        <h3>Expected Navigation Menu Items</h3>
+        <ul>
+            <li>Dashboard (Home icon)</li>
+            <li>Estimations</li>
+            <li>Customers</li>
+            <li>Projects</li>
+            <li>Templates</li>
+            <li>Reports</li>
+            <li>Settings (if admin)</li>
+            <li>User Profile (bottom)</li>
+            <li>Logout (bottom)</li>
+        </ul>
+    </div>
+
+    <div class="screenshot-placeholder">
+        <h4>Screenshot Location</h4>
+        <p>Save your screenshots to: <code>/mnt/c/Fab.OS Platform/Fab O.S/</code></p>
+        <p>Suggested naming:</p>
+        <ul style="list-style: none; padding: 0;">
+            <li><code>sidebar-full-page-[timestamp].png</code></li>
+            <li><code>sidebar-closeup-[timestamp].png</code></li>
+            <li><code>sidebar-logo-[timestamp].png</code></li>
+            <li><code>sidebar-nav-[timestamp].png</code></li>
+        </ul>
+    </div>
+
+    <div class="instruction-box" style="background: #fff3cd; border-color: #ffc107;">
+        <h3>Known Issues to Check</h3>
+        <ul>
+            <li>Sidebar might be collapsed or hidden on mobile view</li>
+            <li>CSS might not be loading properly (check browser console)</li>
+            <li>Navigation items might be missing or improperly styled</li>
+            <li>Logo image might be broken or missing</li>
+        </ul>
+    </div>
+
+    <div class="instruction-box" style="background: #d4edda; border-color: #28a745;">
+        <h3>What Success Looks Like</h3>
+        <p>A properly formatted sidebar should have:</p>
+        <ul>
+            <li>✓ Clean, professional appearance with dark blue background</li>
+            <li>✓ Clear, readable white text</li>
+            <li>✓ Visible Fab O.S logo at the top</li>
+            <li>✓ All navigation items properly aligned and spaced</li>
+            <li>✓ Icons displaying correctly next to menu items</li>
+            <li>✓ Smooth hover transitions on menu items</li>
+            <li>✓ Fixed position that doesn't move when scrolling</li>
+        </ul>
+    </div>
+</body>
+</html>

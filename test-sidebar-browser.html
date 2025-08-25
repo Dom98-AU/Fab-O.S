@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sidebar Visual Test Report - Fab O.S</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+            background: #f5f5f5;
+        }
+        .header {
+            background: linear-gradient(135deg, #0d1a80 0%, #1a2a90 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        h1 {
+            margin: 0;
+            font-size: 2rem;
+        }
+        .timestamp {
+            opacity: 0.9;
+            margin-top: 10px;
+        }
+        .test-section {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        h2 {
+            color: #0d1a80;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .checklist {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .check-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+        }
+        .check-item.warning {
+            border-left-color: #ffc107;
+            background: #fff9e6;
+        }
+        .check-item.error {
+            border-left-color: #dc3545;
+            background: #ffe6e6;
+        }
+        .check-icon {
+            margin-right: 10px;
+            font-size: 1.2em;
+        }
+        .code-block {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            margin: 15px 0;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        .status-pass {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .status-fail {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .screenshot-placeholder {
+            border: 2px dashed #ccc;
+            padding: 60px 20px;
+            text-align: center;
+            background: #fafafa;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #0d1a80;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            margin: 10px 5px;
+            transition: all 0.3s;
+        }
+        .btn:hover {
+            background: #1a2a90;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(13, 26, 128, 0.3);
+        }
+        .instruction-steps {
+            background: #e8f4f8;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .instruction-steps ol {
+            margin: 10px 0;
+            padding-left: 25px;
+        }
+        .instruction-steps li {
+            margin: 10px 0;
+            line-height: 1.6;
+        }
+        .specs-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        .specs-table th {
+            background: #0d1a80;
+            color: white;
+            padding: 12px;
+            text-align: left;
+        }
+        .specs-table td {
+            padding: 12px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .specs-table tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        .nav-items-list {
+            background: #f0f4f8;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        .nav-items-list ul {
+            margin: 10px 0;
+            padding-left: 25px;
+        }
+        .nav-items-list li {
+            margin: 8px 0;
+            color: #333;
+        }
+        .icon-check {
+            color: #28a745;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Fab O.S Sidebar Visual Test Report</h1>
+        <div class="timestamp">Generated: <span id="currentTime"></span></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Quick Access Links <span class="status-badge status-pass">Ready</span></h2>
+        <div style="text-align: center;">
+            <a href="http://localhost:8080" target="_blank" class="btn">Open Application</a>
+            <a href="http://localhost:8080/Identity/Account/Login" target="_blank" class="btn">Direct to Login</a>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Instructions</h2>
+        <div class="instruction-steps">
+            <ol>
+                <li><strong>Open the application</strong> using the button above or navigate to <code>http://localhost:8080</code></li>
+                <li><strong>Login</strong> with credentials:
+                    <ul>
+                        <li>Email: <code>admin@steelestimation.com</code></li>
+                        <li>Password: <code>Admin@123</code></li>
+                    </ul>
+                </li>
+                <li><strong>Take screenshots</strong> using:
+                    <ul>
+                        <li>Windows: <code>Win + Shift + S</code></li>
+                        <li>Mac: <code>Cmd + Shift + 4</code></li>
+                        <li>Linux: <code>PrtScn</code> or Screenshot tool</li>
+                    </ul>
+                </li>
+                <li><strong>Verify</strong> the sidebar elements against the checklist below</li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Expected Sidebar Specifications</h2>
+        <table class="specs-table">
+            <tr>
+                <th>Property</th>
+                <th>Expected Value</th>
+                <th>CSS Location</th>
+            </tr>
+            <tr>
+                <td>Width</td>
+                <td>250px (fixed)</td>
+                <td>site.css line 1032-1033</td>
+            </tr>
+            <tr>
+                <td>Background</td>
+                <td>Linear gradient (#ffffff to #f8f9fa)</td>
+                <td>site.css line 1034</td>
+            </tr>
+            <tr>
+                <td>Position</td>
+                <td>Fixed left side</td>
+                <td>site.css line 1035-1036</td>
+            </tr>
+            <tr>
+                <td>Logo Location</td>
+                <td>Top center (40x40px)</td>
+                <td>NavMenu.razor line 14</td>
+            </tr>
+            <tr>
+                <td>Logo Image</td>
+                <td>/images/f_symbol_square_auto.png</td>
+                <td>NavMenu.razor line 14</td>
+            </tr>
+            <tr>
+                <td>Nav Link Style</td>
+                <td>Rounded corners (12px), hover effects</td>
+                <td>site.css line 1161-1173</td>
+            </tr>
+            <tr>
+                <td>Icon Size</td>
+                <td>1.2rem with 14px right margin</td>
+                <td>site.css line 1210-1218</td>
+            </tr>
+            <tr>
+                <td>Active Link</td>
+                <td>Blue background gradient, 4px left border</td>
+                <td>site.css line 1198-1208</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="test-section">
+        <h2>Visual Verification Checklist</h2>
+        <div class="checklist">
+            <div class="check-item">
+                <span class="check-icon">☐</span>
+                <span>Sidebar is 250px wide</span>
+            </div>
+            <div class="check-item">
+                <span class="check-icon">☐</span>
+                <span>Sidebar has light gradient background</span>
+            </div>
+            <div class="check-item">
+                <span class="check-icon">☐</span>
+                <span>Fab O.S logo is visible at top</span>
+            </div>
+            <div class="check-item">
+                <span class="check-icon">☐</span>
+                <span>Logo is properly sized (40x40px)</span>
+            </div>
+            <div class="check-item">
+                <span class="check-icon">☐</span>
+                <span>Navigation items are visible</span>
+            </div>
+            <div class="check-item">
+                <span class="check-icon">☐</span>
+                <span>Icons display next to menu items</span>
+            </div>
+            <div class="check-item">
+                <span class="check-icon">☐</span>
+                <span>Menu items have rounded corners</span>
+            </div>
+            <div class="check-item">
+                <span class="check-icon">☐</span>
+                <span>Active page is highlighted</span>
+            </div>
+            <div class="check-item">
+                <span class="check-icon">☐</span>
+                <span>Hover effects work on menu items</span>
+            </div>
+            <div class="check-item">
+                <span class="check-icon">☐</span>
+                <span>Text is readable (dark on light)</span>
+            </div>
+            <div class="check-item">
+                <span class="check-icon">☐</span>
+                <span>Logout link appears at bottom</span>
+            </div>
+            <div class="check-item">
+                <span class="check-icon">☐</span>
+                <span>Sidebar stays fixed when scrolling</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Expected Navigation Items (Estimate Module)</h2>
+        <div class="nav-items-list">
+            <p>When logged in as admin, the following items should appear:</p>
+            <ul>
+                <li><span class="icon-check">→</span> Dashboard (fa-tachometer-alt icon)</li>
+                <li><span class="icon-check">→</span> Estimations (fa-drafting-compass icon)</li>
+                <li><span class="icon-check">→</span> Customers (fa-handshake icon)</li>
+                <li><span class="icon-check">→</span> Reports (fa-chart-bar icon)</li>
+                <li><span class="icon-check">→</span> Time Analytics (fa-stopwatch icon)</li>
+                <li><span class="icon-check">→</span> Import/Export (fa-exchange-alt icon)</li>
+                <li><span class="icon-check">→</span> Worksheet Templates (fa-file-alt icon)</li>
+                <li><span class="icon-check">→</span> --- Divider ---</li>
+                <li><span class="icon-check">→</span> My Profile (fa-user-circle icon)</li>
+                <li><span class="icon-check">→</span> Notifications (fa-bell icon)</li>
+                <li><span class="icon-check">→</span> Preferences (fa-user-cog icon)</li>
+                <li><span class="icon-check">→</span> --- Divider ---</li>
+                <li><span class="icon-check">→</span> Logout (fa-power-off icon, red text)</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Module Switcher</h2>
+        <p>Click on the Fab O.S logo to open the module dropdown. You should see:</p>
+        <div class="nav-items-list">
+            <ul>
+                <li><span class="icon-check">→</span> Estimate (Active)</li>
+                <li><span class="icon-check">→</span> Trace (May show "Coming Soon")</li>
+                <li><span class="icon-check">→</span> Fabmate (May show "Coming Soon")</li>
+                <li><span class="icon-check">→</span> QDocs (May show "Coming Soon")</li>
+                <li><span class="icon-check">→</span> Settings (If admin role)</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Screenshot Areas to Capture</h2>
+        <div class="screenshot-placeholder">
+            <h3>1. Full Page View</h3>
+            <p>Capture the entire browser window showing sidebar and main content area</p>
+            <p><strong>What to look for:</strong> Overall layout, sidebar positioning, content alignment</p>
+        </div>
+        <div class="screenshot-placeholder">
+            <h3>2. Sidebar Close-up</h3>
+            <p>Focus on just the sidebar from top to bottom</p>
+            <p><strong>What to look for:</strong> Logo, navigation items, styling, spacing</p>
+        </div>
+        <div class="screenshot-placeholder">
+            <h3>3. Module Dropdown</h3>
+            <p>Click the logo and capture the dropdown menu</p>
+            <p><strong>What to look for:</strong> Module list, active module, styling</p>
+        </div>
+        <div class="screenshot-placeholder">
+            <h3>4. Hover States</h3>
+            <p>Hover over a menu item and capture the effect</p>
+            <p><strong>What to look for:</strong> Background change, icon scale, left border</p>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Common Issues to Check</h2>
+        <div class="checklist">
+            <div class="check-item warning">
+                <span class="check-icon">⚠</span>
+                <span>If sidebar is missing: Check browser console for CSS errors</span>
+            </div>
+            <div class="check-item warning">
+                <span class="check-icon">⚠</span>
+                <span>If logo is broken: Verify /images/f_symbol_square_auto.png exists</span>
+            </div>
+            <div class="check-item warning">
+                <span class="check-icon">⚠</span>
+                <span>If icons missing: Check FontAwesome CDN is loading</span>
+            </div>
+            <div class="check-item warning">
+                <span class="check-icon">⚠</span>
+                <span>If styling is off: Clear browser cache and hard refresh (Ctrl+F5)</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Browser Console Commands</h2>
+        <p>Open browser DevTools (F12) and run these commands to verify:</p>
+        <div class="code-block">
+// Check sidebar width
+document.querySelector('.sidebar')?.offsetWidth
+
+// Check if logo is loaded
+document.querySelector('.navbar-brand img')?.src
+
+// Count navigation items
+document.querySelectorAll('.modern-nav-link').length
+
+// Check active menu item
+document.querySelector('.modern-nav-link.active')?.textContent
+
+// Test sidebar collapse toggle
+document.querySelector('.menu-toggle-btn')?.click()
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('currentTime').textContent = new Date().toLocaleString();
+        
+        // Add click handlers to check items
+        document.querySelectorAll('.check-item').forEach(item => {
+            item.style.cursor = 'pointer';
+            item.addEventListener('click', function() {
+                const icon = this.querySelector('.check-icon');
+                if (icon.textContent === '☐') {
+                    icon.textContent = '✓';
+                    icon.style.color = '#28a745';
+                    this.style.background = '#d4edda';
+                } else {
+                    icon.textContent = '☐';
+                    icon.style.color = 'inherit';
+                    this.style.background = '';
+                }
+            });
+        });
+    </script>
+</body>
+</html>

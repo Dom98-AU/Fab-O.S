@@ -1,0 +1,676 @@
+@page "/settings/machine-centers"
+@page "/settings/business-configuration/machine-centers"
+@using Microsoft.EntityFrameworkCore
+@using SteelEstimation.Core.Entities
+@using SteelEstimation.Infrastructure.Data
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+@attribute [Authorize(Roles = "Administrator")]
+
+<PageTitle>Machine Centers - Settings</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0">
+                            <i class="fas fa-cog me-2"></i>Machine Centers
+                        </h4>
+                        <button class="btn btn-primary" @onclick="ShowAddMachineCenterModal">
+                            <i class="fas fa-plus me-2"></i>Add Machine Center
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    @if (machineCenters == null)
+                    {
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    }
+                    else if (!machineCenters.Any())
+                    {
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            No machine centers defined yet. Click "Add Machine Center" to create your first machine.
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Code</th>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Work Center</th>
+                                        <th>Status</th>
+                                        <th>Capacity</th>
+                                        <th>Hourly Rate</th>
+                                        <th>Efficiency</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var machine in machineCenters)
+                                    {
+                                        <tr>
+                                            <td><code>@machine.MachineCode</code></td>
+                                            <td>
+                                                <strong>@machine.MachineName</strong>
+                                                @if (!string.IsNullOrEmpty(machine.Model))
+                                                {
+                                                    <br />
+                                                    <small class="text-muted">@machine.Manufacturer @machine.Model</small>
+                                                }
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-secondary">@machine.MachineType</span>
+                                            </td>
+                                            <td>@machine.WorkCenter?.Name</td>
+                                            <td>
+                                                @{
+                                                    var statusClass = machine.CurrentStatus switch
+                                                    {
+                                                        "Available" => "bg-success",
+                                                        "InUse" => "bg-primary",
+                                                        "Maintenance" => "bg-warning",
+                                                        "Breakdown" => "bg-danger",
+                                                        _ => "bg-secondary"
+                                                    };
+                                                }
+                                                <span class="badge @statusClass">@machine.CurrentStatus</span>
+                                            </td>
+                                            <td>@machine.MaxCapacity @machine.CapacityUnit</td>
+                                            <td>$@machine.HourlyRate.ToString("N2")</td>
+                                            <td>@machine.EfficiencyPercentage%</td>
+                                            <td>
+                                                <div class="btn-group btn-group-sm" role="group">
+                                                    <button class="btn btn-outline-primary" @onclick="() => ViewMachineCenter(machine)" title="View Details">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
+                                                    <button class="btn btn-outline-secondary" @onclick="() => EditMachineCenter(machine)" title="Edit">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    <button class="btn btn-outline-warning" @onclick="() => ManageMaintenance(machine)" title="Maintenance">
+                                                        <i class="fas fa-wrench"></i>
+                                                    </button>
+                                                    <button class="btn btn-outline-danger" @onclick="() => DeleteMachineCenter(machine)" title="Delete">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @if (machineCenters != null && machineCenters.Any())
+            {
+                <div class="card mt-3">
+                    <div class="card-body">
+                        <h5 class="card-title">Machine Center Statistics</h5>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h3>@machineCenters.Count()</h3>
+                                    <small class="text-muted">Total Machines</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h3>@machineCenters.Count(m => m.CurrentStatus == "Available")</h3>
+                                    <small class="text-muted">Available</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h3>@machineCenters.Count(m => m.CurrentStatus == "InUse")</h3>
+                                    <small class="text-muted">In Use</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h3>@machineCenters.Count(m => m.CurrentStatus == "Maintenance")</h3>
+                                    <small class="text-muted">In Maintenance</small>
+                                </div>
+                            </div>
+                        </div>
+                        <hr />
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="text-center">
+                                    <h4>@machineCenters.Average(m => m.EfficiencyPercentage).ToString("N1")%</h4>
+                                    <small class="text-muted">Average Efficiency</small>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-center">
+                                    <h4>@machineCenters.Average(m => m.AvailabilityRate).ToString("N1")%</h4>
+                                    <small class="text-muted">Average Availability</small>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-center">
+                                    <h4>@machineCenters.Average(m => m.QualityRate).ToString("N1")%</h4>
+                                    <small class="text-muted">Average Quality Rate</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Machine Center Modal -->
+@if (showModal)
+{
+    <div class="modal fade show" style="display: block;" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        @(editingMachineCenter.Id == 0 ? "Add New Machine Center" : "Edit Machine Center")
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                </div>
+                <EditForm Model="editingMachineCenter" OnValidSubmit="SaveMachineCenter">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <ul class="nav nav-tabs mb-3" id="machineTabs" role="tablist">
+                            <li class="nav-item">
+                                <a class="nav-link active" data-bs-toggle="tab" href="#basicInfo">Basic Information</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#specifications">Specifications</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#operations">Operations</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#maintenance">Maintenance</a>
+                            </li>
+                        </ul>
+
+                        <div class="tab-content">
+                            <!-- Basic Information Tab -->
+                            <div class="tab-pane fade show active" id="basicInfo">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Machine Code <span class="text-danger">*</span></label>
+                                            <InputText @bind-Value="editingMachineCenter.MachineCode" class="form-control" placeholder="MC001" />
+                                            <ValidationMessage For="@(() => editingMachineCenter.MachineCode)" />
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Machine Name <span class="text-danger">*</span></label>
+                                            <InputText @bind-Value="editingMachineCenter.MachineName" class="form-control" placeholder="CNC Mill #1" />
+                                            <ValidationMessage For="@(() => editingMachineCenter.MachineName)" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Description</label>
+                                    <InputTextArea @bind-Value="editingMachineCenter.Description" class="form-control" rows="2" />
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Work Center <span class="text-danger">*</span></label>
+                                            <InputSelect @bind-Value="editingMachineCenter.WorkCenterId" class="form-select">
+                                                <option value="">Select Work Center</option>
+                                                @if (workCenters != null)
+                                                {
+                                                    @foreach (var wc in workCenters)
+                                                    {
+                                                        <option value="@wc.Id">@wc.Name (@wc.Code)</option>
+                                                    }
+                                                }
+                                            </InputSelect>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Machine Type <span class="text-danger">*</span></label>
+                                            <InputSelect @bind-Value="editingMachineCenter.MachineType" class="form-select">
+                                                <option value="CNC">CNC</option>
+                                                <option value="Laser">Laser</option>
+                                                <option value="Press">Press</option>
+                                                <option value="Welding">Welding</option>
+                                                <option value="Cutting">Cutting</option>
+                                                <option value="Drilling">Drilling</option>
+                                                <option value="Grinding">Grinding</option>
+                                                <option value="Milling">Milling</option>
+                                                <option value="Turning">Turning</option>
+                                                <option value="Other">Other</option>
+                                            </InputSelect>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label class="form-label">Manufacturer</label>
+                                            <InputText @bind-Value="editingMachineCenter.Manufacturer" class="form-control" />
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label class="form-label">Model</label>
+                                            <InputText @bind-Value="editingMachineCenter.Model" class="form-control" />
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label class="form-label">Serial Number</label>
+                                            <InputText @bind-Value="editingMachineCenter.SerialNumber" class="form-control" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Specifications Tab -->
+                            <div class="tab-pane fade" id="specifications">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Max Capacity</label>
+                                            <InputNumber @bind-Value="editingMachineCenter.MaxCapacity" class="form-control" />
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Capacity Unit</label>
+                                            <InputText @bind-Value="editingMachineCenter.CapacityUnit" class="form-control" placeholder="tons, kg, pieces/hour" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label class="form-label">Hourly Rate ($)</label>
+                                            <InputNumber @bind-Value="editingMachineCenter.HourlyRate" class="form-control" />
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label class="form-label">Power Consumption (kWh)</label>
+                                            <InputNumber @bind-Value="editingMachineCenter.PowerConsumptionKwh" class="form-control" />
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label class="form-label">Power Cost ($/kWh)</label>
+                                            <InputNumber @bind-Value="editingMachineCenter.PowerCostPerKwh" class="form-control" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Purchase Date</label>
+                                            <InputDate @bind-Value="editingMachineCenter.PurchaseDate" class="form-control" />
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Purchase Price ($)</label>
+                                            <InputNumber @bind-Value="editingMachineCenter.PurchasePrice" class="form-control" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Operations Tab -->
+                            <div class="tab-pane fade" id="operations">
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label class="form-label">Setup Time (Minutes)</label>
+                                            <InputNumber @bind-Value="editingMachineCenter.SetupTimeMinutes" class="form-control" />
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label class="form-label">Warmup Time (Minutes)</label>
+                                            <InputNumber @bind-Value="editingMachineCenter.WarmupTimeMinutes" class="form-control" />
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label class="form-label">Cooldown Time (Minutes)</label>
+                                            <InputNumber @bind-Value="editingMachineCenter.CooldownTimeMinutes" class="form-control" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label class="form-label">Efficiency (%)</label>
+                                            <InputNumber @bind-Value="editingMachineCenter.EfficiencyPercentage" class="form-control" min="0" max="100" />
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label class="form-label">Quality Rate (%)</label>
+                                            <InputNumber @bind-Value="editingMachineCenter.QualityRate" class="form-control" min="0" max="100" />
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label class="form-label">Availability Rate (%)</label>
+                                            <InputNumber @bind-Value="editingMachineCenter.AvailabilityRate" class="form-control" min="0" max="100" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Current Status</label>
+                                            <InputSelect @bind-Value="editingMachineCenter.CurrentStatus" class="form-select">
+                                                <option value="Available">Available</option>
+                                                <option value="InUse">In Use</option>
+                                                <option value="Maintenance">Maintenance</option>
+                                                <option value="Breakdown">Breakdown</option>
+                                            </InputSelect>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check mt-4">
+                                            <InputCheckbox @bind-Value="editingMachineCenter.RequiresTooling" class="form-check-input" id="requiresTooling" />
+                                            <label class="form-check-label" for="requiresTooling">
+                                                Requires Special Tooling
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                @if (editingMachineCenter.RequiresTooling)
+                                {
+                                    <div class="mb-3">
+                                        <label class="form-label">Tooling Requirements</label>
+                                        <InputTextArea @bind-Value="editingMachineCenter.ToolingRequirements" class="form-control" rows="2" />
+                                    </div>
+                                }
+                            </div>
+
+                            <!-- Maintenance Tab -->
+                            <div class="tab-pane fade" id="maintenance">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Maintenance Interval (Hours)</label>
+                                            <InputNumber @bind-Value="editingMachineCenter.MaintenanceIntervalHours" class="form-control" />
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Current Operating Hours</label>
+                                            <InputNumber @bind-Value="editingMachineCenter.CurrentOperatingHours" class="form-control" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Last Maintenance Date</label>
+                                            <InputDate @bind-Value="editingMachineCenter.LastMaintenanceDate" class="form-control" />
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Next Maintenance Date</label>
+                                            <InputDate @bind-Value="editingMachineCenter.NextMaintenanceDate" class="form-control" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                @if (editingMachineCenter.MaintenanceIntervalHours > 0 && editingMachineCenter.CurrentOperatingHours > 0)
+                                {
+                                    var remainingHours = editingMachineCenter.MaintenanceIntervalHours - (editingMachineCenter.CurrentOperatingHours % editingMachineCenter.MaintenanceIntervalHours);
+                                    var progressPercentage = ((double)(editingMachineCenter.CurrentOperatingHours % editingMachineCenter.MaintenanceIntervalHours) / editingMachineCenter.MaintenanceIntervalHours) * 100;
+
+                                    <div class="alert alert-info">
+                                        <h6>Maintenance Progress</h6>
+                                        <div class="progress mb-2">
+                                            <div class="progress-bar" role="progressbar" style="width: @progressPercentage%" aria-valuenow="@progressPercentage" aria-valuemin="0" aria-valuemax="100"></div>
+                                        </div>
+                                        <small>@remainingHours hours remaining until next maintenance</small>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="form-check mt-3">
+                            <InputCheckbox @bind-Value="editingMachineCenter.IsActive" class="form-check-input" id="isActive" />
+                            <label class="form-check-label" for="isActive">
+                                Active
+                            </label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Save Machine Center
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
+
+@code {
+    private List<MachineCenter>? machineCenters;
+    private List<WorkCenter>? workCenters;
+    private MachineCenter editingMachineCenter = new();
+    private bool showModal = false;
+    private int companyId = 1; // TODO: Get from user context
+    private int? currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var userIdClaim = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+        if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var userId))
+        {
+            currentUserId = userId;
+        }
+        
+        await LoadMachineCenters();
+        await LoadWorkCenters();
+    }
+
+    private async Task LoadMachineCenters()
+    {
+        using var context = await DbFactory.CreateDbContextAsync();
+        
+        machineCenters = await context.MachineCenters
+            .Include(m => m.WorkCenter)
+            .Where(m => m.CompanyId == companyId && !m.IsDeleted)
+            .OrderBy(m => m.MachineCode)
+            .ToListAsync();
+    }
+
+    private async Task LoadWorkCenters()
+    {
+        using var context = await DbFactory.CreateDbContextAsync();
+        
+        workCenters = await context.WorkCenters
+            .Where(w => w.CompanyId == companyId && !w.IsDeleted && w.IsActive)
+            .OrderBy(w => w.Name)
+            .ToListAsync();
+    }
+
+    private void ShowAddMachineCenterModal()
+    {
+        editingMachineCenter = new MachineCenter
+        {
+            CompanyId = companyId,
+            IsActive = true,
+            CurrentStatus = "Available",
+            EfficiencyPercentage = 85,
+            QualityRate = 95,
+            AvailabilityRate = 90,
+            MaintenanceIntervalHours = 500,
+            MachineType = "CNC"
+        };
+        showModal = true;
+    }
+
+    private void EditMachineCenter(MachineCenter machine)
+    {
+        editingMachineCenter = new MachineCenter
+        {
+            Id = machine.Id,
+            MachineCode = machine.MachineCode,
+            MachineName = machine.MachineName,
+            Description = machine.Description,
+            WorkCenterId = machine.WorkCenterId,
+            CompanyId = machine.CompanyId,
+            Manufacturer = machine.Manufacturer,
+            Model = machine.Model,
+            SerialNumber = machine.SerialNumber,
+            PurchaseDate = machine.PurchaseDate,
+            PurchasePrice = machine.PurchasePrice,
+            MachineType = machine.MachineType,
+            MachineSubType = machine.MachineSubType,
+            MaxCapacity = machine.MaxCapacity,
+            CapacityUnit = machine.CapacityUnit,
+            SetupTimeMinutes = machine.SetupTimeMinutes,
+            WarmupTimeMinutes = machine.WarmupTimeMinutes,
+            CooldownTimeMinutes = machine.CooldownTimeMinutes,
+            HourlyRate = machine.HourlyRate,
+            PowerConsumptionKwh = machine.PowerConsumptionKwh,
+            PowerCostPerKwh = machine.PowerCostPerKwh,
+            EfficiencyPercentage = machine.EfficiencyPercentage,
+            QualityRate = machine.QualityRate,
+            AvailabilityRate = machine.AvailabilityRate,
+            IsActive = machine.IsActive,
+            CurrentStatus = machine.CurrentStatus,
+            LastMaintenanceDate = machine.LastMaintenanceDate,
+            NextMaintenanceDate = machine.NextMaintenanceDate,
+            MaintenanceIntervalHours = machine.MaintenanceIntervalHours,
+            CurrentOperatingHours = machine.CurrentOperatingHours,
+            RequiresTooling = machine.RequiresTooling,
+            ToolingRequirements = machine.ToolingRequirements
+        };
+        showModal = true;
+    }
+
+    private async Task SaveMachineCenter()
+    {
+        using var context = await DbFactory.CreateDbContextAsync();
+
+        if (editingMachineCenter.Id == 0)
+        {
+            editingMachineCenter.CreatedDate = DateTime.UtcNow;
+            editingMachineCenter.CreatedByUserId = currentUserId;
+            context.MachineCenters.Add(editingMachineCenter);
+        }
+        else
+        {
+            var existing = await context.MachineCenters.FindAsync(editingMachineCenter.Id);
+            if (existing != null)
+            {
+                existing.MachineCode = editingMachineCenter.MachineCode;
+                existing.MachineName = editingMachineCenter.MachineName;
+                existing.Description = editingMachineCenter.Description;
+                existing.WorkCenterId = editingMachineCenter.WorkCenterId;
+                existing.Manufacturer = editingMachineCenter.Manufacturer;
+                existing.Model = editingMachineCenter.Model;
+                existing.SerialNumber = editingMachineCenter.SerialNumber;
+                existing.PurchaseDate = editingMachineCenter.PurchaseDate;
+                existing.PurchasePrice = editingMachineCenter.PurchasePrice;
+                existing.MachineType = editingMachineCenter.MachineType;
+                existing.MachineSubType = editingMachineCenter.MachineSubType;
+                existing.MaxCapacity = editingMachineCenter.MaxCapacity;
+                existing.CapacityUnit = editingMachineCenter.CapacityUnit;
+                existing.SetupTimeMinutes = editingMachineCenter.SetupTimeMinutes;
+                existing.WarmupTimeMinutes = editingMachineCenter.WarmupTimeMinutes;
+                existing.CooldownTimeMinutes = editingMachineCenter.CooldownTimeMinutes;
+                existing.HourlyRate = editingMachineCenter.HourlyRate;
+                existing.PowerConsumptionKwh = editingMachineCenter.PowerConsumptionKwh;
+                existing.PowerCostPerKwh = editingMachineCenter.PowerCostPerKwh;
+                existing.EfficiencyPercentage = editingMachineCenter.EfficiencyPercentage;
+                existing.QualityRate = editingMachineCenter.QualityRate;
+                existing.AvailabilityRate = editingMachineCenter.AvailabilityRate;
+                existing.IsActive = editingMachineCenter.IsActive;
+                existing.CurrentStatus = editingMachineCenter.CurrentStatus;
+                existing.LastMaintenanceDate = editingMachineCenter.LastMaintenanceDate;
+                existing.NextMaintenanceDate = editingMachineCenter.NextMaintenanceDate;
+                existing.MaintenanceIntervalHours = editingMachineCenter.MaintenanceIntervalHours;
+                existing.CurrentOperatingHours = editingMachineCenter.CurrentOperatingHours;
+                existing.RequiresTooling = editingMachineCenter.RequiresTooling;
+                existing.ToolingRequirements = editingMachineCenter.ToolingRequirements;
+                existing.LastModified = DateTime.UtcNow;
+                existing.LastModifiedByUserId = currentUserId;
+            }
+        }
+
+        await context.SaveChangesAsync();
+        await LoadMachineCenters();
+        CloseModal();
+    }
+
+    private async Task DeleteMachineCenter(MachineCenter machine)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", 
+            $"Are you sure you want to delete the machine '{machine.MachineName}'?");
+        
+        if (confirmed)
+        {
+            using var context = await DbFactory.CreateDbContextAsync();
+            var existing = await context.MachineCenters.FindAsync(machine.Id);
+            if (existing != null)
+            {
+                existing.IsDeleted = true;
+                existing.LastModified = DateTime.UtcNow;
+                existing.LastModifiedByUserId = currentUserId;
+                await context.SaveChangesAsync();
+                await LoadMachineCenters();
+            }
+        }
+    }
+
+    private void ViewMachineCenter(MachineCenter machine)
+    {
+        Navigation.NavigateTo($"/settings/machine-centers/{machine.Id}");
+    }
+
+    private void ManageMaintenance(MachineCenter machine)
+    {
+        Navigation.NavigateTo($"/settings/machine-centers/{machine.Id}/maintenance");
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        editingMachineCenter = new();
+    }
+}

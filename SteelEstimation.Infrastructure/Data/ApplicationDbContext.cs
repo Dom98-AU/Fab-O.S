@@ -93,6 +93,14 @@ public class ApplicationDbContext : DbContext
     public DbSet<CommentReaction> CommentReactions { get; set; }
     public DbSet<Notification> Notifications { get; set; }
     public DbSet<UserActivity> UserActivities { get; set; }
+    
+    // Work Centers and Machine Centers
+    public DbSet<WorkCenter> WorkCenters { get; set; }
+    public DbSet<WorkCenterSkill> WorkCenterSkills { get; set; }
+    public DbSet<WorkCenterShift> WorkCenterShifts { get; set; }
+    public DbSet<MachineCenter> MachineCenters { get; set; }
+    public DbSet<MachineCapability> MachineCapabilities { get; set; }
+    public DbSet<MachineOperator> MachineOperators { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -990,6 +998,138 @@ public class ApplicationDbContext : DbContext
             new Role { Id = 4, RoleName = "Estimator", Description = "Can edit assigned projects", CanCreateProjects = false, CanEditProjects = true, CanDeleteProjects = false, CanViewAllProjects = false, CanManageUsers = false, CanExportData = true, CanImportData = true },
             new Role { Id = 5, RoleName = "Viewer", Description = "Read-only access to assigned projects", CanCreateProjects = false, CanEditProjects = false, CanDeleteProjects = false, CanViewAllProjects = false, CanManageUsers = false, CanExportData = true, CanImportData = false }
         );
+        
+        // Work Center configuration
+        modelBuilder.Entity<WorkCenter>(entity =>
+        {
+            entity.HasIndex(e => new { e.CompanyId, e.Code }).IsUnique();
+            entity.HasIndex(e => e.IsActive);
+            entity.HasIndex(e => e.WorkCenterType);
+            
+            entity.Property(e => e.HourlyRate)
+                .HasPrecision(10, 2);
+            entity.Property(e => e.OverheadRate)
+                .HasPrecision(10, 2);
+            entity.Property(e => e.EfficiencyPercentage)
+                .HasPrecision(5, 2);
+            
+            entity.HasOne(e => e.Company)
+                .WithMany()
+                .HasForeignKey(e => e.CompanyId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            entity.HasOne(e => e.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.CreatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+                
+            entity.HasOne(e => e.LastModifiedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.LastModifiedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+        
+        // Machine Center configuration
+        modelBuilder.Entity<MachineCenter>(entity =>
+        {
+            entity.HasIndex(e => new { e.CompanyId, e.MachineCode }).IsUnique();
+            entity.HasIndex(e => e.WorkCenterId);
+            entity.HasIndex(e => e.IsActive);
+            entity.HasIndex(e => e.CurrentStatus);
+            entity.HasIndex(e => e.MachineType);
+            
+            entity.Property(e => e.HourlyRate)
+                .HasPrecision(10, 2);
+            entity.Property(e => e.PowerConsumptionKwh)
+                .HasPrecision(10, 2);
+            entity.Property(e => e.PowerCostPerKwh)
+                .HasPrecision(10, 2);
+            entity.Property(e => e.EfficiencyPercentage)
+                .HasPrecision(5, 2);
+            entity.Property(e => e.QualityRate)
+                .HasPrecision(5, 2);
+            entity.Property(e => e.AvailabilityRate)
+                .HasPrecision(5, 2);
+            
+            entity.HasOne(e => e.WorkCenter)
+                .WithMany(w => w.MachineCenters)
+                .HasForeignKey(e => e.WorkCenterId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            entity.HasOne(e => e.Company)
+                .WithMany()
+                .HasForeignKey(e => e.CompanyId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            entity.HasOne(e => e.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.CreatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+                
+            entity.HasOne(e => e.LastModifiedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.LastModifiedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+        
+        // Machine Capability configuration
+        modelBuilder.Entity<MachineCapability>(entity =>
+        {
+            entity.HasIndex(e => e.MachineCenterId);
+            
+            entity.Property(e => e.MinValue)
+                .HasPrecision(10, 2);
+            entity.Property(e => e.MaxValue)
+                .HasPrecision(10, 2);
+                
+            entity.HasOne(e => e.MachineCenter)
+                .WithMany(m => m.Capabilities)
+                .HasForeignKey(e => e.MachineCenterId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        
+        // Machine Operator configuration
+        modelBuilder.Entity<MachineOperator>(entity =>
+        {
+            entity.HasIndex(e => new { e.MachineCenterId, e.UserId }).IsUnique();
+            entity.HasIndex(e => e.IsActive);
+            
+            entity.HasOne(e => e.MachineCenter)
+                .WithMany(m => m.Operators)
+                .HasForeignKey(e => e.MachineCenterId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+        
+        // Work Center Skill configuration
+        modelBuilder.Entity<WorkCenterSkill>(entity =>
+        {
+            entity.HasIndex(e => e.WorkCenterId);
+            
+            entity.HasOne(e => e.WorkCenter)
+                .WithMany(w => w.RequiredSkills)
+                .HasForeignKey(e => e.WorkCenterId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        
+        // Work Center Shift configuration
+        modelBuilder.Entity<WorkCenterShift>(entity =>
+        {
+            entity.HasIndex(e => e.WorkCenterId);
+            entity.HasIndex(e => e.IsActive);
+            
+            entity.Property(e => e.EfficiencyMultiplier)
+                .HasPrecision(5, 2);
+                
+            entity.HasOne(e => e.WorkCenter)
+                .WithMany(w => w.Shifts)
+                .HasForeignKey(e => e.WorkCenterId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

@@ -1,0 +1,74 @@
+{
+  "timestamp": "2025-08-11T05-10-08-197Z",
+  "tests": [
+    {
+      "name": "Logo Verification",
+      "passed": true,
+      "details": {
+        "exists": true,
+        "src": "http://localhost:8080/images/f_symbol_square_auto.png",
+        "width": 50,
+        "height": 50,
+        "left": 69.515625,
+        "parentWidth": 249,
+        "isCentered": false,
+        "computedStyles": "start"
+      }
+    },
+    {
+      "name": "Hamburger Button Visibility",
+      "passed": true,
+      "details": {
+        "visible": true,
+        "selector": "[class*=\"toggle\"]"
+      }
+    },
+    {
+      "name": "Sidebar Collapse",
+      "passed": false,
+      "details": {
+        "isCollapsed": false,
+        "sidebarWidth": 1920,
+        "sidebarTransform": "none",
+        "sidebarLeft": "0px",
+        "sidebarMarginLeft": "0px",
+        "mainContentMargin": "0px",
+        "bodyClasses": "",
+        "sidebarClasses": "page sidebar-collapsed",
+        "transition": "all"
+      }
+    },
+    {
+      "name": "Sidebar Re-expand",
+      "passed": true,
+      "details": {
+        "isExpanded": true,
+        "sidebarWidth": 250,
+        "sidebarTransform": "none",
+        "sidebarLeft": "0px",
+        "mainContentMargin": "250px",
+        "bodyClasses": "",
+        "sidebarClasses": "custom-sidebar"
+      }
+    },
+    {
+      "name": "Animation Smoothness",
+      "passed": true,
+      "details": {
+        "smooth": true,
+        "transition": "transform 0.3s",
+        "duration": "0.3s",
+        "hasAnimation": true
+      }
+    }
+  ],
+  "screenshots": [
+    "sidebar-test-1-landing-2025-08-11T05-10-08-197Z.png",
+    "sidebar-test-2-login-form-2025-08-11T05-10-08-197Z.png",
+    "sidebar-test-3-expanded-2025-08-11T05-10-08-197Z.png",
+    "sidebar-test-4-collapsed-2025-08-11T05-10-08-197Z.png",
+    "sidebar-test-5-reexpanded-2025-08-11T05-10-08-197Z.png",
+    "sidebar-test-6-final-2025-08-11T05-10-08-197Z.png"
+  ],
+  "overall": "FAILED"
+}

@@ -3,6 +3,25 @@
 
 <div class="standard-toolbar @Class">
     <div class="toolbar-section toolbar-primary">
+        @if (ShowSearch)
+        {
+            <div class="toolbar-search">
+                <div class="input-group">
+                    <span class="input-group-text">
+                        <i class="fas fa-search"></i>
+                    </span>
+                    <input type="text" class="form-control" placeholder="@SearchPlaceholder" 
+                           @bind="SearchTerm" @bind:event="oninput" />
+                    @if (!string.IsNullOrEmpty(SearchTerm))
+                    {
+                        <button class="btn btn-outline-secondary" type="button" @onclick="ClearSearch">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    }
+                </div>
+            </div>
+        }
+        
         @if (ShowNew && !string.IsNullOrEmpty(NewUrl))
         {
             <a href="@NewUrl" class="btn btn-toolbar btn-new">
@@ -15,6 +34,14 @@
             <button class="btn btn-toolbar btn-new" @onclick="OnNewClick">
                 <i class="fas fa-plus"></i>
                 <span>@NewLabel</span>
+            </button>
+        }
+        
+        @if (ShowDelete)
+        {
+            <button class="btn btn-toolbar btn-delete" @onclick="OnDeleteClick" disabled="@(!OnDeleteClick.HasDelegate)">
+                <i class="fas fa-trash me-1"></i>
+                <span>Delete</span>
             </button>
         }
         
@@ -171,25 +198,6 @@
     </div>
 
     <div class="toolbar-section toolbar-utilities">
-        @if (ShowSearch)
-        {
-            <div class="toolbar-search">
-                <div class="input-group">
-                    <span class="input-group-text">
-                        <i class="fas fa-search"></i>
-                    </span>
-                    <input type="text" class="form-control" placeholder="@SearchPlaceholder" 
-                           @bind="SearchTerm" @bind:event="oninput" />
-                    @if (!string.IsNullOrEmpty(SearchTerm))
-                    {
-                        <button class="btn btn-outline-secondary" type="button" @onclick="ClearSearch">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    }
-                </div>
-            </div>
-        }
-        
         @if (ShowRefresh)
         {
             <button class="btn btn-toolbar btn-refresh" @onclick="OnRefreshClick" title="Refresh">
@@ -236,6 +244,7 @@
 @code {
     // Display control
     [Parameter] public bool ShowNew { get; set; } = true;
+    [Parameter] public bool ShowDelete { get; set; } = false;
     [Parameter] public bool ShowImport { get; set; } = false;
     [Parameter] public bool ShowExport { get; set; } = false;
     [Parameter] public bool ShowBulkDelete { get; set; } = true;
@@ -289,6 +298,7 @@
     
     // Event callbacks
     [Parameter] public EventCallback OnNewClick { get; set; }
+    [Parameter] public EventCallback OnDeleteClick { get; set; }
     [Parameter] public EventCallback OnImportClick { get; set; }
     [Parameter] public EventCallback OnExportClick { get; set; }
     [Parameter] public EventCallback OnBulkDeleteClick { get; set; }

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Sidebar</title>
+    <script>
+        async function checkSidebar() {
+            try {
+                // First login
+                const loginForm = new FormData();
+                loginForm.append('Input.Email', 'admin@steelestimation.com');
+                loginForm.append('Input.Password', 'Admin@123');
+                
+                await fetch('http://localhost:8080/Account/Login', {
+                    method: 'POST',
+                    body: loginForm,
+                    credentials: 'include'
+                });
+                
+                // Get the dashboard page
+                const response = await fetch('http://localhost:8080/', {
+                    credentials: 'include'
+                });
+                const html = await response.text();
+                
+                // Extract sidebar HTML
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const sidebar = doc.querySelector('.custom-sidebar');
+                
+                if (sidebar) {
+                    // Check for logo text
+                    const logoArea = sidebar.querySelector('.sidebar-logo');
+                    console.log('Logo area HTML:', logoArea ? logoArea.innerHTML : 'Not found');
+                    
+                    // Check for module switcher
+                    const moduleSwitcher = sidebar.querySelector('.module-switcher');
+                    console.log('Module switcher found:', moduleSwitcher ? 'YES' : 'NO');
+                    
+                    // Display the sidebar HTML
+                    document.getElementById('result').innerHTML = `
+                        <h2>Sidebar HTML:</h2>
+                        <pre>${sidebar.outerHTML.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+                    `;
+                } else {
+                    document.getElementById('result').innerHTML = 'No sidebar found with class .custom-sidebar';
+                }
+            } catch (error) {
+                document.getElementById('result').innerHTML = 'Error: ' + error.message;
+            }
+        }
+    </script>
+</head>
+<body>
+    <h1>Sidebar Test</h1>
+    <button onclick="checkSidebar()">Check Sidebar</button>
+    <div id="result"></div>
+</body>
+</html>
